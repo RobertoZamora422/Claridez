@@ -68,13 +68,15 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 2 — Plataforma local
 
+**Estado:** completada técnicamente el 31 de julio de 2026.
+
 ### Alcance
 
 - PostgreSQL reproducible.
 - Configuración validada y ambientes separados.
 - Secretos fuera de Git.
 - Endpoints técnicos de salud.
-- CI básico.
+- Base verificable para futura CI, sin crear workflows en esta iteración.
 
 ### Restricciones
 
@@ -86,7 +88,7 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 - Entorno local reconstruible.
 - PostgreSQL real utilizado por pruebas de integración.
 - Configuración inválida falla de forma explícita.
-- CI ejecuta las comprobaciones básicas aprobadas.
+- Los comandos aprobados dejan una base reproducible para futura CI.
 
 ## Iteración 3 — Spike de tenancy
 

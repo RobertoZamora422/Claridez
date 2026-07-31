@@ -1,0 +1,38 @@
+name: claridez
+
+services:
+  postgres:
+    image: postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394
+    platform: linux/amd64
+    container_name: claridez-postgres-local
+    restart: "on-failure:3"
+    environment:
+      POSTGRES_DB: ${CLARIDEZ_POSTGRES_ADMIN_DB}
+      POSTGRES_USER: ${CLARIDEZ_POSTGRES_ADMIN_USER}
+      POSTGRES_PASSWORD: ${CLARIDEZ_POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - cluster_name=claridez-local
+    ports:
+      - "127.0.0.1:${CLARIDEZ_DB_PORT}:5432"
+    volumes:
+      - claridez_postgres17_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -h 127.0.0.1 -p 5432
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    stop_grace_period: 30s
+
+volumes:
+  claridez_postgres17_data:
+    name: claridez_postgres17_data

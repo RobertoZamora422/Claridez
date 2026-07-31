@@ -1,11 +1,12 @@
-"""Configuración común mínima de Django para la Iteración 1."""
+"""Configuración común de Django independiente de credenciales."""
 
-import os
 from pathlib import Path
+from typing import Any
+
+from pydantic import SecretStr
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 
-SECRET_KEY = ""
 DEBUG = False
 ALLOWED_HOSTS: list[str] = []
 
@@ -18,18 +19,6 @@ ROOT_URLCONF = "claridez.urls"
 TEMPLATES: list[dict[str, object]] = []
 WSGI_APPLICATION = "claridez.wsgi.application"
 ASGI_APPLICATION = "claridez.asgi.application"
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("CLARIDEZ_DB_NAME", "claridez"),
-        "USER": os.environ.get("CLARIDEZ_DB_USER", "claridez"),
-        "PASSWORD": os.environ.get("CLARIDEZ_DB_PASSWORD", ""),
-        "HOST": os.environ.get("CLARIDEZ_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("CLARIDEZ_DB_PORT", "5432"),
-        "CONN_MAX_AGE": 0,
-    }
-}
 
 LANGUAGE_CODE = "es-ec"
 TIME_ZONE = "America/Guayaquil"
@@ -46,3 +35,59 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
+
+
+def build_database_configuration(
+    *,
+    name: str,
+    user: str,
+    password: SecretStr,
+    host: str,
+    port: int,
+    connect_timeout: int,
+    statement_timeout_ms: int,
+    sslmode: str,
+    test_name: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Construir una conexión PostgreSQL sin alternativas silenciosas."""
+    database: dict[str, Any] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": name,
+        "USER": user,
+        "PASSWORD": password.get_secret_value(),
+        "HOST": host,
+        "PORT": port,
+        "CONN_MAX_AGE": 0,
+        "CONN_HEALTH_CHECKS": False,
+        "OPTIONS": {
+            "connect_timeout": connect_timeout,
+            "options": f"-c timezone=UTC -c statement_timeout={statement_timeout_ms}",
+            "sslmode": sslmode,
+        },
+    }
+    if test_name is not None:
+        database["TEST"] = {"NAME": test_name}
+    return {"default": database}
+
+
+def build_logging_configuration(level: str) -> dict[str, Any]:
+    """Enviar logs técnicos estructurados a la salida estándar."""
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"json": {"()": "claridez.logging.SafeJsonFormatter"}},
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "json",
+            }
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": level,
+                "propagate": False,
+            }
+        },
+        "root": {"handlers": ["console"], "level": level},
+    }

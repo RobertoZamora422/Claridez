@@ -48,6 +48,8 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0004](0004-defer-asynchronous-infrastructure.md) | Aceptado | Diferimiento de infraestructura asíncrona |
 | [0005](0005-incremental-observability.md) | Aceptado | Observabilidad incremental |
 | [0006](0006-reproducible-toolchains.md) | Aceptado con asuntos diferidos | Toolchains reproducibles y comandos oficiales |
+| [0007](0007-local-postgresql-platform.md) | Aceptado con asuntos diferidos | Plataforma PostgreSQL local reproducible |
+| [0008](0008-validated-local-configuration-and-health.md) | Aceptado con asuntos diferidos | Configuración local validada y endpoints técnicos |
 
 ## Modificación y reemplazo
 

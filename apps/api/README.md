@@ -1,6 +1,6 @@
 # API de Claridez
 
-Esqueleto técnico de la API REST de Claridez. En la Iteración 1 contiene únicamente la configuración necesaria para validar Django, Django REST Framework, PostgreSQL como backend exclusivo y la generación técnica de OpenAPI.
+Esqueleto técnico de la API REST de Claridez. En la Iteración 2 incorpora configuración local validada, perfiles de credenciales separados, PostgreSQL real y los endpoints técnicos `/health` y `/ready`.
 
 No contiene aplicaciones funcionales, modelos, migraciones, usuarios del dominio ni reglas multiempresa productivas.
 
@@ -10,7 +10,7 @@ No contiene aplicaciones funcionales, modelos, migraciones, usuarios del dominio
 - uv 0.12.0.
 - Las dependencias fijadas en `pyproject.toml` y `uv.lock`.
 
-PostgreSQL 17 es la versión objetivo, pero no se instala ni se conecta durante esta iteración.
+PostgreSQL 17.10 se ejecuta mediante el `compose.yaml` raíz. Django continúa ejecutándose nativamente en Windows.
 
 ## Instalación reproducible
 
@@ -22,9 +22,20 @@ uv --directory apps/api sync --locked
 
 ## Configuración técnica
 
-Los comandos automatizados utilizan `claridez.settings.test`. Esta configuración declara exclusivamente el backend PostgreSQL, pero las pruebas bootstrap y las comprobaciones no abren una conexión.
+Los perfiles son:
 
-`claridez.settings.development` exige `CLARIDEZ_SECRET_KEY`. La configuración validada y los secretos locales se completarán en la Iteración 2.
+- `claridez.settings.development`: ejecución normal con `claridez_app`.
+- `claridez.settings.migration`: migraciones con `claridez_migrator`.
+- `claridez.settings.test`: pruebas con `claridez_test_runner` y PostgreSQL real.
+
+`pydantic-settings` valida las variables requeridas desde el `.env` local ignorado. Los errores no incluyen valores. La guía completa se encuentra en [la plataforma local](../../docs/architecture/LOCAL_PLATFORM.md).
+
+## Endpoints
+
+- `/health` confirma únicamente que Django responde.
+- `/ready` ejecuta `SELECT 1` y responde de forma genérica.
+
+No existen endpoints de negocio.
 
 ## OpenAPI
 

@@ -16,7 +16,8 @@ Este documento registra versiones exactas y evidencia observada. No define arqui
 | Django REST Framework | 3.16.1 | Último parche estable de 3.16 al evaluar |
 | drf-spectacular | 0.30.0 | Candidato compatible para OpenAPI |
 | Psycopg | 3.3.4 | Driver PostgreSQL |
-| PostgreSQL | 17.x | Objetivo; no instalado ni conectado en esta iteración |
+| pydantic-settings | 2.14.2 | Configuración local tipada y validada; añadido en la Iteración 2 |
+| PostgreSQL | 17.10 | Imagen local `17.10-bookworm` fijada por digest en la Iteración 2 |
 | Node.js | 24.18.1 | LTS Krypton |
 | npm | 11.16.0 | Versión incluida con Node.js seleccionado |
 | React | 19.2.8 | Mismo parche que React DOM |
@@ -37,6 +38,7 @@ No se utilizan versiones preliminares ni etiquetas flotantes. Los parches exacto
 - Django REST Framework: API REST JSON.
 - drf-spectacular: generación y validación OpenAPI.
 - Psycopg con binarios: driver PostgreSQL reproducible en Windows durante esta etapa.
+- pydantic-settings: perfiles locales tipados, secretos protegidos y fallo temprano de configuración.
 
 ### API de desarrollo
 
@@ -93,9 +95,15 @@ mypy 1.19.1 y django-stubs 5.2.9 funcionan con Django 5.2.16 en modo estricto. S
 
 `apps/api/openapi-schema.yaml` es un artefacto temporal ignorado. Se regenera y valida durante `build` y `check`; no debe editarse ni interpretarse aún como contrato funcional versionado. La decisión de publicar el contrato se retomará cuando existan endpoints aprobados.
 
+## Extensión validada en la Iteración 2
+
+`pydantic-settings` 2.14.2 resolvió de forma compatible con Python 3.13.14, Django 5.2.16, mypy estricto y los lockfiles existentes. Su resolución exacta incorpora Pydantic 2.13.4, pydantic-core 2.46.4, python-dotenv 1.2.2, annotated-types 0.8.0 y typing-inspection 0.4.2.
+
+PostgreSQL 17.10 fue comprobado mediante la imagen y digest registrados en [LOCAL_PLATFORM.md](LOCAL_PLATFORM.md). La aplicación se conectó con Psycopg 3.3.4, ejecutó sesiones UTC y pruebas reales sin introducir SQLite.
+
 ## Límites
 
-- PostgreSQL 17 no se instala ni se conecta. Las pruebas verifican la configuración del backend sin realizar consultas.
+- La afirmación original de que PostgreSQL no se conectaba corresponde exclusivamente a la Iteración 1. La Iteración 2 añade su plataforma local y suite de integración.
 - No se producen wheel, sdist ni artefactos productivos de backend.
 - La cobertura observada fue 62% en backend y 100% sobre el único componente técnico frontend incluido. Informa el alcance del esqueleto, pero no es un objetivo de calidad definitivo.
 - Las auditorías dependen del estado del servicio externo al momento de ejecutarse.

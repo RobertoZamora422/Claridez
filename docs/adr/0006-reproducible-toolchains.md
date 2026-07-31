@@ -60,3 +60,5 @@ Claridez necesita esqueletos técnicos reproducibles para Django y React antes d
 ## Evidencia
 
 Los resultados observados de la matriz se registran en `../architecture/TOOLCHAIN_COMPATIBILITY.md`.
+
+La configuración local provisional y la instalación real de PostgreSQL quedaron resueltas posteriormente por los ADR [0007](0007-local-postgresql-platform.md) y [0008](0008-validated-local-configuration-and-health.md), sin reemplazar las decisiones de toolchain de este ADR.

@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles y esqueletos técnicos mínimos, pero todavía no contiene módulos funcionales.
+Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles, plataforma PostgreSQL local y esqueletos técnicos mínimos, pero todavía no contiene módulos funcionales.
 
 Toda contribución debe respetar [AGENTS.md](AGENTS.md), la [línea base del producto](docs/product/PRODUCT_BASELINE.md), los [ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
 
@@ -50,6 +50,8 @@ Las dependencias aprobadas y su matriz se registran en `docs/architecture/TOOLCH
 
 ## Calidad
 
+La reconstrucción de la plataforma local se documenta en [docs/architecture/LOCAL_PLATFORM.md](docs/architecture/LOCAL_PLATFORM.md). `.env` es local, ignorado y nunca debe prepararse; `.env.example` no puede contener valores secretos.
+
 Desde la raíz se deben ejecutar, según el alcance del cambio:
 
 ```text
@@ -59,9 +61,10 @@ npm run typecheck
 npm test
 npm run build
 npm run check
+npm run check:all
 ```
 
-`npm run format` aplica correcciones y debe ser idempotente. `npm run audit` se ejecuta por separado porque requiere acceso a servicios externos.
+`npm run format` aplica correcciones y debe ser idempotente. `check:all` requiere PostgreSQL local iniciado y preparado. `npm run audit` se ejecuta por separado porque requiere acceso a servicios externos.
 
 Además, toda contribución debe comprobar:
 

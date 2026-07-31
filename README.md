@@ -8,7 +8,7 @@ Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y ad
 
 ## Estado del proyecto
 
-El repositorio completó la **Iteración 0 — Gobierno documental** y la **Iteración 1 — Toolchains reproducibles**. Contiene esqueletos técnicos mínimos de backend y frontend, sin módulos funcionales ni entidades del dominio.
+El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains reproducibles** y la **Iteración 2 — Plataforma local y configuración**. Contiene esqueletos técnicos mínimos, PostgreSQL local reproducible y endpoints de salud, sin módulos funcionales ni entidades del dominio.
 
 Todavía no existen:
 
@@ -47,6 +47,7 @@ La línea base aprobada se encuentra en [docs/product/PRODUCT_BASELINE.md](docs/
 - [Línea base del producto v0.1](docs/product/PRODUCT_BASELINE.md)
 - [Roadmap técnico de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md)
 - [Matriz de compatibilidad de toolchains](docs/architecture/TOOLCHAIN_COMPATIBILITY.md)
+- [Plataforma local y configuración](docs/architecture/LOCAL_PLATFORM.md)
 - [Registro de decisiones arquitectónicas](docs/adr/README.md)
 - [Documentos oficiales de marca](docs/brand/README.md)
 - [Reglas para colaboradores y agentes](AGENTS.md)
@@ -59,7 +60,7 @@ Requisitos fijados:
 
 - Python 3.13.14 y uv 0.12.0.
 - Node.js 24.18.1 y npm 11.16.0.
-- PostgreSQL 17 como objetivo inicial; su plataforma local se incorporará en la Iteración 2.
+- Docker Desktop con Docker Compose para ejecutar únicamente PostgreSQL 17.10 local.
 
 Instalación reproducible desde la raíz:
 
@@ -67,6 +68,17 @@ Instalación reproducible desde la raíz:
 uv --directory apps/api sync --locked
 npm ci
 ```
+
+Preparación inicial de PostgreSQL, después de crear un `.env` local a partir de `.env.example`:
+
+```text
+npm run db:start
+npm run db:prepare
+npm run db:migrate
+npm run db:check
+```
+
+La guía completa, perfiles y protecciones se encuentran en [docs/architecture/LOCAL_PLATFORM.md](docs/architecture/LOCAL_PLATFORM.md).
 
 Comandos oficiales:
 
@@ -78,10 +90,11 @@ npm run typecheck
 npm test
 npm run build
 npm run check
+npm run check:all
 npm run audit
 ```
 
-`format` modifica archivos; `check` usa la variante de formato sin escritura. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.
+`format` modifica archivos; `check` usa la variante de formato sin escritura. `check:all` añade PostgreSQL real, conexión y migraciones. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.
 
 ## Propiedad
 

@@ -76,14 +76,16 @@ Estos perfiles no constituyen una matriz definitiva de permisos. Está prohibido
 
 ## 8. Alcance técnico establecido
 
-La Iteración 1 incorpora únicamente esqueletos técnicos en `apps/api` y `apps/web`, dependencias fijadas, lockfiles y comandos reproducibles. Hasta que exista una nueva instrucción explícita, no se deben crear:
+La Iteración 2 incorpora PostgreSQL local reproducible, configuración validada, perfiles separados, endpoints técnicos y pruebas de integración. Django y React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que exista una nueva instrucción explícita, no se deben crear:
 
 - Aplicaciones funcionales, modelos, migraciones o endpoints de negocio.
 - Organizaciones, membresías, usuarios del dominio ni configuración multiempresa productiva.
 - Workflows de CI.
-- Contenedores o infraestructura.
+- Contenedores o infraestructura adicionales.
 - Integraciones o proveedores externos.
 - Cliente TypeScript generado.
+
+Los únicos endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`. PostgreSQL local se publica solo sobre loopback. Django normal usa `claridez_app`; las migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda reservado al bootstrap local explícito.
 
 ## 9. Dependencias y herramientas
 
@@ -151,7 +153,10 @@ Desde la raíz del repositorio:
 - `npm test`: ejecuta pruebas y genera cobertura.
 - `npm run build`: valida Django, sintaxis, OpenAPI y el build de Vite.
 - `npm run check`: ejecuta la puerta local completa sin auditorías de red.
+- `npm run check:all`: añade conexión, migraciones y pruebas contra PostgreSQL real.
 - `npm run audit`: audita dependencias mediante servicios externos.
+
+Los comandos de plataforma y sus protecciones se documentan en `docs/architecture/LOCAL_PLATFORM.md`. Nunca se ejecuta `docker compose down -v` como reset normal.
 
 Las instalaciones reproducibles son `uv --directory apps/api sync --locked` y `npm ci`.
 

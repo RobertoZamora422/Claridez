@@ -12,6 +12,7 @@ Este directorio contiene las fuentes versionadas que gobiernan producto, arquite
 
 - [Roadmap técnico de inicialización](architecture/INITIALIZATION_ROADMAP.md): secuencia aprobada desde el gobierno documental hasta el primer flujo vertical.
 - [Matriz de compatibilidad de toolchains](architecture/TOOLCHAIN_COMPATIBILITY.md): versiones exactas, dependencias, evidencia y límites de la Iteración 1.
+- [Plataforma local y configuración](architecture/LOCAL_PLATFORM.md): PostgreSQL 17 local, variables, perfiles, privilegios, comandos y endpoints técnicos de la Iteración 2.
 - [Registro de ADR](adr/README.md): decisiones arquitectónicas, estados y plantilla.
 
 ### Marca
