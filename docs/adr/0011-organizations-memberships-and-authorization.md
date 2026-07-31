@@ -28,10 +28,32 @@ Se aprueban las entidades productivas `Organization`, `Membership` y `Organizati
   membresía. La combinación usuario-organización será única en PostgreSQL.
 - `OrganizationSettings` pertenece obligatoriamente a una organización y será la primera entidad
   privada productiva protegida por RLS. Contendrá inicialmente la moneda y la zona horaria de la
-  organización, con USD y `America/Guayaquil` como valores iniciales configurables.
+  organización, con USD y `America/Guayaquil` como valores iniciales configurables. Su
+  implementación y el RLS productivo pertenecen a 4.5, no a 4.2.
 
 Los ciclos de vida, campos y transiciones no enumerados aquí no quedan autorizados por inferencia.
 Las entidades se implementarán dentro del monolito modular y no constituyen un servicio separado.
+
+### Ciclos de vida cerrados en 4.2
+
+`Organization` usa UUIDv4, nombre visible, slug ASCII canónico y globalmente único, estado y marcas
+`created_at`/`updated_at`. Sus únicos estados son `active` y `suspended`. Se crea siempre activa y
+puede suspenderse o reactivarse mediante transición explícita. El slug usa
+`django.utils.text.slugify`, admite como máximo 63 caracteres, no se trunca, no recibe sufijos
+automáticos y permanece inmutable en las rutas soportadas. `country_code` queda diferido.
+
+`Membership` usa UUIDv4, usuario, organización, rol, estado, `joined_at`, `suspended_at`,
+`revoked_at`, `created_at` y `updated_at`. Los identificadores técnicos de los roles provisionales
+son `owner`, `administrator`, `commercial`, `operations` y `finance`, con correspondencia exacta a
+los nombres aprobados en español. Sus únicos estados son `active`, `suspended` y `revoked`.
+
+La combinación usuario-organización identifica una relación persistente única, no un historial
+completo de eventos. `joined_at` conserva la primera incorporación. Una membresía revocada puede
+volver explícitamente a `active` si el usuario está activo; esa transición limpia `revoked_at` y
+`suspended_at` sin crear otra fila. La auditoría detallada de ciclos repetidos queda diferida.
+
+No existe borrado físico normal. Las FK a usuario y organización usan `PROTECT` y el rol
+`claridez_app` no recibe `DELETE` sobre estas dos tablas globales de control.
 
 ### Contexto y autorización backend-first
 
@@ -88,9 +110,14 @@ Cualquier operación que pueda desactivar, revocar, eliminar o cambiar el rol de
 1. abrir `transaction.atomic()`;
 2. bloquear la fila de `Organization` mediante `SELECT ... FOR UPDATE` antes de contar o modificar
    propietarios;
-3. volver a consultar dentro de la transacción las membresías propietarias activas;
-4. rechazar la operación si dejaría cero propietarios activos;
-5. aplicar el cambio y cualquier revocación de sesiones como una sola unidad coherente.
+3. bloquear después la `Membership` afectada para evitar actualizaciones perdidas;
+4. volver a consultar dentro de la transacción las membresías propietarias activas;
+5. rechazar la operación si dejaría cero propietarios activos;
+6. aplicar el cambio y cualquier revocación de sesiones como una sola unidad coherente.
+
+Todas las mutaciones de membresías siguen el orden `Organization → Membership` y reutilizan el
+mismo servicio, aunque la membresía no sea propietaria. Operaciones sobre una misma organización
+se serializan; organizaciones distintas conservan concurrencia independiente.
 
 Vistas, serializers, comandos y futuras tareas no podrán cambiar directamente rol o estado de una
 membresía. La protección se probará con intentos concurrentes sobre una organización con uno y con
@@ -113,7 +140,7 @@ mediante una decisión explícita y controles equivalentes.
 - Los nombres técnicos de las capacidades podrán normalizarse antes de constituir API pública si
   se conserva una correspondencia exacta y probada con esta matriz.
 - El ciclo de vida detallado de una organización y una membresía se limitará a los estados mínimos
-  que apruebe la especificación de 4.1.
+  que apruebe la especificación de 4.2.
 
 ## Asuntos diferidos
 
@@ -123,20 +150,22 @@ mediante una decisión explícita y controles equivalentes.
 - Acceso transversal de soporte y su auditoría reforzada.
 - Administración visual de organizaciones y membresías.
 - Una reevaluación futura de Django Admin.
+- Capacidades, permisos DRF y autorización del actor, que pertenecen a 4.4.
+- `OrganizationSettings`, `authorized_tenant_scope` y RLS productivo, que pertenecen a 4.5.
+- Auditoría detallada de múltiples ciclos de una membresía.
 
-## Validación pendiente
+## Validación de 4.2
 
-Antes de crear las migraciones productivas deberán definirse y probarse:
+La migración inicial de organizaciones deberá demostrar:
 
 - estados y transiciones mínimos de `Organization` y `Membership`, sin inventar ciclos de vida de
   negocio;
 - restricciones de unicidad, pertenencia organizacional e integridad relacional en PostgreSQL;
-- la política RLS de `OrganizationSettings` y la integración exacta con
-  `authorized_tenant_scope`;
-- acceso cruzado negativo entre al menos dos organizaciones para cada capacidad;
 - concurrencia de promoción, degradación, suspensión y revocación de propietarios;
-- errores genéricos ante organizaciones, membresías o colisiones ajenas;
-- que ninguna ruta directa, serializer o comando pueda omitir el servicio del último propietario.
+- reactivación de una relación revocada sin duplicar la fila ni cambiar `joined_at`;
+- rollback después de adquirir el bloqueo y ausencia de bloqueos globales entre organizaciones;
+- bootstrap local transaccional, idempotente por organización y protegido con advisory lock;
+- propiedad por el migrador, DML limitado para la aplicación y ausencia de RLS.
 
 Las acciones privilegiadas de esta matriz no podrán usarse productivamente sin MFA, salvo que el
 propietario registre de forma explícita un riesgo temporal aceptado según ADR 0010.
@@ -169,6 +198,8 @@ las capacidades ni el servicio transaccional aprobado.
 - La autorización queda centralizada en servicios backend-first y deniega por defecto.
 - Varias personas pueden compartir el rol `propietario` sin crear un concepto de propiedad
   principal.
+- `claridez.organizations` contiene en 4.2 únicamente `Organization` y `Membership` como tablas
+  globales de control.
 - `OrganizationSettings` será el primer caso productivo para demostrar RLS, aislamiento negativo y
   materialización dentro del scope.
 - No se implementan todavía invitaciones, soporte transversal, administración visual ni módulos

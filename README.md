@@ -12,13 +12,13 @@ El repositorio completó la **Iteración 0 — Gobierno documental**, la **Itera
 reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el spike técnico de la
 **Iteración 3 — Aislamiento multiempresa**, **4.0 — Gobierno y descarte** y **4.1 — Usuario
 primero**. Contiene PostgreSQL local reproducible, endpoints de salud, evidencia histórica del
-spike y el usuario local productivo. Organizaciones, autorización tenant y autenticación HTTP
-permanecen sin implementar y no están autorizadas todavía.
+spike, el usuario local productivo y **4.2 — Organizaciones y membresías**. La autorización del
+actor, el aislamiento tenant productivo y la autenticación HTTP permanecen sin implementar.
 
 Todavía no existen:
 
 - Flujos funcionales de aplicación.
-- Organizaciones, membresías o entidades funcionales de negocio.
+- Entidades funcionales de negocio o configuración privada de organizaciones.
 - Endpoints de autenticación, recuperación o verificación.
 - Configuración de proveedores externos.
 - Despliegues o ambientes remotos.
@@ -87,6 +87,7 @@ npm run db:start
 npm run db:prepare
 npm run db:migrate
 npm run db:check
+npm run auth:bootstrap
 ```
 
 La guía completa, perfiles y protecciones se encuentran en [docs/architecture/LOCAL_PLATFORM.md](docs/architecture/LOCAL_PLATFORM.md).
@@ -103,6 +104,7 @@ npm run build
 npm run check
 npm run check:all
 npm run audit
+npm run auth:bootstrap
 ```
 
 `format` modifica archivos; `check` usa la variante de formato sin escritura. `check:all` añade PostgreSQL real, conexión y migraciones. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.

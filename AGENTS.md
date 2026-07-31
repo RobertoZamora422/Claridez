@@ -84,12 +84,15 @@ posterior aprobada.
 
 ## 8. Alcance técnico establecido
 
-Las Iteraciones 0 a 3 y las subiteraciones 4.0 y 4.1 están completadas. 4.1 incorpora únicamente el
-usuario global `claridez.identity.User`; no implementa tenancy ni autenticación HTTP. Django y
+Las Iteraciones 0 a 3 y las subiteraciones 4.0, 4.1 y 4.2 están completadas. 4.1 incorpora el usuario
+global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
+`Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local.
+No existe todavía tenancy productivo, autorización del actor ni autenticación HTTP. Django y
 React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que
-exista una nueva instrucción explícita para 4.2 o fases posteriores, no se deben crear:
+exista una nueva instrucción explícita para fases posteriores, no se deben crear:
 
-- Organizaciones, membresías, autorización o configuración multiempresa productiva.
+- `OrganizationSettings`, tablas privadas, RLS o `authorized_tenant_scope`.
+- Catálogos ejecutables de capacidades, permisos DRF o selección de organización activa.
 - Serializers, vistas, URLs o endpoints de autenticación.
 - Expiración absoluta de sesiones, recuperación, verificación, correo, cookies o `django-axes`.
 - Aplicaciones funcionales, modelos o migraciones de negocio.
@@ -99,6 +102,10 @@ exista una nueva instrucción explícita para 4.2 o fases posteriores, no se deb
 - Cliente TypeScript generado.
 
 Los únicos endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`. PostgreSQL local se publica solo sobre loopback. Django normal usa `claridez_app`; las migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda reservado al bootstrap local explícito.
+
+`npm run auth:bootstrap` crea localmente una organización activa y su propietario mediante los
+servicios aprobados. No concede privilegios técnicos. `claridez_app` no tiene `DELETE` sobre
+organizaciones o membresías.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.
@@ -171,6 +178,7 @@ Desde la raíz del repositorio:
 - `npm run check`: ejecuta la puerta local completa sin auditorías de red.
 - `npm run check:all`: añade conexión, migraciones y pruebas contra PostgreSQL real.
 - `npm run audit`: audita dependencias mediante servicios externos.
+- `npm run auth:bootstrap`: provisiona localmente una organización y su propietario.
 
 Los comandos de plataforma y sus protecciones se documentan en `docs/architecture/LOCAL_PLATFORM.md`. Nunca se ejecuta `docker compose down -v` como reset normal.
 

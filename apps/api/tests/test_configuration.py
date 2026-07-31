@@ -32,9 +32,10 @@ def test_django_uses_only_postgresql_with_localization_and_no_cors() -> None:
     assert all("cors" not in middleware.lower() for middleware in settings.MIDDLEWARE)
 
 
-def test_identity_is_registered_without_django_admin() -> None:
+def test_identity_and_organizations_are_registered_without_django_admin() -> None:
     assert settings.AUTH_USER_MODEL == "identity.User"
     assert "claridez.identity.apps.IdentityConfig" in settings.INSTALLED_APPS
+    assert "claridez.organizations.apps.OrganizationsConfig" in settings.INSTALLED_APPS
     assert "django.contrib.auth" in settings.INSTALLED_APPS
     assert "django.contrib.contenttypes" in settings.INSTALLED_APPS
     assert "django.contrib.sessions" in settings.INSTALLED_APPS

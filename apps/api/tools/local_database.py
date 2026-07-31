@@ -29,6 +29,10 @@ ROLE_SPECIFICATIONS: dict[str, dict[str, bool]] = {
     "claridez_app": {"rolsuper": False, "rolcreatedb": False},
     "claridez_test_runner": {"rolsuper": False, "rolcreatedb": True},
 }
+NO_DELETE_TABLES = {
+    "organizations_organization",
+    "organizations_membership",
+}
 
 
 def _connect(
@@ -159,10 +163,24 @@ def _grant_runtime_data_access(
         """
     ).fetchall()
     for table in tables:
+        table_identifier = sql.Identifier(table["tablename"])
         connection.execute(
-            sql.SQL("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE {}.{} TO {}").format(
+            sql.SQL("REVOKE ALL ON TABLE {}.{} FROM {}").format(
                 sql.Identifier("public"),
-                sql.Identifier(table["tablename"]),
+                table_identifier,
+                application,
+            )
+        )
+        privileges = (
+            sql.SQL("SELECT, INSERT, UPDATE")
+            if table["tablename"] in NO_DELETE_TABLES
+            else sql.SQL("SELECT, INSERT, UPDATE, DELETE")
+        )
+        connection.execute(
+            sql.SQL("GRANT {} ON TABLE {}.{} TO {}").format(
+                privileges,
+                sql.Identifier("public"),
+                table_identifier,
                 application,
             )
         )

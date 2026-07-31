@@ -2,9 +2,9 @@
 
 Esqueleto técnico de la API REST de Claridez. En la Iteración 2 incorpora configuración local validada, perfiles de credenciales separados, PostgreSQL real y los endpoints técnicos `/health` y `/ready`.
 
-Contiene el usuario local productivo de 4.1, sin referencias tenant. No contiene todavía
-organizaciones, membresías, autorización de producto ni modelos funcionales de negocio. Las reglas
-arquitectónicas multiempresa están aceptadas en ADR, pero su implementación no está autorizada.
+Contiene el usuario local productivo de 4.1 y las organizaciones y membresías globales de control
+de 4.2. No contiene todavía autorización del actor, datos privados tenant ni modelos funcionales de
+negocio.
 
 ## Requisitos
 
@@ -46,9 +46,19 @@ canónico y único, `display_name`, estado coherente con `is_active`, versión d
 `created_at`/`updated_at`. La migración inicial está en
 `src/claridez/identity/migrations/0001_initial.py`.
 
-La aplicación no incorpora todavía organizaciones, RLS, serializers, vistas, URLs de
-autenticación, recuperación, correo, cookies, `django-axes` ni expiración absoluta de sesiones.
-Django Admin permanece deshabilitado y sin URL.
+La aplicación no incorpora todavía RLS, serializers, vistas, URLs de autenticación, recuperación,
+correo, cookies, `django-axes` ni expiración absoluta de sesiones. Django Admin permanece
+deshabilitado y sin URL.
+
+## Organizaciones y membresías
+
+`claridez.organizations` contiene `Organization` y `Membership` como tablas globales sin RLS. La
+creación y las transiciones pasan por servicios transaccionales que bloquean primero la
+organización y después la membresía para proteger al último propietario. La relación entre usuario
+y organización es única y persistente.
+
+Después de migrar, `npm run auth:bootstrap` permite crear localmente una organización activa y su
+primer propietario sin conceder privilegios técnicos.
 
 ## OpenAPI
 

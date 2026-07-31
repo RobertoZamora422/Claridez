@@ -47,7 +47,7 @@ def test_identity_constraints_and_indexes_exist_in_postgresql() -> None:
     )
 
 
-def test_no_tenant_tables_were_created_by_identity() -> None:
+def test_no_private_tenant_tables_exist_before_later_subiterations() -> None:
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -55,9 +55,8 @@ def test_no_tenant_tables_were_created_by_identity() -> None:
             FROM pg_tables
             WHERE schemaname = 'public'
               AND (
-                tablename LIKE 'organization%%'
-                OR tablename LIKE 'membership%%'
-                OR tablename LIKE 'tenancy%%'
+                tablename LIKE 'tenancy%%'
+                OR tablename = 'organizations_organizationsettings'
               )
             """
         )

@@ -126,8 +126,8 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
-**Estado:** completadas 4.0 — Gobierno y descarte y 4.1 — Usuario primero. 4.2 y el resto de la
-iteración no están autorizados.
+**Estado:** completadas 4.0 — Gobierno y descarte, 4.1 — Usuario primero y 4.2 — Organizaciones y
+membresías. El resto de la iteración no está autorizado.
 
 ### Condición de entrada
 
@@ -149,6 +149,18 @@ iteración no están autorizados.
   desechable.
 - El hash de sesión incorpora `security_version` y conserva `SECRET_KEY_FALLBACKS`.
 - No se crearon organizaciones, membresías, RLS, endpoints ni frontend.
+
+### Resultado de 4.2
+
+- `claridez.organizations` incorpora únicamente `Organization` y `Membership` como tablas globales
+  de control, sin RLS.
+- La creación atómica siempre incorpora un primer propietario activo.
+- Los servicios bloquean `Organization` y después la membresía afectada para proteger al último
+  propietario bajo concurrencia.
+- La relación usuario-organización es única y puede reactivarse después de revocación sin crear una
+  nueva fila ni cambiar `joined_at`.
+- El bootstrap local es transaccional, idempotente por organización y usa advisory lock.
+- No se crearon endpoints, capacidades, `OrganizationSettings`, tenancy productivo ni frontend.
 
 ### Criterio de salida
 

@@ -125,7 +125,7 @@ Staging y producción deberán incorporar módulos separados, secretos inyectado
 |---|---:|---:|---|---|---|
 | `postgres` | Sí | Sí | Bootstrap total | Total | Solo comandos locales explícitos |
 | `claridez_migrator` | Sí | No | Propietario de base/esquema; aplica migraciones | Por propiedad | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
-| `claridez_app` | Sí | No | Ninguno | SELECT/INSERT/UPDATE/DELETE en tablas aplicables; secuencias necesarias | Sin CREATE, propiedad ni acceso a `django_migrations` |
+| `claridez_app` | Sí | No | Ninguno | DML en tablas aplicables; sin `DELETE` sobre `Organization` ni `Membership` | Sin CREATE, propiedad ni acceso a `django_migrations` |
 | `claridez_test_runner` | Sí | Sí | Solo en bases de prueba que crea localmente | Total dentro de su base efímera | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
 
 El bootstrap revoca privilegios de `PUBLIC` en `claridez_local` y en su esquema. `db:migrate` ejecuta Django con el migrador y luego vuelve a aplicar los grants de objetos para la aplicación.
@@ -145,6 +145,7 @@ Ejecutar desde la raíz en PowerShell:
 | `npm run db:migrate` | Aplicar migraciones con el migrador y reconciliar DML |
 | `npm run db:migrations:check` | Comprobar migraciones faltantes sin generarlas |
 | `npm run api:run` | Ejecutar Django nativamente en `127.0.0.1:8000` |
+| `npm run auth:bootstrap` | Crear localmente una organización activa y su primer propietario |
 | `npm run test:integration` | Ejecutar pruebas marcadas contra PostgreSQL real |
 | `npm run check` | Puerta reproducible sin auditorías ni integración real |
 | `npm run check:all` | Añadir conexión, migraciones e integración PostgreSQL |
@@ -157,8 +158,14 @@ npm run db:start
 npm run db:prepare
 npm run db:migrate
 npm run db:check
+npm run auth:bootstrap
 npm run check:all
 ```
+
+`auth:bootstrap` solicita cualquier contraseña nueva mediante entrada oculta, aplica los
+validadores de Django y no acepta contraseñas como argumento. Puede reutilizar un usuario activo,
+verificado y con contraseña utilizable sin modificar `is_staff` o `is_superuser`. Cada ejecución
+es idempotente para la misma organización y propietario, pero puede crear organizaciones distintas.
 
 Los comandos de inicio, detención, estado y logs delegan en Docker Compose. Las migraciones delegan en `manage.py`. No existen `db:dump` ni `db:restore` todavía.
 
@@ -189,9 +196,12 @@ El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una co
 - El contenedor alcanzó el estado `healthy` y Docker confirmó `127.0.0.1:55432` como única publicación.
 - El identificador físico del clúster permaneció igual después de forzar la recreación del contenedor.
 - La conexión normal informó `claridez_app`, PostgreSQL 17.10, UTF-8 y UTC.
-- El migrador pudo ejecutar DDL técnico; la aplicación pudo hacer DML sobre el objeto autorizado y recibió `InsufficientPrivilege` al intentar crear o eliminar tablas.
+- El migrador pudo ejecutar DDL técnico; la aplicación pudo hacer el DML autorizado y recibió
+  `InsufficientPrivilege` al intentar DDL o eliminar organizaciones y membresías.
 - Django creó `claridez_test` con `claridez_test_runner` y la destruyó al terminar la suite.
 - `/health` permaneció en 200 con PostgreSQL detenido; `/ready` pasó de 200 a 503 y volvió a 200 al reiniciarlo.
 - Las pruebas rápidas, la integración PostgreSQL, `check`, `check:all` y ambas auditorías completaron correctamente.
 
-No existían migraciones de proyecto que aplicar: `manage.py migrate` se conectó mediante el perfil migrador e informó “No migrations to apply”. No se creó una migración artificial solo para alterar ese resultado.
+Las migraciones productivas `identity/0001_initial.py` y `organizations/0001_initial.py` se aplican
+con `claridez_migrator`. El segundo archivo crea únicamente las dos tablas globales de control; su
+reversión no requiere políticas RLS ni datos semilla.

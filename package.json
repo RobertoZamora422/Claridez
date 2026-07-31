@@ -22,6 +22,7 @@
     "db:migrations:check": "uv --directory apps/api run python manage.py makemigrations --check --dry-run --settings=claridez.settings.migration",
     "db:reset": "uv --directory apps/api run python tools/local_database.py reset",
     "api:run": "uv --directory apps/api run python manage.py runserver 127.0.0.1:8000 --settings=claridez.settings.development",
+    "auth:bootstrap": "uv --directory apps/api run python manage.py auth_bootstrap --settings=claridez.settings.development",
     "format": "npm run format:api && npm run format:web",
     "format:api": "uv --directory apps/api run ruff check --fix . && uv --directory apps/api run ruff format .",
     "format:web": "npm run format --workspace @claridez/web",
