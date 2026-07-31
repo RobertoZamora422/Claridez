@@ -1,0 +1,53 @@
+# Registros de decisiones arquitectónicas
+
+Un Architecture Decision Record (ADR) conserva el contexto, la decisión y las consecuencias de una elección arquitectónica significativa.
+
+## Cuándo crear un ADR
+
+Se debe crear o actualizar un ADR cuando una decisión:
+
+- Sea costosa de revertir.
+- Afecte varias áreas del sistema.
+- Modifique el aislamiento multiempresa.
+- Introduzca una dependencia, proveedor o componente operativo importante.
+- Establezca una convención transversal.
+- Reemplace una decisión previamente aceptada.
+
+No se requiere ADR para detalles locales fácilmente reversibles que no alteren una decisión vigente.
+
+## Numeración y nombres
+
+- Los ADR se numeran secuencialmente con cuatro dígitos.
+- `0000-template.md` es la plantilla y no representa una decisión.
+- El nombre debe describir la decisión con palabras separadas por guiones.
+- Un ADR publicado no se renumera.
+
+## Estados
+
+- **Propuesto:** pendiente de aprobación; no autoriza implementación.
+- **Aceptado:** decisión aprobada y vigente.
+- **Rechazado:** alternativa evaluada que no fue adoptada.
+- **Reemplazado:** decisión histórica sustituida por otro ADR enlazado.
+
+Dentro de un ADR aceptado se deben distinguir además:
+
+- **Decisiones aceptadas:** alcance actualmente aprobado.
+- **Aspectos provisionales:** nombres o direcciones de trabajo aún no definitivos.
+- **Asuntos diferidos:** decisiones postergadas de forma consciente.
+- **Validación pendiente:** spike, prueba o evaluación requerida antes de adoptar una opción.
+
+Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike como una decisión definitiva.
+
+## Índice actual
+
+| ADR | Estado | Tema |
+|---|---|---|
+| [0001](0001-monorepo-and-modular-monolith.md) | Aceptado | Monorepo, monolito modular e independencia |
+| [0002](0002-application-technology-baseline.md) | Aceptado | Familias tecnológicas y contrato de API |
+| [0003](0003-multitenancy-foundations.md) | Aceptado con aspectos provisionales y spike pendiente | Fundamentos multiempresa |
+| [0004](0004-defer-asynchronous-infrastructure.md) | Aceptado | Diferimiento de infraestructura asíncrona |
+| [0005](0005-incremental-observability.md) | Aceptado | Observabilidad incremental |
+
+## Modificación y reemplazo
+
+Si cambia una decisión central, se crea un nuevo ADR que enlaza y reemplaza al anterior. Las aclaraciones que no cambian la decisión pueden incorporarse al ADR existente con una nota fechada.
