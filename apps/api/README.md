@@ -2,9 +2,9 @@
 
 Esqueleto técnico de la API REST de Claridez. En la Iteración 2 incorpora configuración local validada, perfiles de credenciales separados, PostgreSQL real y los endpoints técnicos `/health` y `/ready`.
 
-No contiene todavía aplicaciones funcionales, modelos productivos ni usuarios del dominio. Las
-reglas arquitectónicas multiempresa están aceptadas en ADR, pero su implementación no está
-autorizada hasta una subiteración posterior.
+Contiene el usuario local productivo de 4.1, sin referencias tenant. No contiene todavía
+organizaciones, membresías, autorización de producto ni modelos funcionales de negocio. Las reglas
+arquitectónicas multiempresa están aceptadas en ADR, pero su implementación no está autorizada.
 
 ## Requisitos
 
@@ -38,6 +38,17 @@ Los perfiles son:
 - `/ready` ejecuta `SELECT 1` y responde de forma genérica.
 
 No existen endpoints de negocio.
+
+## Identidad local
+
+`claridez.identity.User` es el usuario intercambiable de Django. Utiliza UUIDv4, correo completo
+canónico y único, `display_name`, estado coherente con `is_active`, versión de seguridad y marcas
+`created_at`/`updated_at`. La migración inicial está en
+`src/claridez/identity/migrations/0001_initial.py`.
+
+La aplicación no incorpora todavía organizaciones, RLS, serializers, vistas, URLs de
+autenticación, recuperación, correo, cookies, `django-axes` ni expiración absoluta de sesiones.
+Django Admin permanece deshabilitado y sin URL.
 
 ## OpenAPI
 

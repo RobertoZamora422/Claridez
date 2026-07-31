@@ -126,7 +126,7 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
-**Estado:** completada únicamente 4.0 — Gobierno y descarte. La implementación 4.1 y el resto de la
+**Estado:** completadas 4.0 — Gobierno y descarte y 4.1 — Usuario primero. 4.2 y el resto de la
 iteración no están autorizados.
 
 ### Condición de entrada
@@ -140,6 +140,15 @@ iteración no están autorizados.
 - Establecer organizaciones y membresías.
 - Incorporar la matriz provisional de ADR 0011 sin tratarla como contrato de módulos futuros.
 - Aplicar aislamiento y denegación por defecto.
+
+### Resultado de 4.1
+
+- `claridez.identity.User` se implementó como usuario global basado en `AbstractUser`, sin campos
+  tenant.
+- La migración inicial se validó desde cero, en reversión y en nueva migración sobre PostgreSQL
+  desechable.
+- El hash de sesión incorpora `security_version` y conserva `SECRET_KEY_FALLBACKS`.
+- No se crearon organizaciones, membresías, RLS, endpoints ni frontend.
 
 ### Criterio de salida
 

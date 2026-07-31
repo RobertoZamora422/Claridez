@@ -11,6 +11,10 @@ DEBUG = False
 ALLOWED_HOSTS: list[str] = []
 
 INSTALLED_APPS = [
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "claridez.identity.apps.IdentityConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -24,6 +28,8 @@ LANGUAGE_CODE = "es-ec"
 TIME_ZONE = "America/Guayaquil"
 USE_I18N = True
 USE_TZ = True
+
+AUTH_USER_MODEL = "identity.User"
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

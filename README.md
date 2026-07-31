@@ -10,15 +10,16 @@ Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y ad
 
 El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains
 reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el spike técnico de la
-**Iteración 3 — Aislamiento multiempresa** y **4.0 — Gobierno y descarte**. Contiene esqueletos
-técnicos mínimos, PostgreSQL local reproducible, endpoints de salud y evidencia histórica del
-spike. La arquitectura de identidad, organizaciones, autorización y RLS está aceptada, pero su
-implementación 4.1 aún no está autorizada.
+**Iteración 3 — Aislamiento multiempresa**, **4.0 — Gobierno y descarte** y **4.1 — Usuario
+primero**. Contiene PostgreSQL local reproducible, endpoints de salud, evidencia histórica del
+spike y el usuario local productivo. Organizaciones, autorización tenant y autenticación HTTP
+permanecen sin implementar y no están autorizadas todavía.
 
 Todavía no existen:
 
 - Flujos funcionales de aplicación.
-- Entidades o migraciones de dominio.
+- Organizaciones, membresías o entidades funcionales de negocio.
+- Endpoints de autenticación, recuperación o verificación.
 - Configuración de proveedores externos.
 - Despliegues o ambientes remotos.
 

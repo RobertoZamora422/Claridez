@@ -84,13 +84,15 @@ posterior aprobada.
 
 ## 8. Alcance técnico establecido
 
-Las Iteraciones 0 a 3 y la subiteración 4.0 están completadas. 4.0 acepta la arquitectura y descarta
-el código experimental, pero no autoriza su implementación. Django y React/Vite se ejecutan
-nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que exista una nueva
-instrucción explícita para 4.1, no se deben crear:
+Las Iteraciones 0 a 3 y las subiteraciones 4.0 y 4.1 están completadas. 4.1 incorpora únicamente el
+usuario global `claridez.identity.User`; no implementa tenancy ni autenticación HTTP. Django y
+React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que
+exista una nueva instrucción explícita para 4.2 o fases posteriores, no se deben crear:
 
-- Aplicaciones funcionales, modelos, migraciones o endpoints de negocio.
-- Organizaciones, membresías, usuarios del dominio ni configuración multiempresa productiva.
+- Organizaciones, membresías, autorización o configuración multiempresa productiva.
+- Serializers, vistas, URLs o endpoints de autenticación.
+- Expiración absoluta de sesiones, recuperación, verificación, correo, cookies o `django-axes`.
+- Aplicaciones funcionales, modelos o migraciones de negocio.
 - Workflows de CI.
 - Contenedores o infraestructura adicionales.
 - Integraciones o proveedores externos.

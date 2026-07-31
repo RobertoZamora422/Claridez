@@ -8,13 +8,13 @@
 ## Contexto
 
 Claridez necesita una identidad inicial que no dependa de un proveedor externo y que permita
-autenticación, revocación y autorización backend-first. La decisión debe preceder a la primera
-migración de identidad porque sustituir el modelo de usuario de Django después de crear tablas
-productivas tendría un costo alto.
+autenticación, revocación y autorización backend-first. El modelo de usuario intercambiable debe
+existir en la primera migración de su aplicación porque sustituirlo después de crear tablas
+dependientes tendría un costo alto.
 
 La identidad de una persona dentro de Claridez y las credenciales de un proveedor OIDC son
-conceptos distintos. Las sesiones deben tener un límite absoluto y deben invalidarse cuando cambie
-el estado de seguridad, incluso si el navegador conserva una cookie anterior.
+conceptos distintos. Esta decisión define el usuario local productivo de 4.1 y la invalidación de
+sus sesiones; no autoriza endpoints de autenticación ni entidades organizacionales.
 
 ## Decisiones aceptadas
 
@@ -27,128 +27,149 @@ el estado de seguridad, incluso si el navegador conserva una cookie anterior.
 - No habrá registro público, invitaciones ni proveedor OIDC en esta iteración.
 - La autenticación y la autorización se denegarán por defecto ante estados o reglas no definidos.
 
-### Decisión obligatoria del modelo de usuario
+### Modelo de usuario definitivo
 
-No se podrá crear `identity/0001_initial.py` hasta completar y registrar en este ADR la elección
-del modelo de usuario y comprobarla con una migración desechable.
+La decisión para `identity/0001_initial.py` es definitiva: `claridez.identity.User` heredará de
+`AbstractUser`.
 
-La opción preferida es heredar de `AbstractUser`, eliminar `username`, usar correo como
-`USERNAME_FIELD` y adaptar formularios, admin técnico no expuesto y configuración de Django. Solo
-una razón técnica concreta, reproducible y documentada permitirá elegir `AbstractBaseUser`.
+- `id` será un UUIDv4 y la clave primaria.
+- `username`, `first_name`, `last_name` y `date_joined` se eliminarán del modelo heredado.
+- `display_name` sustituirá los nombres heredados y podrá comenzar vacío mientras no exista un
+  flujo aprobado que lo exija.
+- `email` será `USERNAME_FIELD` y `REQUIRED_FIELDS` será una lista vacía.
+- Un manager personalizado creará usuarios y superusuarios con el correo canónico y una pareja
+  coherente de `status` e `is_active`.
+- El usuario será global: no tendrá `organization_id` ni referencia tenant.
 
-Si se mantiene `AbstractBaseUser`, antes de la migración inicial deberán quedar definidos y
-probados en conjunto:
+La única representación de fechas será `created_at` para creación y `updated_at` para última
+actualización. Se conserva `last_login` porque tiene una semántica técnica distinta. La contraseña
+seguirá siendo administrada por Django.
 
-- manager y métodos de creación de usuario y superusuario;
-- semántica y persistencia de `is_active`, `is_staff` e `is_superuser`;
-- backend de autenticación y política de identificación por correo;
-- integración con permisos técnicos de Django;
-- comportamiento de usuarios con contraseña inutilizable;
-- formularios y comandos técnicos mínimos necesarios, sin habilitar Django Admin.
+Los campos productivos aprobados son exclusivamente:
 
-En cualquiera de las dos opciones, `AUTH_USER_MODEL` deberá existir desde la primera migración que
-lo necesite. No se crearán primero tablas contra `auth.User` para sustituirlas después.
+- `id`, `email`, `display_name` y `status`;
+- `email_verified_at` y `security_version`;
+- `is_active`, `is_staff`, `is_superuser` y `last_login`;
+- `created_at`, `updated_at` y `password`;
+- las relaciones técnicas heredadas `groups` y `user_permissions`.
 
-### Correo canónico e invariantes del usuario
+No se añadirán en 4.1 teléfonos, nombres separados, organización activa, datos de recuperación,
+tokens, preferencias de sesión ni campos tenant.
 
-El correo completo se normalizará a minúsculas antes de validar y persistir; no solo se
-normalizará el dominio. La representación canónica será la única almacenada. PostgreSQL deberá
-proteger tanto `email = lower(email)` como la unicidad de la forma canónica mediante restricciones
-compatibles con el modelo elegido. Las validaciones Django ofrecerán mensajes útiles, pero no
-sustituirán esas garantías frente a concurrencia.
+### Correo canónico
 
-`status` e `is_active` expresarán una sola decisión de autenticabilidad. Como mínimo se impondrán
-estas invariantes:
+Una única función pura compartida por manager y modelo definirá el correo canónico:
 
-| `status` | `is_active` | Invariantes temporales |
-|---|---:|---|
-| `pending_verification` | `false` | `email_verified_at`, `suspended_at` y `revoked_at` son nulos |
-| `active` | `true` | `email_verified_at` existe; `suspended_at` y `revoked_at` son nulos |
-| `suspended` | `false` | `email_verified_at` y `suspended_at` existen; `revoked_at` es nulo |
-| `revoked` | `false` | `revoked_at` existe; verificación o suspensión previas pueden conservarse como hechos históricos |
+1. eliminar espacios exteriores;
+2. convertir la dirección completa a minúsculas;
+3. rechazar el resultado vacío.
 
-Si un usuario revocado conserva `suspended_at`, ese instante no podrá ser posterior a
-`revoked_at`. Las transiciones deberán actualizar estado, booleano y timestamps de forma atómica y
-las restricciones PostgreSQL rechazarán combinaciones imposibles. Un usuario suspendido o revocado
-no podrá autenticarse mediante el backend de Django ni conservar acceso por una sesión previa.
+No se delegará esta regla en `BaseUserManager.normalize_email()`, porque ese método solo garantiza
+la normalización del dominio. `email` será no nulo y único en PostgreSQL. Una restricción `CHECK`
+exigirá que el valor almacenado sea no vacío e idéntico a `lower(trim(email))`; de este modo ni SQL
+directo ni operaciones que omitan el modelo podrán persistir otra representación.
 
-El nombre exacto de los valores podrá revisarse antes de la primera migración, pero no podrá
-debilitar estas invariantes ni crear dos fuentes de verdad sobre autenticabilidad.
+Las validaciones Django ofrecerán errores útiles, pero no sustituirán la unicidad ni la
+representación canónica garantizadas por PostgreSQL.
 
-### Sesiones e invalidación
+### Estado e `is_active`
 
-- Cada autenticación correcta iniciará una sesión con expiración absoluta de ocho horas. No habrá
-  opción «recordarme».
-- La sesión guardará un instante de inicio y una expiración absoluta inmutables, o un mecanismo
-  equivalente probado en cada petición. Tanto la cookie como el registro de servidor quedarán
-  limitados por ese mismo instante absoluto.
-- Guardar o cambiar `last_organization_id` no recalculará ni extenderá la expiración. Ninguna
-  modificación ordinaria de la sesión producirá expiración deslizante.
-- `last_organization_id` será solo una preferencia de contexto. Cada operación protegida volverá a
-  validar organización, membresía activa y capacidad; nunca será prueba de autorización.
-- `security_version` formará parte de `get_session_auth_hash()` o de un mecanismo equivalente
-  comprobado en cada petición protegida. Incrementarlo invalidará todas las sesiones emitidas con
-  versiones anteriores.
-- Cambios de contraseña, suspensión, revocación y demás eventos globales de seguridad deberán
-  incrementar `security_version` dentro de la misma transacción. No se conservará la sesión actual
-  mediante una actualización de hash cuando el objetivo sea revocar todas las sesiones.
+`status` será el estado de dominio y `is_active` su proyección técnica compatible con Django:
 
-Una suspensión o revocación será efectiva desde la siguiente operación protegida que vuelva a
-comprobar la sesión, el usuario o la membresía. No se intentará cancelar una transacción que ya
-superó esos controles y está en ejecución.
+| `status` | `is_active` |
+|---|:---:|
+| `pending_verification` | `false` |
+| `active` | `true` |
+| `suspended` | `false` |
 
-### Endurecimiento de intentos de acceso
+Una restricción `CHECK` rechazará cualquier combinación distinta. El manager y el único método de
+transición incluido en 4.1 actualizarán ambos valores juntos. No se utilizarán signals ni dos
+flujos de sincronización.
 
-`django-axes` queda aprobado condicionalmente, pero no se incorporará hasta verificar su versión,
-compatibilidad con las versiones fijadas de Django y Python, mantenimiento y auditoría de
-dependencias. Su incorporación requerirá antes una política escrita y pruebas que definan de forma
-explícita:
+`email_verified_at` será nulo hasta que un flujo futuro registre la verificación. 4.1 no infiere
+una transición automática ni añade restricciones temporales no aprobadas entre ese campo y
+`status`.
 
-- qué IP se considera confiable y cómo se obtiene;
-- que la clave de correo usa la misma normalización canónica completa;
-- límites temporales por combinación de correo normalizado e IP;
-- un límite adicional por IP ante rotación de correos;
-- expiración automática de bloqueos y contadores;
-- comportamiento detrás de proxies y lista exacta de proxies confiables;
-- respuestas genéricas que no permitan enumerar cuentas.
+`security_version` será un entero positivo con valor inicial explícito `1`. PostgreSQL rechazará
+valores menores que uno.
 
-No se permitirá un bloqueo global permanente o fácilmente provocable basado únicamente en el
-correo. Los valores numéricos y ventanas deberán aprobarse antes de agregar la dependencia; este
-ADR no los inventa.
+### Hash de autenticación de sesión
+
+`security_version` y el identificador inmutable del usuario formarán parte del valor protegido por
+el HMAC de autenticación de sesión, junto con el hash de contraseña administrado por Django. La
+implementación sobrescribirá el punto interno `_get_session_auth_hash(secret=None)` para que los
+métodos públicos de Django sigan usando automáticamente `SECRET_KEY` y
+`SECRET_KEY_FALLBACKS`.
+
+Como consecuencias:
+
+- dos usuarios con la misma contraseña no compartirán un hash de sesión equivalente;
+- incrementar `security_version` invalidará sesiones emitidas con la versión anterior;
+- cambiar la contraseña conservará el comportamiento de invalidación de Django;
+- un usuario suspendido será rechazado por el backend de autenticación y en la siguiente carga de
+  una sesión existente;
+- el valor expuesto será el HMAC y no la contraseña, su hash almacenado ni `security_version`.
+
+Una suspensión o revocación de sesión será efectiva desde la siguiente operación protegida. No se
+intentará cancelar una transacción que ya superó esos controles y está en ejecución.
+
+### Permisos técnicos de Django
+
+`is_staff`, `is_superuser`, `groups` y `user_permissions` se conservan solo para compatibilidad
+técnica con Django. No representan roles organizacionales, no originan capacidades del producto,
+no sustituyen `Membership` y no autorizan endpoints administrativos.
+
+Django Admin permanecerá sin aplicación instalada y sin URL durante esta iteración y en
+producción. Esta decisión no es una prohibición permanente.
 
 ## Aspectos provisionales
 
-- Los nombres de los estados podrán ajustarse antes de `identity/0001_initial.py` si se conservan
-  las mismas garantías.
-- La implementación exacta de la expiración absoluta y del hash de sesión deberá elegirse mediante
-  una prueba contra el backend de sesiones adoptado.
+Ninguno para el modelo inicial. Sus campos, base, estados, correo canónico y hash de sesión quedan
+cerrados antes de generar `identity/0001_initial.py`.
 
 ## Asuntos diferidos
 
-- Invitaciones y registro público.
-- Proveedor OIDC y la entidad productiva `ExternalIdentity`.
-- Entrega real de correo. No bloquea esta iteración, pero será obligatoria antes de incorporar
-  usuarios externos.
-- MFA. No bloquea esta iteración; deberá resolverse antes del uso productivo de acciones
-  privilegiadas o registrarse explícitamente como riesgo temporal aceptado por el propietario.
+Para 4.2:
+
+- organizaciones, membresías, roles de producto y autorización tenant.
+
+Para 4.3:
+
+- expiración absoluta de sesión de ocho horas y ausencia de «recordarme»;
+- endpoints de login, logout, recuperación y verificación;
+- cookies, CSRF y rotación de la sesión durante autenticación;
+- evaluación e incorporación condicional de `django-axes`;
+- entrega real de correo.
+
+También permanecen diferidos el proveedor OIDC, `ExternalIdentity`, registro público, invitaciones
+y MFA. La entrega de correo será obligatoria antes de incorporar usuarios externos. MFA deberá
+resolverse antes del uso productivo de acciones privilegiadas o registrarse como riesgo temporal
+aceptado.
 
 ## Validación pendiente
 
-Antes de `identity/0001_initial.py`:
+4.1 deberá demostrar antes de finalizar:
 
-- decidir y documentar por completo `AbstractUser` sin `username` o la excepción basada en
-  `AbstractBaseUser`;
-- probar autenticación por correo canónico, contraseñas inutilizables y rechazo de todos los
-  estados no activos;
-- comprobar restricciones PostgreSQL de minúsculas, unicidad y estados bajo concurrencia;
-- probar que `security_version` invalida sesiones anteriores en la petición siguiente;
-- probar ocho horas absolutas aunque cambie repetidamente `last_organization_id`;
-- definir el tratamiento de sesiones anónimas y rotación de identificador al autenticar.
+- que la migración inicial nace del modelo final y no deja cambios pendientes;
+- correo canónico, unicidad y coherencia estado/`is_active` en PostgreSQL;
+- UUIDv4, manager, contraseña utilizable e inutilizable y campos heredados eliminados;
+- cambio de hash por contraseña y `security_version`, aislamiento entre usuarios y ausencia de
+  exposición directa;
+- invalidación de una sesión anterior y rechazo de un usuario suspendido;
+- funcionamiento de `SECRET_KEY_FALLBACKS`;
+- migración desde cero, propiedad por el migrador, reversión y nueva migración en una base
+  PostgreSQL desechable.
 
-La evaluación de `django-axes`, la política concreta de intentos y su auditoría se realizarán solo
-antes de decidir su incorporación; no forman parte de 4.0.
+La expiración absoluta, `django-axes`, cookies y endpoints no son bloqueadores de 4.1 porque
+pertenecen expresamente a 4.3.
 
 ## Alternativas consideradas
+
+### `AbstractBaseUser`
+
+Se descarta para el modelo inicial. `AbstractUser` permite eliminar los campos no deseados y
+conservar integración probada con hashes, permisos y backends de Django sin mantener una
+implementación completa innecesaria.
 
 ### OIDC como única identidad desde el inicio
 
@@ -160,23 +181,19 @@ no seleccionado.
 No se eligen para el inicio. Las sesiones Django reducen la superficie de almacenamiento de tokens
 en el navegador y mantienen el control inicial en el backend.
 
-### Sesión deslizante o «recordarme»
+### Signals para sincronizar `status` e `is_active`
 
-Se rechaza para esta etapa. La ventana aceptada es absoluta y no se renueva por actividad.
-
-### Bloqueo solo por correo
-
-Se rechaza por riesgo de denegación de servicio dirigida contra una cuenta.
+Se rechazan. Ocultarían una invariante central y no protegerían escrituras directas en PostgreSQL.
 
 ## Consecuencias
 
-- El modelo de usuario debe quedar bien definido antes de la primera migración; esta es una puerta
-  de entrada para 4.1, no una decisión que pueda corregirse silenciosamente después.
-- La aplicación deberá comprobar estado y versión de seguridad en cada operación protegida.
-- La identidad local podrá vincularse a uno o varios proveedores futuros sin cambiar su clave
-  primaria ni su ciclo de vida.
-- No se añade todavía `django-axes`, correo, MFA ni un proveedor externo.
-- Aceptar este ADR no autoriza implementar el resto de la Iteración 4.
+- `AUTH_USER_MODEL = "identity.User"` deberá estar configurado antes de cualquier migración
+  dependiente.
+- La aplicación `claridez.identity` será la única aplicación productiva creada en 4.1.
+- Las migraciones estándar de Django conservarán su grafo natural; no se impondrá un orden manual.
+- El usuario global no prueba ni introduce aislamiento tenant o RLS.
+- No se añade todavía `django-axes`, correo, MFA, endpoints ni frontend.
+- Aceptar e implementar este ADR en 4.1 no autoriza 4.2 ni fases posteriores.
 
 ## Evidencia
 
