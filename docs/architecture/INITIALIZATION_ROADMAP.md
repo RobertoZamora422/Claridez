@@ -41,6 +41,8 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 1 — Toolchains
 
+**Estado:** completada técnicamente el 31 de julio de 2026.
+
 ### Alcance
 
 - Proponer y verificar una matriz de versiones compatibles.
@@ -48,17 +50,21 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 - Activar TypeScript estricto.
 - Crear lockfiles.
 - Añadir comandos oficiales de formato, lint, tipos, pruebas y build.
+- Generar y validar un esquema OpenAPI técnico sin endpoints funcionales.
 
 ### Restricciones
 
 - No elegir versiones solamente por ser las más recientes.
 - No crear entidades del dominio.
+- No instalar PostgreSQL ni requerir una conexión activa en las comprobaciones bootstrap.
+- No definir todavía el artefacto productivo del backend.
 
 ### Criterio de salida
 
 - Compatibilidad documentada.
 - Instalación reproducible.
 - Backend y frontend mínimos construyen y ejecutan sus pruebas técnicas.
+- OpenAPI se genera y valida como artefacto temporal ignorado.
 
 ## Iteración 2 — Plataforma local
 

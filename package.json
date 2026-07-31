@@ -1,0 +1,39 @@
+{
+  "name": "claridez",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Toolchains reproducibles del monorepo privado Claridez.",
+  "workspaces": [
+    "apps/web"
+  ],
+  "engines": {
+    "node": "24.18.1",
+    "npm": "11.16.0"
+  },
+  "packageManager": "npm@11.16.0",
+  "scripts": {
+    "format": "npm run format:api && npm run format:web",
+    "format:api": "uv --directory apps/api run ruff check --fix . && uv --directory apps/api run ruff format .",
+    "format:web": "npm run format --workspace @claridez/web",
+    "format:check": "npm run format:check:api && npm run format:check:web",
+    "format:check:api": "uv --directory apps/api run ruff format --check .",
+    "format:check:web": "npm run format:check --workspace @claridez/web",
+    "lint": "npm run lint:api && npm run lint:web",
+    "lint:api": "uv --directory apps/api run ruff check .",
+    "lint:web": "npm run lint --workspace @claridez/web",
+    "typecheck": "npm run typecheck:api && npm run typecheck:web",
+    "typecheck:api": "uv --directory apps/api run mypy",
+    "typecheck:web": "npm run typecheck --workspace @claridez/web",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "uv --directory apps/api run pytest",
+    "test:web": "npm run test --workspace @claridez/web",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "uv --directory apps/api run python manage.py check --settings=claridez.settings.test && uv --directory apps/api run python -m compileall -q manage.py src tests && uv --directory apps/api run python manage.py spectacular --settings=claridez.settings.test --file openapi-schema.yaml --validate --fail-on-warn",
+    "build:web": "npm run build --workspace @claridez/web",
+    "check:locks": "uv --directory apps/api lock --check && npm ci --ignore-scripts --dry-run",
+    "check": "npm run check:locks && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "audit": "npm run audit:api && npm run audit:web",
+    "audit:api": "uv --directory apps/api run pip-audit",
+    "audit:web": "npm audit --workspace @claridez/web --audit-level=high"
+  }
+}

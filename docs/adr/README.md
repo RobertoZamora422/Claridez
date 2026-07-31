@@ -47,6 +47,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0003](0003-multitenancy-foundations.md) | Aceptado con aspectos provisionales y spike pendiente | Fundamentos multiempresa |
 | [0004](0004-defer-asynchronous-infrastructure.md) | Aceptado | Diferimiento de infraestructura asíncrona |
 | [0005](0005-incremental-observability.md) | Aceptado | Observabilidad incremental |
+| [0006](0006-reproducible-toolchains.md) | Aceptado con asuntos diferidos | Toolchains reproducibles y comandos oficiales |
 
 ## Modificación y reemplazo
 

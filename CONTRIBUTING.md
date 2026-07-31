@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-Claridez es un proyecto privado y propietario. El repositorio se encuentra en su etapa de gobierno documental y todavía no contiene aplicaciones ni toolchains.
+Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles y esqueletos técnicos mínimos, pero todavía no contiene módulos funcionales.
 
 Toda contribución debe respetar [AGENTS.md](AGENTS.md), la [línea base del producto](docs/product/PRODUCT_BASELINE.md), los [ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
 
@@ -30,7 +30,7 @@ Las dependencias deben incorporarse únicamente cuando:
 - No dupliquen una capacidad ya disponible.
 - Queden fijadas de forma reproducible.
 
-La Iteración 0 no autoriza dependencias. La matriz y los lockfiles se prepararán en la Iteración 1.
+Las dependencias aprobadas y su matriz se registran en `docs/architecture/TOOLCHAIN_COMPATIBILITY.md`. Los lockfiles no se editan manualmente y toda actualización debe repetir las comprobaciones oficiales y las auditorías.
 
 ## Datos, tenancy y seguridad
 
@@ -50,7 +50,20 @@ La Iteración 0 no autoriza dependencias. La matriz y los lockfiles se preparar�
 
 ## Calidad
 
-Los comandos oficiales de formato, lint, tipos, pruebas y build se definirán en la Iteración 1. Hasta entonces, toda contribución documental debe comprobar al menos:
+Desde la raíz se deben ejecutar, según el alcance del cambio:
+
+```text
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run check
+```
+
+`npm run format` aplica correcciones y debe ser idempotente. `npm run audit` se ejecuta por separado porque requiere acceso a servicios externos.
+
+Además, toda contribución debe comprobar:
 
 - Codificación UTF-8.
 - Finales de línea LF.
@@ -61,7 +74,7 @@ Los comandos oficiales de formato, lint, tipos, pruebas y build se definirán en
 
 ## Commits y acciones externas
 
-No se deben crear commits, configurar remotos, publicar ramas, abrir pull requests ni realizar despliegues sin autorización explícita. La existencia de cambios preparados localmente no implica permiso para publicarlos.
+Los commits de Claridez son ejecutados exclusivamente por el propietario del proyecto. Los colaboradores automatizados no deben crearlos. Tampoco se deben configurar remotos, publicar ramas, abrir pull requests ni realizar despliegues sin autorización explícita. La existencia de cambios preparados localmente no implica permiso para publicarlos.
 
 ## Entrega de un cambio
 

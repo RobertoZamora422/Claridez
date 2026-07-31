@@ -38,7 +38,7 @@ Si dos fuentes parecen contradecirse fuera de esta jerarquía, se debe detener l
 - Contrato OpenAPI y futuro cliente TypeScript generado.
 - No se utilizarán microservicios.
 
-Las versiones concretas no se eligen por novedad. Deben aprobarse después de verificar compatibilidad y soporte en la Iteración 1.
+La matriz concreta se registra en `docs/architecture/TOOLCHAIN_COMPATIBILITY.md`. Los manifiestos y lockfiles son la fuente ejecutable de versiones; una actualización requiere verificación y documentación deliberadas.
 
 ## 5. Invariantes multiempresa
 
@@ -74,16 +74,16 @@ Estos perfiles no constituyen una matriz definitiva de permisos. Está prohibido
 - No se implementará un constructor web libre.
 - No se deben inventar procesos, entidades, estados, cálculos o reglas de negocio aún no aprobados.
 
-## 8. Alcance actual autorizado
+## 8. Alcance técnico establecido
 
-La Iteración 0 solo autoriza gobierno documental. Hasta que exista una nueva instrucción explícita, no se deben crear:
+La Iteración 1 incorpora únicamente esqueletos técnicos en `apps/api` y `apps/web`, dependencias fijadas, lockfiles y comandos reproducibles. Hasta que exista una nueva instrucción explícita, no se deben crear:
 
-- Aplicaciones Django o React.
-- Modelos, migraciones o endpoints.
-- Dependencias o lockfiles.
+- Aplicaciones funcionales, modelos, migraciones o endpoints de negocio.
+- Organizaciones, membresías, usuarios del dominio ni configuración multiempresa productiva.
 - Workflows de CI.
 - Contenedores o infraestructura.
 - Integraciones o proveedores externos.
+- Cliente TypeScript generado.
 
 ## 9. Dependencias y herramientas
 
@@ -137,10 +137,26 @@ Al finalizar:
 2. Informar comprobaciones ejecutadas y resultados observados.
 3. Distinguir pruebas dirigidas de suites completas.
 4. Declarar cualquier validación omitida o incompleta.
-5. No realizar commits, remotos, despliegues ni acciones externas sin autorización explícita.
+5. No realizar remotos, despliegues ni acciones externas sin autorización explícita.
+6. Los commits de Claridez son ejecutados exclusivamente por el propietario; los agentes automatizados no crean commits.
+
+### Comandos oficiales
+
+Desde la raíz del repositorio:
+
+- `npm run format`: aplica formato; modifica archivos.
+- `npm run format:check`: comprueba formato sin modificar.
+- `npm run lint`: ejecuta lint de Python y TypeScript.
+- `npm run typecheck`: ejecuta mypy/django-stubs y TypeScript estricto.
+- `npm test`: ejecuta pruebas y genera cobertura.
+- `npm run build`: valida Django, sintaxis, OpenAPI y el build de Vite.
+- `npm run check`: ejecuta la puerta local completa sin auditorías de red.
+- `npm run audit`: audita dependencias mediante servicios externos.
+
+Las instalaciones reproducibles son `uv --directory apps/api sync --locked` y `npm ci`.
 
 ## 14. Criterio general de finalización
 
 Un cambio está terminado cuando cumple su alcance aprobado, respeta las fuentes de verdad, conserva los invariantes multiempresa, no introduce secretos, supera las comprobaciones pertinentes y deja documentación coherente con lo realmente implementado.
 
-Los comandos técnicos oficiales todavía no existen. Se incorporarán en la Iteración 1 después de crear y verificar los toolchains.
+Los comandos oficiales deben completar correctamente y no se deben reducir controles importantes solo para hacerlos pasar. Las limitaciones reales de una herramienta se documentan antes de cambiarla o sustituirla.

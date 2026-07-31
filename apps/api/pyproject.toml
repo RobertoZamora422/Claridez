@@ -1,0 +1,76 @@
+[project]
+name = "claridez-api"
+version = "0.0.0"
+description = "Esqueleto técnico de la API privada de Claridez."
+requires-python = "==3.13.*"
+dependencies = [
+  "Django==5.2.16",
+  "djangorestframework==3.16.1",
+  "drf-spectacular==0.30.0",
+  "psycopg[binary]==3.3.4",
+]
+
+[dependency-groups]
+dev = [
+  "coverage==7.15.2",
+  "django-stubs[compatible-mypy]==5.2.9",
+  "mypy==1.19.1",
+  "pip-audit==2.10.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "pytest-django==4.12.0",
+  "ruff==0.16.1",
+]
+
+[tool.uv]
+package = false
+required-version = "==0.12.0"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["openapi-schema.yaml"]
+
+[tool.ruff.lint]
+select = ["B", "DJ", "E", "F", "I", "SIM", "UP"]
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+files = ["manage.py", "src", "tests"]
+mypy_path = ["src"]
+strict = true
+show_error_codes = true
+show_column_numbers = true
+warn_unreachable = true
+
+[tool.django-stubs]
+django_settings_module = "claridez.settings.test"
+strict_settings = true
+strict_model_abstract_attrs = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "claridez.settings.test"
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "--cov=claridez",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+  "--cov-report=html",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["claridez"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
