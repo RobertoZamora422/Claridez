@@ -42,7 +42,7 @@ quote-style = "double"
 [tool.mypy]
 python_version = "3.13"
 plugins = ["mypy_django_plugin.main"]
-files = ["manage.py", "src", "tests"]
+files = ["manage.py", "src", "tests", "spikes"]
 mypy_path = ["src"]
 strict = true
 show_error_codes = true

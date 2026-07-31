@@ -41,16 +41,19 @@ No se aprueba todavía una matriz de permisos, capacidades, jerarquías ni excep
 - Tratamiento de datos verdaderamente globales.
 - Política de soporte con acceso transversal.
 
-## Validación pendiente
+## Evidencia del spike y decisión pendiente
 
-La Iteración 3 realizará un spike que comparará:
+La Iteración 3 comparó:
 
 1. Aislamiento aplicado explícitamente por la aplicación.
 2. Aislamiento de aplicación más PostgreSQL RLS como defensa en profundidad.
 
-El spike deberá cubrir Django, pooling, transacciones, migraciones, comandos, tareas, relaciones tenant-aware y conexiones reutilizadas. El código experimental no se convertirá automáticamente en código productivo.
+La ejecución cubrió Django, transacciones, migraciones, procesos sin tenant, relaciones tenant-aware
+y conexiones reutilizadas sin pool externo. La evidencia recomienda aplicación más RLS, pero la
+decisión se encuentra en [ADR 0009](0009-tenant-isolation-strategy.md) con estado `Propuesto`.
 
-RLS no está adoptado ni descartado por este ADR.
+RLS no está adoptado ni descartado por este ADR. El código experimental no se convierte
+automáticamente en código productivo.
 
 ## Alternativas consideradas
 
@@ -73,3 +76,4 @@ Se descartan como mecanismo de aislamiento porque la interfaz no puede proteger 
 
 - [Línea base del producto v0.1](../product/PRODUCT_BASELINE.md)
 - [Roadmap técnico](../architecture/INITIALIZATION_ROADMAP.md)
+- [Resultados del spike de tenancy](../architecture/TENANCY_SPIKE_RESULTS.md)

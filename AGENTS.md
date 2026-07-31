@@ -49,7 +49,8 @@ La matriz concreta se registra en `docs/architecture/TOOLCHAIN_COMPATIBILITY.md`
 - Ningún identificador de organización enviado por un cliente se considera confiable sin validar la membresía y el contexto activo.
 - Consultas, escrituras, relaciones, archivos, cachés y futuros trabajos asíncronos deberán respetar el contexto organizacional.
 - Los accesos cruzados deben probarse de forma negativa con al menos dos organizaciones.
-- No se debe afirmar que RLS está adoptado. Su conveniencia y funcionamiento con Django requieren el spike aprobado de la Iteración 3.
+- El spike de la Iteración 3 recomienda aplicación más RLS, pero ADR 0009 permanece `Propuesto`.
+  No se debe afirmar que RLS está adoptado hasta la aprobación expresa del propietario.
 
 ## 6. Perfiles iniciales provisionales
 
@@ -86,6 +87,9 @@ La Iteración 2 incorpora PostgreSQL local reproducible, configuración validada
 - Cliente TypeScript generado.
 
 Los únicos endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`. PostgreSQL local se publica solo sobre loopback. Django normal usa `claridez_app`; las migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda reservado al bootstrap local explícito.
+
+El código de `apps/api/spikes/tenancy` es experimental. Solo puede usar `claridez_tenancy_spike`,
+debe eliminarla al finalizar y no constituye una API, modelo o migración productiva.
 
 ## 9. Dependencias y herramientas
 
@@ -155,6 +159,8 @@ Desde la raíz del repositorio:
 - `npm run check`: ejecuta la puerta local completa sin auditorías de red.
 - `npm run check:all`: añade conexión, migraciones y pruebas contra PostgreSQL real.
 - `npm run audit`: audita dependencias mediante servicios externos.
+- `npm run tenancy-spike:run`: ejecuta el ciclo desechable completo de la Iteración 3 y limpia su
+  base en `finally`.
 
 Los comandos de plataforma y sus protecciones se documentan en `docs/architecture/LOCAL_PLATFORM.md`. Nunca se ejecuta `docker compose down -v` como reset normal.
 

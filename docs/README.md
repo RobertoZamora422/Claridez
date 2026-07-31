@@ -13,6 +13,9 @@ Este directorio contiene las fuentes versionadas que gobiernan producto, arquite
 - [Roadmap técnico de inicialización](architecture/INITIALIZATION_ROADMAP.md): secuencia aprobada desde el gobierno documental hasta el primer flujo vertical.
 - [Matriz de compatibilidad de toolchains](architecture/TOOLCHAIN_COMPATIBILITY.md): versiones exactas, dependencias, evidencia y límites de la Iteración 1.
 - [Plataforma local y configuración](architecture/LOCAL_PLATFORM.md): PostgreSQL 17 local, variables, perfiles, privilegios, comandos y endpoints técnicos de la Iteración 2.
+- [Protocolo del spike de tenancy](architecture/TENANCY_SPIKE_PROTOCOL.md): alcance, ciclo protegido y matriz experimental de la Iteración 3.
+- [Resultados del spike de tenancy](architecture/TENANCY_SPIKE_RESULTS.md): evidencia, benchmark y recomendación pendiente de revisión.
+- [Modelo de amenazas del spike](security/TENANCY_SPIKE_THREAT_MODEL.md): amenazas de aislamiento y controles evaluados.
 - [Registro de ADR](adr/README.md): decisiones arquitectónicas, estados y plantilla.
 
 ### Marca

@@ -2,7 +2,9 @@
 
 ## Estado actual
 
-Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles, plataforma PostgreSQL local y esqueletos técnicos mínimos, pero todavía no contiene módulos funcionales.
+Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles,
+plataforma PostgreSQL local, esqueletos técnicos mínimos y un spike de tenancy aislado, pero todavía
+no contiene módulos funcionales ni modelos multiempresa productivos.
 
 Toda contribución debe respetar [AGENTS.md](AGENTS.md), la [línea base del producto](docs/product/PRODUCT_BASELINE.md), los [ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
 
@@ -62,9 +64,13 @@ npm test
 npm run build
 npm run check
 npm run check:all
+npm run tenancy-spike:run
 ```
 
 `npm run format` aplica correcciones y debe ser idempotente. `check:all` requiere PostgreSQL local iniciado y preparado. `npm run audit` se ejecuta por separado porque requiere acceso a servicios externos.
+
+El comando del spike crea y elimina exclusivamente `claridez_tenancy_spike`. No se deben usar sus
+modelos, migraciones, bypasses o helpers como código productivo sin una decisión posterior.
 
 Además, toda contribución debe comprobar:
 

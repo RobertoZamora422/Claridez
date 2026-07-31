@@ -8,7 +8,7 @@ Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y ad
 
 ## Estado del proyecto
 
-El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains reproducibles** y la **Iteración 2 — Plataforma local y configuración**. Contiene esqueletos técnicos mínimos, PostgreSQL local reproducible y endpoints de salud, sin módulos funcionales ni entidades del dominio.
+El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains reproducibles**, la **Iteración 2 — Plataforma local y configuración** y el spike técnico de la **Iteración 3 — Aislamiento multiempresa**. Contiene esqueletos técnicos mínimos, PostgreSQL local reproducible, endpoints de salud y evidencia experimental de tenancy, sin módulos funcionales ni entidades productivas del dominio.
 
 Todavía no existen:
 
@@ -48,6 +48,9 @@ La línea base aprobada se encuentra en [docs/product/PRODUCT_BASELINE.md](docs/
 - [Roadmap técnico de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md)
 - [Matriz de compatibilidad de toolchains](docs/architecture/TOOLCHAIN_COMPATIBILITY.md)
 - [Plataforma local y configuración](docs/architecture/LOCAL_PLATFORM.md)
+- [Protocolo del spike de tenancy](docs/architecture/TENANCY_SPIKE_PROTOCOL.md)
+- [Resultados del spike de tenancy](docs/architecture/TENANCY_SPIKE_RESULTS.md)
+- [Modelo de amenazas del spike](docs/security/TENANCY_SPIKE_THREAT_MODEL.md)
 - [Registro de decisiones arquitectónicas](docs/adr/README.md)
 - [Documentos oficiales de marca](docs/brand/README.md)
 - [Reglas para colaboradores y agentes](AGENTS.md)
@@ -92,9 +95,13 @@ npm run build
 npm run check
 npm run check:all
 npm run audit
+npm run tenancy-spike:run
 ```
 
 `format` modifica archivos; `check` usa la variante de formato sin escritura. `check:all` añade PostgreSQL real, conexión y migraciones. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.
+
+El spike usa y elimina exclusivamente `claridez_tenancy_spike`. Su ADR 0009 permanece `Propuesto`:
+la evidencia no equivale a adopción productiva de RLS.
 
 ## Propiedad
 

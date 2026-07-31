@@ -50,6 +50,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0006](0006-reproducible-toolchains.md) | Aceptado con asuntos diferidos | Toolchains reproducibles y comandos oficiales |
 | [0007](0007-local-postgresql-platform.md) | Aceptado con asuntos diferidos | Plataforma PostgreSQL local reproducible |
 | [0008](0008-validated-local-configuration-and-health.md) | Aceptado con asuntos diferidos | Configuración local validada y endpoints técnicos |
+| [0009](0009-tenant-isolation-strategy.md) | Propuesto | Aplicación tenant-aware más RLS como defensa en profundidad |
 
 ## Modificación y reemplazo
 

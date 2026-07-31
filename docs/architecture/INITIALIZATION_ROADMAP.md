@@ -92,6 +92,8 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 3 — Spike de tenancy
 
+**Estado:** completada técnicamente el 31 de julio de 2026; decisión ADR 0009 pendiente de revisión.
+
 ### Alcance
 
 - Comparar aislamiento de aplicación frente a aplicación más PostgreSQL RLS.
@@ -111,6 +113,13 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 - Resultados reproducibles.
 - Riesgos y limitaciones documentados.
 - Estrategia de aislamiento aprobada antes de modelar datos privados productivos.
+
+### Resultado observado
+
+- 36 pruebas experimentales aprobadas contra PostgreSQL 17 real.
+- La base desechable fue eliminada al finalizar.
+- Se recomienda aplicación tenant-aware más RLS, sujeta a aprobación del ADR 0009.
+- Ningún modelo, migración o helper del spike se considera productivo.
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
