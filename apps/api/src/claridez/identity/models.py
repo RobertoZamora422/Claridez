@@ -89,6 +89,14 @@ class User(AbstractUser):
         self.status = canonical_status
         self.is_active = canonical_status == self.Status.ACTIVE
 
+    def get_full_name(self) -> str:
+        """Devolver el único nombre de usuario definido por Claridez."""
+        return self.display_name
+
+    def get_short_name(self) -> str:
+        """Devolver el mismo nombre visible sin alternativas implícitas."""
+        return self.display_name
+
     def _get_session_auth_hash(self, secret: str | None = None) -> str:
         """Incluir identidad y versión de seguridad preservando los fallbacks de Django."""
         key_salt = "claridez.identity.models.User.get_session_auth_hash"

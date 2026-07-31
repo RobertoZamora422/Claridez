@@ -36,6 +36,8 @@ La decisión para `identity/0001_initial.py` es definitiva: `claridez.identity.U
 - `username`, `first_name`, `last_name` y `date_joined` se eliminarán del modelo heredado.
 - `display_name` sustituirá los nombres heredados y podrá comenzar vacío mientras no exista un
   flujo aprobado que lo exija.
+- `get_full_name()` y `get_short_name()` devolverán exclusivamente `display_name`, incluido su
+  valor vacío, sin usar el correo como alternativa.
 - `email` será `USERNAME_FIELD` y `REQUIRED_FIELDS` será una lista vacía.
 - Un manager personalizado creará usuarios y superusuarios con el correo canónico y una pareja
   coherente de `status` e `is_active`.
@@ -68,6 +70,7 @@ No se delegará esta regla en `BaseUserManager.normalize_email()`, porque ese m�
 la normalización del dominio. `email` será no nulo y único en PostgreSQL. Una restricción `CHECK`
 exigirá que el valor almacenado sea no vacío e idéntico a `lower(trim(email))`; de este modo ni SQL
 directo ni operaciones que omitan el modelo podrán persistir otra representación.
+La búsqueda del usuario por clave natural aplicará la misma función canónica al correo recibido.
 
 Las validaciones Django ofrecerán errores útiles, pero no sustituirán la unicidad ni la
 representación canónica garantizadas por PostgreSQL.

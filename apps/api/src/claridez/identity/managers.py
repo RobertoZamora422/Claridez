@@ -30,6 +30,11 @@ class UserManager(BaseUserManager["User"]):
         """Normalizar la dirección completa, no solo el dominio."""
         return canonicalize_email(email)
 
+    def get_by_natural_key(self, username: str | None) -> User:
+        """Resolver la identidad con la misma representación canónica del correo."""
+        canonical_email = self.normalize_email(username)
+        return self.get(**{self.model.USERNAME_FIELD: canonical_email})
+
     def _create_user(
         self,
         email: str,

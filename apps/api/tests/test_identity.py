@@ -107,6 +107,26 @@ def test_email_canonicalizer_rejects_empty_values() -> None:
         canonicalize_email(None)
 
 
+@pytest.mark.parametrize("display_name", ["Roberto Zamora", ""])
+def test_name_methods_use_display_name_exclusively(display_name: str) -> None:
+    user = User(email="roberto@example.com", display_name=display_name)
+
+    assert user.get_full_name() == display_name
+    assert user.get_short_name() == display_name
+
+
+@pytest.mark.django_db
+def test_username_and_natural_key_use_canonical_email() -> None:
+    user = User.objects.create_user(
+        email="  PERSONA.NATURAL@EXAMPLE.COM  ",
+        password=PASSWORD,
+    )
+
+    assert user.get_username() == "persona.natural@example.com"
+    assert User.objects.get_by_natural_key("persona.natural@example.com") == user
+    assert User.objects.get_by_natural_key("  PERSONA.NATURAL@EXAMPLE.COM  ") == user
+
+
 @pytest.mark.django_db
 def test_manager_and_transition_keep_status_and_is_active_together() -> None:
     active_user = _active_user("active@example.com")
@@ -136,10 +156,25 @@ def test_postgresql_enforces_email_status_and_security_constraints() -> None:
     user = User.objects.create_user(email="canonical@example.com", password=PASSWORD)
 
     with pytest.raises(IntegrityError), transaction.atomic():
+        User.objects.filter(pk=user.pk).update(email="")
+
+    with pytest.raises(IntegrityError), transaction.atomic():
         User.objects.filter(pk=user.pk).update(email=" NOT-CANONICAL@EXAMPLE.COM ")
 
     with pytest.raises(IntegrityError), transaction.atomic():
         User.objects.filter(pk=user.pk).update(status=User.Status.ACTIVE, is_active=False)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        User.objects.filter(pk=user.pk).update(
+            status=User.Status.PENDING_VERIFICATION,
+            is_active=True,
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        User.objects.filter(pk=user.pk).update(status=User.Status.SUSPENDED, is_active=True)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        User.objects.filter(pk=user.pk).update(status="arbitrary", is_active=False)
 
     with pytest.raises(IntegrityError), transaction.atomic():
         User.objects.filter(pk=user.pk).update(security_version=0)
