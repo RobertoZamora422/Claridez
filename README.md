@@ -8,7 +8,12 @@ Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y ad
 
 ## Estado del proyecto
 
-El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains reproducibles**, la **Iteración 2 — Plataforma local y configuración** y el spike técnico de la **Iteración 3 — Aislamiento multiempresa**. Contiene esqueletos técnicos mínimos, PostgreSQL local reproducible, endpoints de salud y evidencia experimental de tenancy, sin módulos funcionales ni entidades productivas del dominio.
+El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains
+reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el spike técnico de la
+**Iteración 3 — Aislamiento multiempresa** y **4.0 — Gobierno y descarte**. Contiene esqueletos
+técnicos mínimos, PostgreSQL local reproducible, endpoints de salud y evidencia histórica del
+spike. La arquitectura de identidad, organizaciones, autorización y RLS está aceptada, pero su
+implementación 4.1 aún no está autorizada.
 
 Todavía no existen:
 
@@ -30,6 +35,8 @@ Todavía no existen:
 - Arquitectura multiempresa desde el inicio.
 - Todo dato privado deberá pertenecer a una organización.
 - Los usuarios podrán pertenecer a varias organizaciones mediante membresías.
+- Identidad local desacoplada con sesiones Django de servidor.
+- Aislamiento tenant-aware en la aplicación más PostgreSQL RLS como defensa en profundidad.
 
 La matriz exacta y su evidencia se documentan en [docs/architecture/TOOLCHAIN_COMPATIBILITY.md](docs/architecture/TOOLCHAIN_COMPATIBILITY.md).
 
@@ -95,13 +102,13 @@ npm run build
 npm run check
 npm run check:all
 npm run audit
-npm run tenancy-spike:run
 ```
 
 `format` modifica archivos; `check` usa la variante de formato sin escritura. `check:all` añade PostgreSQL real, conexión y migraciones. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.
 
-El spike usa y elimina exclusivamente `claridez_tenancy_spike`. Su ADR 0009 permanece `Propuesto`:
-la evidencia no equivale a adopción productiva de RLS.
+El protocolo, los resultados y el modelo de amenazas del spike se conservan como evidencia
+histórica. Su código y scripts experimentales fueron descartados en 4.0; ADR 0009 registra la
+estrategia aceptada sin autorizar todavía una implementación productiva.
 
 ## Propiedad
 

@@ -2,8 +2,9 @@
 
 Esqueleto técnico de la API REST de Claridez. En la Iteración 2 incorpora configuración local validada, perfiles de credenciales separados, PostgreSQL real y los endpoints técnicos `/health` y `/ready`.
 
-No contiene aplicaciones funcionales, modelos productivos, usuarios del dominio ni reglas
-multiempresa adoptadas. `spikes/tenancy` es un experimento desechable y aislado.
+No contiene todavía aplicaciones funcionales, modelos productivos ni usuarios del dominio. Las
+reglas arquitectónicas multiempresa están aceptadas en ADR, pero su implementación no está
+autorizada hasta una subiteración posterior.
 
 ## Requisitos
 
@@ -42,11 +43,11 @@ No existen endpoints de negocio.
 
 `drf-spectacular` genera `openapi-schema.yaml` únicamente como artefacto temporal de comprobación. El archivo está ignorado y no debe editarse. El contrato OpenAPI se versionará cuando existan endpoints funcionales aprobados.
 
-## Spike de tenancy
+## Evidencia del spike de tenancy
 
-La Iteración 3 se ejecuta desde la raíz con `npm run tenancy-spike:run`. Usa únicamente
-`claridez_tenancy_spike`, aplica migraciones con `claridez_migrator`, prueba con roles no
-propietarios, genera evidencia ignorada y elimina la base en `finally`.
-
-Consulta [el README experimental](spikes/tenancy/README.md) y
-[los resultados](../../docs/architecture/TENANCY_SPIKE_RESULTS.md). ADR 0009 sigue `Propuesto`.
+El código y los scripts ejecutables de la Iteración 3 fueron eliminados en 4.0. Se conservan el
+[protocolo](../../docs/architecture/TENANCY_SPIKE_PROTOCOL.md), los
+[resultados](../../docs/architecture/TENANCY_SPIKE_RESULTS.md) y el
+[modelo de amenazas](../../docs/security/TENANCY_SPIKE_THREAT_MODEL.md) como evidencia histórica.
+ADR 0009 acepta aplicación tenant-aware más RLS sin convertir el experimento en implementación
+productiva.

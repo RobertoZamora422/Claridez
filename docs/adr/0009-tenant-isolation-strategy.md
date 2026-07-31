@@ -1,106 +1,159 @@
 # ADR 0009 — Estrategia de aislamiento multiempresa
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado
 - **Fecha:** 2026-07-31
 - **Reemplaza a:** No aplica
 - **Reemplazado por:** No aplica
 
 ## Contexto
 
-ADR 0003 exige pertenencia organizacional para todo dato privado y dejó RLS pendiente de evidencia.
-La Iteración 3 comparó rutas tenant-aware de aplicación con las mismas rutas reforzadas por
-PostgreSQL RLS, usando roles no propietarios, transacciones y conexiones reutilizadas.
+ADR 0003 exige pertenencia organizacional para todo dato privado. La Iteración 3 comparó rutas
+tenant-aware de aplicación con las mismas rutas reforzadas por PostgreSQL Row-Level Security
+(RLS), usando roles no propietarios, transacciones y conexiones reutilizadas.
 
-## Decisión propuesta
+La evidencia confirmó que los filtros de aplicación son necesarios para autorización y ergonomía,
+pero una omisión en una consulta, un bulk o SQL directo puede atravesar el límite organizacional.
+RLS redujo ese riesgo y se comportó de forma fail-closed sin contexto. También confirmó que RLS no
+puede decidir si un actor está autorizado a usar un identificador de organización válido.
 
-Para cada futura tabla privada se propone aplicar controles en dos capas:
+## Decisiones aceptadas
 
-1. autorización previa, servicios y consultas tenant-aware en Django;
-2. RLS fail-closed mediante `organization_id` como defensa en profundidad.
+### Dos capas obligatorias
 
-El contexto se establecería solo después de validar al actor y la organización:
+Cada tabla privada deberá aplicar controles deliberadamente redundantes:
+
+1. autenticación, autorización, servicios y consultas tenant-aware en Django;
+2. RLS mediante `organization_id` como defensa en profundidad frente a omisiones de aislamiento y
+   consultas ejecutadas sin contexto.
+
+El rol normal de aplicación será no propietario de las tablas privadas, no tendrá `BYPASSRLS` y no
+podrá alterar tablas, políticas ni privilegios. Las políticas deberán incluir controles de lectura
+y escritura equivalentes a `USING` y `WITH CHECK`.
+
+`OrganizationSettings`, aceptada por ADR 0011, será la primera entidad privada productiva con RLS.
+Esta elección no convierte el código del spike en código productivo.
+
+### Límite autorizado de tenant
+
+`authorized_tenant_scope` será el único límite soportado para una operación privada. La operación
+completa deberá ocurrir dentro de una transacción exterior explícita y usar contexto local a esa
+transacción:
 
 ```text
-transaction.atomic()
-  -> set_config('claridez.organization_id', uuid_validado, true)
-  -> operación tenant-aware
+authorized_tenant_scope(actor, organization_reference, required_capability)
+  -> transaction.atomic()
+  -> helper de infraestructura establece
+     set_config('claridez.organization_id', organization_id, true)
+  -> valida organización, membresía activa y capacidad
+  -> ejecuta validaciones y consultas privadas
+  -> materializa la respuesta
   -> commit o rollback
 ```
 
-El rol de ejecución deberá ser no propietario y no tendrá `BYPASSRLS`. Las relaciones privadas
-deberán imponer en PostgreSQL una FK o restricción equivalente que incluya `organization_id`.
+El identificador recibido solo permite intentar abrir el scope; no demuestra membresía ni
+autorización. El helper de bajo nivel que establece el GUC pertenecerá a infraestructura y no será
+accesible desde vistas, serializers ni código de dominio ordinario. Esas capas solo podrán invocar
+la abstracción autorizada.
 
-Esta sección es una propuesta técnica, no una decisión aceptada ni autorización para crear modelos
-productivos.
+Toda validación que dependa de datos organizacionales, toda consulta privada y toda materialización
+de respuesta —incluida la evaluación de querysets diferidos y de datos del serializer— deberá
+completar dentro de `authorized_tenant_scope`. No se devolverán querysets, iteradores ni objetos
+lazy para evaluarlos después de cerrar el scope.
 
-## Decisiones que no se proponen
+Un scope anidado podrá reutilizar el mismo tenant. Deberá rechazar un tenant distinto antes de
+ejecutar la operación. Se rechaza el contexto persistente a nivel de sesión de PostgreSQL y no se
+adopta `ATOMIC_REQUESTS` ni middleware por sí solo como límite de autorización.
 
-- RLS como sustituto de autenticación, membresías, permisos o validación de organización activa.
-- Contexto de tenant persistente a nivel de sesión.
-- UUID especial para datos globales.
-- `ATOMIC_REQUESTS` o middleware como integración definitiva.
-- `BYPASSRLS` para aplicación, workers o soporte.
-- Privilegios por columna o triggers como regla general.
-- Conversión automática del código del spike en código productivo.
+### Límite real de RLS
 
-## Evidencia
+RLS no es autenticación, autorización de membresía ni una defensa absoluta frente a ejecución SQL
+arbitraria bajo el rol de aplicación. Ese rol puede establecer técnicamente el GUC de una
+organización conocida; si lo hace, la política filtra correctamente para ese valor, pero desconoce
+si el actor debía usarlo. Por ello, RLS nunca sustituye la validación backend-first dentro del
+scope autorizado.
 
-- Las rutas de aplicación soportadas aislaron, pero los bypasses deliberados leyeron ambas
-  organizaciones y permitieron escrituras cruzadas.
-- RLS filtró ORM y SQL directo; `WITH CHECK` rechazó escrituras cruzadas y cambios de tenant.
-- El comportamiento fue fail-closed sin contexto y con contexto malformado.
-- `SET LOCAL` quedó limpio tras commit, rollback y excepción, incluso con conexión reutilizada.
-- El contexto de sesión contaminó el uso siguiente de la conexión.
-- `ENABLE` permitió bypass al propietario; `FORCE` aplicó la política también al propietario.
-- La FK compuesta impidió relaciones cruzadas independientemente de formularios o servicios.
-- RLS siguió un UUID válido ajeno cuando se le proporcionó: la autorización previa sigue siendo
-  obligatoria.
-- El benchmark local no mostró una señal que justifique decidir por rendimiento.
+Las restricciones de unicidad y referencialidad también pueden revelar que existe una colisión en
+otro tenant aunque RLS oculte sus filas. El diseño deberá:
 
-La evidencia completa está en
-[TENANCY_SPIKE_RESULTS.md](../architecture/TENANCY_SPIKE_RESULTS.md).
+- preferir unicidades y relaciones compuestas con `organization_id` cuando el concepto sea local;
+- realizar validaciones tenant-aware sin usarlas como única defensa ante concurrencia;
+- traducir conflictos de base a errores genéricos que no revelen identificadores ni datos ajenos;
+- probar colisiones intra-tenant y entre al menos dos organizaciones.
 
-## Alternativas evaluadas
+Las relaciones entre datos privados deberán imponer en PostgreSQL una FK o restricción equivalente
+que incluya `organization_id`. No existirá un UUID especial para datos globales.
+
+## Aspectos provisionales
+
+- El nombre `authorized_tenant_scope` podrá ajustarse antes de ser API estable, pero no su
+  responsabilidad ni su exclusividad como límite de operaciones privadas.
+- La ergonomía ORM concreta para claves y relaciones compuestas deberá conservar las restricciones
+  efectivas en PostgreSQL.
+
+## Asuntos diferidos
+
+- Acceso transversal de soporte, que requerirá autorización reforzada, alcance temporal, razón y
+  auditoría; no usará un tenant global.
+- Aislamiento de archivos, exportaciones, cachés, logs y futuros trabajos asíncronos, que deberá
+  extender la misma frontera organizacional cuando esos componentes existan.
+- Requisitos que pudieran justificar una base o un esquema por organización.
+
+## Validación pendiente
+
+Antes de crear la primera migración privada deberán quedar comprobados:
+
+- el uso productivo de `FORCE ROW LEVEL SECURITY` y el procedimiento explícito para migraciones de
+  datos bajo el rol propietario;
+- la imposibilidad práctica de importar o invocar el helper del GUC desde capas no autorizadas;
+- el cierre del scope antes de cualquier evaluación diferida mediante pruebas de regresión;
+- errores genéricos e indistinguibles ante colisiones y referencias cruzadas;
+- casos negativos con dos organizaciones para ORM, SQL directo, bulk, relaciones y conexiones
+  reutilizadas.
+
+## Alternativas consideradas
 
 ### Solo aislamiento en aplicación
 
-Menor complejidad PostgreSQL, pero una omisión en manager, SQL, bulk, comando o job puede exponer o
-modificar datos. Las pruebas demostraron esos bypasses. No se recomienda como única barrera.
+Se rechaza como única barrera. Las rutas soportadas aislaron, pero los bypasses deliberados leyeron
+o escribieron datos de ambas organizaciones.
 
 ### Aplicación más RLS
 
-Reduce el impacto de una consulta olvidada y cubre SQL directo. Añade disciplina transaccional,
-políticas, diagnóstico y casos especiales para propietario/migrador. Es la opción recomendada para
-revisión.
+Se acepta. Añade disciplina transaccional y operativa, pero reduce el impacto de una consulta
+olvidada y cubre ORM, bulk y SQL directo dentro de los límites declarados.
 
 ### Contexto de sesión con reset manual
 
-Fue contaminante con conexiones reutilizadas. Se propone rechazarlo.
+Se rechaza porque contaminó conexiones reutilizadas. Solo se admite contexto local a una
+transacción explícita.
 
 ### Base o esquema por organización
 
-No fue parte del spike y permanece diferido salvo futuros requisitos contractuales, regulatorios o
-de escala.
+No formó parte del spike y permanece diferido salvo futuros requisitos contractuales,
+regulatorios o de escala.
 
-## Consecuencias si se acepta
+## Consecuencias
 
-- Cada operación tenant-aware necesitará una transacción exterior explícita.
-- La integración deberá impedir scopes anidados con tenants distintos.
-- Tests, comandos, workers, Admin y migraciones de datos necesitarán APIs y casos de prueba
-  explícitos.
 - La base y la aplicación conservarán filtros redundantes de forma deliberada.
-- Las consultas y planes deberán observarse conforme aparezcan cargas representativas.
+- Cada operación privada tendrá una transacción exterior explícita y una frontera de autorización
+  visible.
+- Comandos, futuros workers y migraciones de datos necesitarán APIs y casos de prueba específicos;
+  no podrán reutilizar silenciosamente el helper de bajo nivel.
+- Las consultas y planes se observarán cuando existan cargas representativas.
+- Esta aceptación aprueba la arquitectura, pero no autoriza por sí sola modelos, migraciones ni el
+  resto de la Iteración 4.
 
-## Decisiones pendientes antes de aceptar
+## Evidencia
 
-- Punto exacto donde se valida autorización y se abre el scope en Django.
-- Uso productivo de `FORCE ROW LEVEL SECURITY` y política para migraciones de datos.
-- Tratamiento de Django Admin, soporte interno y procesos globales auditados.
-- Aislamiento de archivos, exports, logs, cachés y futuros trabajos asíncronos.
-- Convención productiva de relaciones compuestas y ergonomía ORM.
+- [Protocolo del spike de tenancy](../architecture/TENANCY_SPIKE_PROTOCOL.md)
+- [Resultados del spike de tenancy](../architecture/TENANCY_SPIKE_RESULTS.md)
+- [Modelo de amenazas del spike](../security/TENANCY_SPIKE_THREAT_MODEL.md)
+- [ADR 0003 — Fundamentos multiempresa](0003-multitenancy-foundations.md)
+- [ADR 0011 — Organizaciones, membresías y autorización](0011-organizations-memberships-and-authorization.md)
 
-## Estado del código experimental
+## Destino del código experimental
 
-El directorio `apps/api/spikes/tenancy` no es candidato directo a producción. Tras la revisión se
-eliminará o se reimplementarán selectivamente conceptos aprobados. Mientras este ADR siga
-`Propuesto`, RLS no está adoptado por Claridez.
+El protocolo, los resultados y el modelo de amenazas se conservan como evidencia histórica. El
+paquete `apps/api/spikes/tenancy` y sus scripts se eliminan en 4.0. Cualquier implementación
+productiva deberá escribirse a partir de estas decisiones y no copiar automáticamente modelos,
+migraciones, bypasses o helpers experimentales.

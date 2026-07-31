@@ -92,7 +92,8 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 3 — Spike de tenancy
 
-**Estado:** completada técnicamente el 31 de julio de 2026; decisión ADR 0009 pendiente de revisión.
+**Estado:** completada técnicamente el 31 de julio de 2026; estrategia aceptada en ADR 0009 durante
+4.0.
 
 ### Alcance
 
@@ -118,20 +119,26 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 - 36 pruebas experimentales aprobadas contra PostgreSQL 17 real.
 - La base desechable fue eliminada al finalizar.
-- Se recomienda aplicación tenant-aware más RLS, sujeta a aprobación del ADR 0009.
+- La evidencia sustentó la aceptación de aplicación tenant-aware más RLS en ADR 0009.
 - Ningún modelo, migración o helper del spike se considera productivo.
+- El código y los scripts experimentales se eliminaron en 4.0; el protocolo, los resultados y el
+  modelo de amenazas permanecen como evidencia histórica.
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
+**Estado:** completada únicamente 4.0 — Gobierno y descarte. La implementación 4.1 y el resto de la
+iteración no están autorizados.
+
 ### Condición de entrada
 
-- Estrategias de identidad y tenancy aprobadas.
+- Estrategias de identidad, organizaciones, autorización y tenancy aprobadas mediante ADR 0009,
+  ADR 0010 y ADR 0011.
 
 ### Alcance
 
 - Implementar la opción de identidad seleccionada.
 - Establecer organizaciones y membresías.
-- Incorporar los perfiles provisionales sin inventar una matriz definitiva.
+- Incorporar la matriz provisional de ADR 0011 sin tratarla como contrato de módulos futuros.
 - Aplicar aislamiento y denegación por defecto.
 
 ### Criterio de salida

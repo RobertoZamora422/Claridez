@@ -1,6 +1,6 @@
 # ADR 0003 — Fundamentos multiempresa
 
-- **Estado:** Aceptado con aspectos provisionales y spike pendiente
+- **Estado:** Aceptado con aspectos provisionales
 - **Fecha:** 2026-07-31
 - **Reemplaza a:** No aplica
 - **Reemplazado por:** No aplica
@@ -9,7 +9,8 @@
 
 Claridez será un SaaS B2B para varias empresas. El aislamiento no puede añadirse después como un filtro opcional porque afecta identidad, consultas, relaciones, pruebas, archivos y operación.
 
-Todavía no existe evidencia técnica suficiente para adoptar PostgreSQL Row-Level Security como defensa en profundidad junto con Django.
+La Iteración 3 produjo evidencia técnica para decidir si PostgreSQL Row-Level Security debía
+acompañar los controles tenant-aware de Django. ADR 0009 registra la estrategia aceptada.
 
 ## Decisiones aceptadas
 
@@ -31,17 +32,18 @@ Se registran cinco perfiles iniciales provisionales y únicamente su propósito 
 - `operaciones`: trabajo relacionado con la preparación y ejecución operativa.
 - `finanzas`: trabajo relacionado con el seguimiento económico y financiero.
 
-No se aprueba todavía una matriz de permisos, capacidades, jerarquías ni excepciones.
+ADR 0011 aprueba una matriz provisional limitada a la infraestructura de la Iteración 4. No es el
+contrato definitivo de permisos de módulos futuros.
 
 ## Asuntos diferidos
 
-- Ciclo de vida de organizaciones y membresías.
-- Invitaciones, suspensiones y cambios de contexto.
+- Ciclos de vida no definidos expresamente para organizaciones y membresías.
+- Invitaciones y registro público.
 - Roles personalizados o capacidades por plan.
 - Tratamiento de datos verdaderamente globales.
 - Política de soporte con acceso transversal.
 
-## Evidencia del spike y decisión pendiente
+## Evidencia del spike y decisión adoptada
 
 La Iteración 3 comparó:
 
@@ -49,11 +51,11 @@ La Iteración 3 comparó:
 2. Aislamiento de aplicación más PostgreSQL RLS como defensa en profundidad.
 
 La ejecución cubrió Django, transacciones, migraciones, procesos sin tenant, relaciones tenant-aware
-y conexiones reutilizadas sin pool externo. La evidencia recomienda aplicación más RLS, pero la
-decisión se encuentra en [ADR 0009](0009-tenant-isolation-strategy.md) con estado `Propuesto`.
+y conexiones reutilizadas sin pool externo. La estrategia de aplicación tenant-aware más RLS como
+defensa en profundidad fue aceptada en [ADR 0009](0009-tenant-isolation-strategy.md).
 
-RLS no está adoptado ni descartado por este ADR. El código experimental no se convierte
-automáticamente en código productivo.
+El código experimental no se convierte automáticamente en código productivo y se elimina en la
+subiteración 4.0 después de conservar su protocolo, resultados y modelo de amenazas.
 
 ## Alternativas consideradas
 
@@ -68,12 +70,17 @@ Se descartan como mecanismo de aislamiento porque la interfaz no puede proteger 
 ## Consecuencias
 
 - Todo futuro diseño de datos privados deberá demostrar su pertenencia organizacional.
-- La estrategia concreta de claves y relaciones requiere evidencia del spike.
+- La estrategia concreta de claves y relaciones deberá implementar ADR 0009 y demostrar sus
+  invariantes en PostgreSQL.
 - Autenticación, autorización y aislamiento se tratarán como controles relacionados pero distintos.
-- La Iteración 4 no podrá comenzar hasta aprobar las estrategias de tenancy e identidad.
+- La aceptación de las estrategias de tenancy e identidad habilita únicamente la subiteración que
+  el propietario autorice de forma expresa.
 
 ## Evidencia
 
 - [Línea base del producto v0.1](../product/PRODUCT_BASELINE.md)
 - [Roadmap técnico](../architecture/INITIALIZATION_ROADMAP.md)
 - [Resultados del spike de tenancy](../architecture/TENANCY_SPIKE_RESULTS.md)
+- [ADR 0009 — Estrategia de aislamiento multiempresa](0009-tenant-isolation-strategy.md)
+- [ADR 0010 — Identidad local y sesiones de servidor](0010-local-identity-and-server-sessions.md)
+- [ADR 0011 — Organizaciones, membresías y autorización](0011-organizations-memberships-and-authorization.md)

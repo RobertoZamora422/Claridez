@@ -51,7 +51,8 @@ Las reglas de impuestos, redondeo, formatos, fechas de corte y localización req
 - Una organización representa el límite principal de aislamiento de datos privados.
 - Todo dato privado deberá pertenecer a una organización.
 - Un usuario podrá pertenecer a varias organizaciones mediante membresías.
-- La estrategia técnica definitiva de aislamiento se decidirá después del spike de la Iteración 3.
+- La estrategia técnica de aislamiento fue aceptada después del spike en ADR 0009: aplicación
+  tenant-aware más PostgreSQL RLS como defensa en profundidad.
 
 Este documento no define todavía el ciclo de vida de organizaciones, membresías, invitaciones o cambios de contexto.
 
@@ -65,7 +66,9 @@ Los nombres y propósitos generales aprobados son:
 - `operaciones`: trabajo relacionado con la preparación y ejecución operativa.
 - `finanzas`: trabajo relacionado con el seguimiento económico y financiero.
 
-Los perfiles son provisionales. No existe todavía una matriz aprobada de permisos, capacidades, precedencias o excepciones.
+Los perfiles son provisionales. ADR 0011 aprueba una matriz limitada a la infraestructura de la
+Iteración 4; no constituye el contrato definitivo de permisos, capacidades, precedencias o
+excepciones de módulos futuros.
 
 ## Arquitectura de producto aprobada
 
@@ -93,8 +96,7 @@ El Modelo de Conversión, la página pública y los dominios propios pertenecen 
 - Primer flujo vertical funcional.
 - Procesos y estados de cada área.
 - Matriz definitiva de autorización.
-- Proveedor o estrategia final de identidad.
-- Adopción o descarte de PostgreSQL RLS.
+- Proveedor OIDC futuro, sin alterar la identidad local desacoplada aceptada en ADR 0010.
 - Reglas financieras y de disponibilidad.
 - Política de retención, exportación y eliminación.
 - Infraestructura y proveedores de staging y producción.

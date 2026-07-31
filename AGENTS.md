@@ -49,8 +49,12 @@ La matriz concreta se registra en `docs/architecture/TOOLCHAIN_COMPATIBILITY.md`
 - Ningún identificador de organización enviado por un cliente se considera confiable sin validar la membresía y el contexto activo.
 - Consultas, escrituras, relaciones, archivos, cachés y futuros trabajos asíncronos deberán respetar el contexto organizacional.
 - Los accesos cruzados deben probarse de forma negativa con al menos dos organizaciones.
-- El spike de la Iteración 3 recomienda aplicación más RLS, pero ADR 0009 permanece `Propuesto`.
-  No se debe afirmar que RLS está adoptado hasta la aprobación expresa del propietario.
+- ADR 0009 acepta controles tenant-aware de aplicación más PostgreSQL RLS como defensa en
+  profundidad. RLS no sustituye autenticación, membresía ni autorización y el rol de aplicación
+  puede establecer técnicamente el GUC.
+- Toda validación organizacional, consulta privada y materialización de respuesta deberá completar
+  dentro de `authorized_tenant_scope`; el helper de bajo nivel del GUC no será accesible desde
+  vistas, serializers ni código de dominio ordinario.
 
 ## 6. Perfiles iniciales provisionales
 
@@ -62,7 +66,10 @@ Los siguientes nombres y propósitos generales están aprobados de forma provisi
 - `operaciones`: trabajo relacionado con la preparación y ejecución operativa.
 - `finanzas`: trabajo relacionado con el seguimiento económico y financiero.
 
-Estos perfiles no constituyen una matriz definitiva de permisos. Está prohibido inferir capacidades, jerarquías, excepciones o accesos concretos sin una especificación posterior aprobada.
+ADR 0011 aprueba una matriz provisional limitada a la infraestructura de identidad, configuración
+y membresías de la Iteración 4. No constituye el contrato definitivo de módulos futuros. Está
+prohibido inferir capacidades, jerarquías, excepciones o accesos adicionales sin una especificación
+posterior aprobada.
 
 ## 7. Alcance del producto
 
@@ -77,7 +84,10 @@ Estos perfiles no constituyen una matriz definitiva de permisos. Está prohibido
 
 ## 8. Alcance técnico establecido
 
-La Iteración 2 incorpora PostgreSQL local reproducible, configuración validada, perfiles separados, endpoints técnicos y pruebas de integración. Django y React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que exista una nueva instrucción explícita, no se deben crear:
+Las Iteraciones 0 a 3 y la subiteración 4.0 están completadas. 4.0 acepta la arquitectura y descarta
+el código experimental, pero no autoriza su implementación. Django y React/Vite se ejecutan
+nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que exista una nueva
+instrucción explícita para 4.1, no se deben crear:
 
 - Aplicaciones funcionales, modelos, migraciones o endpoints de negocio.
 - Organizaciones, membresías, usuarios del dominio ni configuración multiempresa productiva.
@@ -88,8 +98,8 @@ La Iteración 2 incorpora PostgreSQL local reproducible, configuración validada
 
 Los únicos endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`. PostgreSQL local se publica solo sobre loopback. Django normal usa `claridez_app`; las migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda reservado al bootstrap local explícito.
 
-El código de `apps/api/spikes/tenancy` es experimental. Solo puede usar `claridez_tenancy_spike`,
-debe eliminarla al finalizar y no constituye una API, modelo o migración productiva.
+El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
+modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.
 
 ## 9. Dependencias y herramientas
 
@@ -159,8 +169,6 @@ Desde la raíz del repositorio:
 - `npm run check`: ejecuta la puerta local completa sin auditorías de red.
 - `npm run check:all`: añade conexión, migraciones y pruebas contra PostgreSQL real.
 - `npm run audit`: audita dependencias mediante servicios externos.
-- `npm run tenancy-spike:run`: ejecuta el ciclo desechable completo de la Iteración 3 y limpia su
-  base en `finally`.
 
 Los comandos de plataforma y sus protecciones se documentan en `docs/architecture/LOCAL_PLATFORM.md`. Nunca se ejecuta `docker compose down -v` como reset normal.
 
