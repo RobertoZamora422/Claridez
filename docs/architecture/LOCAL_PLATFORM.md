@@ -126,10 +126,15 @@ Staging y producción deberán incorporar módulos separados, secretos inyectado
 |---|---:|---:|---|---|---|
 | `postgres` | Sí | Sí | Bootstrap total | Total | Solo comandos locales explícitos |
 | `claridez_migrator` | Sí | No | Propietario de base/esquema; aplica migraciones | Por propiedad | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
-| `claridez_app` | Sí | No | Ninguno | DML aplicable; sin `DELETE` sobre `Organization`, `Membership` ni `OrganizationSettings` | Sin CREATE, propiedad, `BYPASSRLS` ni acceso a `django_migrations` |
+| `claridez_app` | Sí | No | Ninguno | DML aplicable; `DELETE` comercial solo sobre líneas de borrador | Sin CREATE, propiedad, `BYPASSRLS` ni acceso a `django_migrations` |
 | `claridez_test_runner` | Sí | Sí | Solo en bases de prueba que crea localmente | Total dentro de su base efímera | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
 
 El bootstrap revoca privilegios de `PUBLIC` en `claridez_local` y en su esquema. `db:migrate` ejecuta Django con el migrador y luego vuelve a aplicar los grants de objetos para la aplicación.
+
+`npm run api:run` utiliza el comando local `api_run`, basado en `runserver`, y omite únicamente la
+consulta de cortesía al registro de migraciones. Esa consulta no puede ejecutarse con
+`claridez_app`, porque el rol no recibe acceso a `django_migrations`. La comprobación y aplicación
+de migraciones permanecen en `db:migrations:check` y `db:migrate`, ejecutados con el migrador.
 
 ## Comandos oficiales
 
@@ -193,6 +198,10 @@ La autenticación local expone bajo `/api/v1/auth/` `csrf/`, `login/`, `logout/`
 el login anónimo. `csrf/` entrega en JSON el valor que debe enviarse como `X-CSRFToken`; la cookie
 CSRF es `HttpOnly`, por lo que el cliente no debe intentar leerla.
 
+El perfil de desarrollo deriva `CSRF_TRUSTED_ORIGINS` de la URL local validada
+`CLARIDEZ_AUTH_LINK_BASE_URL`, de modo que Vite puede enviar comandos al proxy local sin habilitar
+CORS ni confiar en un origen externo.
+
 Las sesiones vencen exactamente ocho horas después del login. No se guardan en cada petición ni se
 renuevan por actividad. Las cookies de sesión y CSRF son `HttpOnly`, `SameSite=Lax` y se marcan
 `Secure` fuera de los perfiles locales y de prueba. Todas las respuestas de autenticación y salud
@@ -210,6 +219,11 @@ La API organizacional añade `GET /api/v1/organizations/`, `GET` y `POST` sobre 
 lecturas `settings/` y `memberships/` por UUID. La selección de contexto exige CSRF, guarda solo
 `last_organization_id` y no renueva el vencimiento absoluto. No existen endpoints privilegiados de
 escritura.
+
+La Iteración 5.1 añade bajo cada UUID organizacional personas, solicitudes, disponibilidad,
+cotizaciones y reservas. Emitir, aceptar, cerrar, confirmar y cancelar son comandos explícitos;
+no se publican rutas `DELETE`. El listado completo se mantiene en la
+[especificación funcional](../product/ITERATION_5_1_COMMERCIAL_FLOW.md).
 
 `organizations_organizationsettings` pertenece a `claridez_migrator`, aplica `ENABLE` y `FORCE ROW
 LEVEL SECURITY` y no devuelve filas sin el GUC local establecido por `authorized_tenant_scope`.
@@ -239,3 +253,8 @@ migraciones estándar de sesiones y Axes, se aplican con `claridez_migrator`.
 `organizations/0002_organizationsettings.py` realiza el backfill, crea la función mínima del GUC,
 los grants y la política RLS. El rol normal recibe solo el DML requerido, pero no propiedad, DDL,
 `BYPASSRLS` ni `DELETE` sobre las tres tablas organizacionales.
+
+`organizations/0003` añade la clave compuesta requerida por actores tenant-aware. Las migraciones
+`commercial/0001` y `0002` crean las entidades funcionales, `btree_gist`, FK compuestas,
+constraints y triggers de integridad, privilegios mínimos y RLS forzado para las ocho tablas
+privadas.

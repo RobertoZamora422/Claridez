@@ -118,6 +118,10 @@ class Membership(models.Model):
                 fields=["organization", "user"],
                 name="organizations_membership_org_user_unique",
             ),
+            models.UniqueConstraint(
+                fields=["organization", "id"],
+                name="organizations_membership_org_id_unique",
+            ),
             models.CheckConstraint(
                 condition=models.Q(
                     role__in=["owner", "administrator", "commercial", "operations", "finance"]

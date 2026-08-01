@@ -53,6 +53,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0009](0009-tenant-isolation-strategy.md) | Aceptado | Aplicación tenant-aware más RLS como defensa en profundidad |
 | [0010](0010-local-identity-and-server-sessions.md) | Aceptado | Identidad local y sesiones de servidor |
 | [0011](0011-organizations-memberships-and-authorization.md) | Aceptado | Organizaciones, membresías y autorización backend-first |
+| [0012](0012-commercial-scheduling-and-monetary-integrity.md) | Aceptado | Integridad de agenda y cotizaciones comerciales |
 
 ## Modificación y reemplazo
 

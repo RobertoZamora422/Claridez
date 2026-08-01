@@ -25,18 +25,37 @@ EXPECTED_MATRIX = {
         Capability.MEMBERSHIP_READ,
         Capability.MEMBERSHIP_MANAGE_NON_OWNER,
         Capability.MEMBERSHIP_REVOKE_SESSIONS,
+        Capability.PERSON_READ,
+        Capability.PERSON_MANAGE,
+        Capability.SALES_READ,
+        Capability.SALES_MANAGE,
+        Capability.AVAILABILITY_READ,
+        Capability.RESERVATION_CONFIRM,
+        Capability.RESERVATION_CANCEL,
+        Capability.RESERVATION_WAIVE_DEPOSIT,
     },
     Membership.Role.COMMERCIAL: {
         Capability.ORGANIZATION_ACCESS,
         Capability.ORGANIZATION_SETTINGS_READ,
+        Capability.PERSON_READ,
+        Capability.PERSON_MANAGE,
+        Capability.SALES_READ,
+        Capability.SALES_MANAGE,
+        Capability.AVAILABILITY_READ,
+        Capability.RESERVATION_CONFIRM,
     },
     Membership.Role.OPERATIONS: {
         Capability.ORGANIZATION_ACCESS,
         Capability.ORGANIZATION_SETTINGS_READ,
+        Capability.SALES_READ,
+        Capability.AVAILABILITY_READ,
     },
     Membership.Role.FINANCE: {
         Capability.ORGANIZATION_ACCESS,
         Capability.ORGANIZATION_SETTINGS_READ,
+        Capability.SALES_READ,
+        Capability.AVAILABILITY_READ,
+        Capability.RESERVATION_CONFIRM,
     },
 }
 
@@ -50,6 +69,14 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "membership:manage_non_owner",
         "membership:manage_owner",
         "membership:revoke_sessions",
+        "person:read",
+        "person:manage",
+        "sales:read",
+        "sales:manage",
+        "availability:read",
+        "reservation:confirm",
+        "reservation:cancel",
+        "reservation:waive_deposit",
     }
 
 

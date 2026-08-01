@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 from claridez.logging import SafeJsonFormatter
+from claridez.organizations.management.commands.api_run import Command as ApiRunCommand
 from claridez.settings.environment import (
     BootstrapSettings,
     MigrationSettings,
@@ -118,3 +119,9 @@ def test_no_executable_setting_mentions_sqlite() -> None:
 
     for path in settings_directory.glob("*.py"):
         assert "sqlite" not in path.read_text(encoding="utf-8").lower(), path.name
+
+
+def test_local_api_command_does_not_require_migration_recorder_access() -> None:
+    command = ApiRunCommand()
+
+    command.check_migrations()

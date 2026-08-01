@@ -93,7 +93,6 @@ El Modelo de Conversión, la página pública y los dominios propios pertenecen 
 
 ## Asuntos deliberadamente abiertos
 
-- Primer flujo vertical funcional.
 - Procesos y estados de cada área.
 - Matriz definitiva de autorización.
 - Proveedor OIDC futuro, sin alterar la identidad local desacoplada aceptada en ADR 0010.
@@ -104,6 +103,9 @@ El Modelo de Conversión, la página pública y los dominios propios pertenecen 
 - Requisitos detallados del Modelo de Conversión.
 
 Ninguno de estos asuntos debe resolverse implícitamente dentro de código de infraestructura o componentes visuales.
+
+El primer flujo vertical dejó de estar abierto: la especificación aprobada e implementada se
+encuentra en [Iteración 5.1 — De consulta a reserva confirmada](ITERATION_5_1_COMMERCIAL_FLOW.md).
 
 ## Fuentes de marca
 

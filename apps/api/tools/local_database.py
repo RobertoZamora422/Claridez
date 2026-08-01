@@ -33,6 +33,13 @@ NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",
     "organizations_organizationsettings",
+    "commercial_person",
+    "commercial_personrevision",
+    "commercial_eventrequest",
+    "commercial_quotationsequence",
+    "commercial_quotation",
+    "commercial_quotationversion",
+    "commercial_reservation",
 }
 
 

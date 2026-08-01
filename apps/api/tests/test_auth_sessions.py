@@ -56,7 +56,7 @@ def _login(client: Client, user: User) -> None:
 def test_login_sets_exact_eight_hour_absolute_expiry() -> None:
     user = _user()
     client = Client(enforce_csrf_checks=True)
-    authenticated_at = datetime(2026, 7, 31, 18, 0, tzinfo=UTC)
+    authenticated_at = datetime(2099, 7, 31, 18, 0, tzinfo=UTC)
 
     with patch("claridez.identity.sessions.timezone.now", return_value=authenticated_at):
         _login(client, user)

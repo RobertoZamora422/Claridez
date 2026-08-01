@@ -1,5 +1,7 @@
 """Configuración de ejecución local con el rol limitado de aplicación."""
 
+from urllib.parse import urlsplit
+
 from .base import *  # noqa: F403
 from .base import build_database_configuration, build_logging_configuration
 from .environment import load_runtime_settings
@@ -21,8 +23,10 @@ DATABASES = build_database_configuration(
 )
 LOGGING = build_logging_configuration(_local.log_level)
 AUTH_LINK_BASE_URL = _local.auth_link_base_url
+_frontend_url = urlsplit(AUTH_LINK_BASE_URL)
+CSRF_TRUSTED_ORIGINS = [f"{_frontend_url.scheme}://{_frontend_url.netloc}"]
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 
-del _local
+del _frontend_url, _local

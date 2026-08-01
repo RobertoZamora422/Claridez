@@ -197,18 +197,31 @@ de autorización, contexto organizacional y RLS.
 
 ## Iteración 5 — Primer flujo vertical funcional
 
+**Estado:** 5.1 completada con el flujo de consulta a reserva confirmada.
+
 ### Condición de entrada
 
 - Repositorio, toolchains, PostgreSQL, tenancy, identidad, organizaciones y autorización establecidos.
 - Especificación funcional separada y aprobada.
 
-### Alcance
+### Resultado de 5.1
 
-El flujo se definirá posteriormente. Debe atravesar las capas necesarias de forma vertical y entregar valor verificable sin intentar construir todos los módulos del producto.
+- `claridez.commercial` incorpora personas con historial, solicitudes, cotizaciones versionadas y
+  reservas provisionales o confirmadas.
+- La agenda protege un espacio implícito por organización mediante rangos `[)` y exclusión GiST;
+  las provisionales vencen a las 48 horas.
+- La confirmación conserva una constancia de anticipo externo o una excepción autorizada, sin
+  procesar pagos ni crear cuentas por cobrar.
+- Ocho capacidades funcionales se añaden de forma explícita a la matriz provisional.
+- La API REST y la aplicación React ejecutan el flujo completo con RLS, CSRF y contexto
+  organizacional.
+- La especificación implementada está en
+  [Iteración 5.1 — De consulta a reserva confirmada](../product/ITERATION_5_1_COMMERCIAL_FLOW.md).
 
 ### Criterio de salida
 
-Será definido por la especificación funcional correspondiente, incluyendo reglas, estados, permisos, pruebas y criterios de aceptación.
+La salida de 5.1 exige reglas, estados, permisos, API, frontend, migraciones y pruebas de
+concurrencia y aislamiento coherentes con su especificación funcional.
 
 ## Decisiones transversales diferidas
 

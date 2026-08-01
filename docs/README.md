@@ -7,6 +7,7 @@ Este directorio contiene las fuentes versionadas que gobiernan producto, arquite
 ### Producto
 
 - [Línea base del producto v0.1](product/PRODUCT_BASELINE.md): decisiones de producto aprobadas, alcance inicial, exclusiones y asuntos pendientes. No es una especificación funcional completa.
+- [Iteración 5.1 — De consulta a reserva confirmada](product/ITERATION_5_1_COMMERCIAL_FLOW.md): especificación implementada del primer flujo vertical.
 
 ### Arquitectura
 

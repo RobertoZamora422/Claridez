@@ -14,10 +14,12 @@ ALLOWED_HOSTS: list[str] = []
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.postgres",
     "django.contrib.sessions",
     "axes",
     "claridez.identity.apps.IdentityConfig",
     "claridez.organizations.apps.OrganizationsConfig",
+    "claridez.commercial.apps.CommercialConfig",
     "rest_framework",
     "drf_spectacular",
 ]

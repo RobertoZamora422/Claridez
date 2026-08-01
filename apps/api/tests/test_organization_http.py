@@ -242,7 +242,7 @@ def test_membership_read_requires_approved_role_and_has_no_write_endpoint() -> N
     assert forbidden_write.status_code == 405
 
 
-def test_openapi_contains_only_approved_organization_methods() -> None:
+def test_openapi_contains_only_approved_organization_and_commercial_methods() -> None:
     schema = SchemaGenerator().get_schema(request=None, public=True)  # type: ignore[no-untyped-call]
     assert schema is not None
     organization_paths = {
@@ -250,9 +250,42 @@ def test_openapi_contains_only_approved_organization_methods() -> None:
         for path, methods in schema["paths"].items()
         if path.startswith("/api/v1/organizations/")
     }
-    assert organization_paths == {
+    expected_paths = {
         "/api/v1/organizations/": {"get"},
         "/api/v1/organizations/context/": {"get", "post"},
         "/api/v1/organizations/{organization_id}/settings/": {"get"},
         "/api/v1/organizations/{organization_id}/memberships/": {"get"},
+        "/api/v1/organizations/{organization_id}/commercial/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/people/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/people/{person_id}/": {"get", "patch"},
+        "/api/v1/organizations/{organization_id}/people/{person_id}/revisions/": {"get"},
+        "/api/v1/organizations/{organization_id}/event-requests/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/event-requests/{event_request_id}/": {
+            "get",
+            "patch",
+        },
+        "/api/v1/organizations/{organization_id}/event-requests/{event_request_id}/close/": {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/availability/": {"get"},
+        "/api/v1/organizations/{organization_id}/event-requests/{event_request_id}/quotations/": {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/quotations/{quotation_id}/": {"get"},
+        "/api/v1/organizations/{organization_id}/quotations/{quotation_id}/versions/": {"post"},
+        "/api/v1/organizations/{organization_id}/quotations/{quotation_id}/versions/{version}/": {
+            "put"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/quotations/{quotation_id}/versions/"
+            "{version}/issue/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/quotations/{quotation_id}/versions/"
+            "{version}/accept/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/": {"get"},
+        "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/confirm/": {"post"},
+        "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/cancel/": {"post"},
     }
+    assert organization_paths == expected_paths

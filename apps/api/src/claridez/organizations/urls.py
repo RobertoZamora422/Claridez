@@ -1,6 +1,6 @@
 """Rutas organizacionales aprobadas para el cierre de la Iteración 4."""
 
-from django.urls import path
+from django.urls import include, path
 
 from .views import (
     MembershipListView,
@@ -24,4 +24,5 @@ urlpatterns = [
         MembershipListView.as_view(),
         name="memberships",
     ),
+    path("<uuid:organization_id>/", include("claridez.commercial.urls")),
 ]

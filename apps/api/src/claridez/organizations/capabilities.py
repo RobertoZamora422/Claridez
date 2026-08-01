@@ -18,6 +18,14 @@ class Capability(StrEnum):
     MEMBERSHIP_MANAGE_NON_OWNER = "membership:manage_non_owner"
     MEMBERSHIP_MANAGE_OWNER = "membership:manage_owner"
     MEMBERSHIP_REVOKE_SESSIONS = "membership:revoke_sessions"
+    PERSON_READ = "person:read"
+    PERSON_MANAGE = "person:manage"
+    SALES_READ = "sales:read"
+    SALES_MANAGE = "sales:manage"
+    AVAILABILITY_READ = "availability:read"
+    RESERVATION_CONFIRM = "reservation:confirm"
+    RESERVATION_CANCEL = "reservation:cancel"
+    RESERVATION_WAIVE_DEPOSIT = "reservation:waive_deposit"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -31,24 +39,43 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.MEMBERSHIP_READ,
                 Capability.MEMBERSHIP_MANAGE_NON_OWNER,
                 Capability.MEMBERSHIP_REVOKE_SESSIONS,
+                Capability.PERSON_READ,
+                Capability.PERSON_MANAGE,
+                Capability.SALES_READ,
+                Capability.SALES_MANAGE,
+                Capability.AVAILABILITY_READ,
+                Capability.RESERVATION_CONFIRM,
+                Capability.RESERVATION_CANCEL,
+                Capability.RESERVATION_WAIVE_DEPOSIT,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
             {
                 Capability.ORGANIZATION_ACCESS,
                 Capability.ORGANIZATION_SETTINGS_READ,
+                Capability.PERSON_READ,
+                Capability.PERSON_MANAGE,
+                Capability.SALES_READ,
+                Capability.SALES_MANAGE,
+                Capability.AVAILABILITY_READ,
+                Capability.RESERVATION_CONFIRM,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
             {
                 Capability.ORGANIZATION_ACCESS,
                 Capability.ORGANIZATION_SETTINGS_READ,
+                Capability.SALES_READ,
+                Capability.AVAILABILITY_READ,
             }
         ),
         Membership.Role.FINANCE: frozenset(
             {
                 Capability.ORGANIZATION_ACCESS,
                 Capability.ORGANIZATION_SETTINGS_READ,
+                Capability.SALES_READ,
+                Capability.AVAILABILITY_READ,
+                Capability.RESERVATION_CONFIRM,
             }
         ),
     }

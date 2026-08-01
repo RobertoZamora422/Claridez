@@ -1,6 +1,9 @@
 # Web de Claridez
 
-Esqueleto técnico mínimo del frontend de Claridez. Su pantalla confirma que React, TypeScript estricto, Vite y las pruebas funcionan juntos; no constituye una propuesta visual ni una navegación del producto.
+Aplicación React del primer flujo vertical de Claridez. Conserva autenticación y selección
+organizacional e incorpora agenda, solicitudes, personas inline, cotizaciones versionadas y
+confirmación o cancelación de reservas. La interfaz sigue la dirección visual oficial y responde
+en escritorio y móvil.
 
 ## Requisitos
 

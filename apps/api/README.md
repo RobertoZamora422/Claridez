@@ -4,8 +4,8 @@ API REST de Claridez con configuración local validada, perfiles de credenciales
 PostgreSQL real, endpoints técnicos de salud y autenticación HTTP mediante sesiones Django.
 
 Contiene el usuario local productivo, organizaciones y membresías globales de control, autorización
-backend-first y `OrganizationSettings` como primera entidad privada con RLS. No contiene módulos
-funcionales de negocio.
+backend-first, `OrganizationSettings` y el módulo funcional `claridez.commercial`, todos los datos
+privados con RLS.
 
 ## Requisitos
 
@@ -33,12 +33,15 @@ Los perfiles son:
 
 `pydantic-settings` valida las variables requeridas desde el `.env` local ignorado. Los errores no incluyen valores. La guía completa se encuentra en [la plataforma local](../../docs/architecture/LOCAL_PLATFORM.md).
 
-## Endpoints técnicos
+## Endpoints técnicos y funcionales
 
 - `/health` confirma únicamente que Django responde.
 - `/ready` ejecuta `SELECT 1` y responde de forma genérica.
 
-No existen endpoints de negocio.
+El flujo comercial vive bajo `/api/v1/organizations/{organization_id}/` y expone personas,
+solicitudes, disponibilidad, cotizaciones/versiones y comandos explícitos de emisión, aceptación,
+cierre, confirmación y cancelación. El contrato exacto está en la
+[especificación 5.1](../../docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md).
 
 ## Autenticación HTTP
 
@@ -84,8 +87,9 @@ y organización es única y persistente.
 Después de migrar, `npm run auth:bootstrap` permite crear localmente una organización activa y su
 primer propietario sin conceder privilegios técnicos.
 
-El catálogo cerrado de siete capacidades aplica la matriz provisional de ADR 0011 sin jerarquías
-implícitas. `authorized_tenant_scope` revalida actor, organización, membresía y capacidad dentro de
+El catálogo cerrado contiene las siete capacidades de infraestructura de ADR 0011 y las ocho
+capacidades funcionales de 5.1, sin jerarquías implícitas. `authorized_tenant_scope` revalida actor,
+organización, membresía y capacidad dentro de
 una transacción y establece el GUC local únicamente durante la operación. Los servicios autorizados
 materializan sus resultados antes de cerrar el scope.
 
@@ -93,15 +97,15 @@ materializan sus resultados antes de cerrar el scope.
 LEVEL SECURITY`, una política simétrica `USING`/`WITH CHECK` y cierre por defecto sin contexto. El
 rol de aplicación no es propietario, no tiene `BYPASSRLS` ni `DELETE` sobre la tabla.
 
-Los únicos endpoints organizacionales aprobados son el listado, consulta/selección de contexto y
-lectura de settings y membresías bajo `/api/v1/organizations/`. No existen mutaciones HTTP
-privilegiadas.
+Los endpoints organizacionales de infraestructura siguen limitados al listado,
+consulta/selección de contexto y lectura de settings y membresías. Las mutaciones funcionales se
+limitan al contrato comercial 5.1 y no habilitan administración privilegiada de membresías.
 
 ## OpenAPI
 
 `drf-spectacular` genera y valida `openapi-schema.yaml` como artefacto temporal ignorado. El esquema
-incluye los endpoints de autenticación y las cinco operaciones organizacionales aprobadas, pero
-todavía no se publica ni genera un cliente TypeScript.
+incluye autenticación, operaciones organizacionales y el contrato comercial 5.1, pero todavía no
+se publica ni genera un cliente TypeScript.
 
 ## Evidencia del spike de tenancy
 
