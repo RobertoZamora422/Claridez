@@ -10,6 +10,7 @@ Este directorio contiene las fuentes versionadas que gobiernan producto, arquite
 - [Iteración 5.1 — De consulta a reserva confirmada](product/ITERATION_5_1_COMMERCIAL_FLOW.md): especificación implementada del primer flujo vertical.
 - [Iteración 5.1.1 — Endurecimiento y cierre](product/ITERATION_5_1_1_HARDENING.md): cierre de autorización, integridad PostgreSQL, consistencia histórica e identidad visual del flujo comercial.
 - [Iteración 5.1.2 — Mantenibilidad y CI](product/ITERATION_5_1_2_MAINTAINABILITY_CI.md): arquitectura interna modular, compatibilidad preservada y controles automatizados de integración.
+- [Iteración 5.2 — De reserva confirmada a evento preparado](product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md): propuesta funcional y técnica del flujo operativo; no está aprobada, iniciada ni implementada.
 
 ### Arquitectura
 
