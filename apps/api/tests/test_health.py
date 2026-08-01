@@ -69,6 +69,6 @@ def test_ready_hides_database_failure(client: Client, method: str) -> None:
         assert response.content == b""
 
 
-def test_only_approved_technical_routes_exist() -> None:
+def test_health_routes_and_authentication_group_are_the_only_root_routes() -> None:
     routes = {str(pattern.pattern) for pattern in get_resolver().url_patterns}
-    assert routes == {"health", "ready"}
+    assert routes == {"health", "ready", "api/v1/auth/"}

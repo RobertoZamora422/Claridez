@@ -35,6 +35,12 @@ def _request_with_client_session(client: Client) -> _SessionRequest:
     return request
 
 
+def _authentication_request() -> HttpRequest:
+    request = HttpRequest()
+    request.META["REMOTE_ADDR"] = "127.0.0.1"
+    return request
+
+
 @pytest.mark.django_db
 def test_user_schema_and_manager_defaults_are_canonical() -> None:
     user = User.objects.create_user(
@@ -70,7 +76,10 @@ def test_manager_supports_unusable_password_and_technical_superuser() -> None:
     )
 
     assert unusable.has_usable_password() is False
-    assert authenticate(email=unusable.email, password=PASSWORD) is None
+    assert (
+        authenticate(request=_authentication_request(), email=unusable.email, password=PASSWORD)
+        is None
+    )
     assert superuser.email == "technical@example.com"
     assert superuser.status == User.Status.ACTIVE
     assert superuser.is_active is True
@@ -235,12 +244,17 @@ def test_suspended_user_cannot_authenticate_or_keep_a_session() -> None:
     user = _active_user("suspended@example.com")
     client = Client()
     client.force_login(user)
-    assert authenticate(email=user.email, password=PASSWORD) is not None
+    assert (
+        authenticate(request=_authentication_request(), email=user.email, password=PASSWORD)
+        is not None
+    )
 
     user.set_status(User.Status.SUSPENDED)
     user.save(update_fields=["status", "is_active", "updated_at"])
 
-    assert authenticate(email=user.email, password=PASSWORD) is None
+    assert (
+        authenticate(request=_authentication_request(), email=user.email, password=PASSWORD) is None
+    )
     assert get_user(_request_with_client_session(client)).is_anonymous
 
 

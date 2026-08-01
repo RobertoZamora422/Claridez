@@ -21,5 +21,8 @@ DATABASES = build_database_configuration(
     test_name=_local.test_db_name,
 )
 LOGGING = build_logging_configuration("WARNING")
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 del _local

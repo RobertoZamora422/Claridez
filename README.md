@@ -10,17 +10,17 @@ Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y ad
 
 El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains
 reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el spike técnico de la
-**Iteración 3 — Aislamiento multiempresa**, **4.0 — Gobierno y descarte** y **4.1 — Usuario
-primero**. Contiene PostgreSQL local reproducible, endpoints de salud, evidencia histórica del
-spike, el usuario local productivo y **4.2 — Organizaciones y membresías**. La autorización del
-actor, el aislamiento tenant productivo y la autenticación HTTP permanecen sin implementar.
+**Iteración 3 — Aislamiento multiempresa** y las subiteraciones **4.0 — Gobierno y descarte**, **4.1
+— Usuario primero**, **4.2 — Organizaciones y membresías** y **4.3 — Autenticación HTTP y sesiones
+de servidor**. Contiene PostgreSQL local reproducible, endpoints de salud y autenticación, evidencia
+histórica del spike, identidad local y las tablas globales de organizaciones y membresías. La
+autorización del actor y el aislamiento tenant productivo permanecen sin implementar.
 
 Todavía no existen:
 
 - Flujos funcionales de aplicación.
 - Entidades funcionales de negocio o configuración privada de organizaciones.
-- Endpoints de autenticación, recuperación o verificación.
-- Configuración de proveedores externos.
+- Proveedor productivo de correo o proveedores de identidad externos.
 - Despliegues o ambientes remotos.
 
 ## Decisiones aprobadas

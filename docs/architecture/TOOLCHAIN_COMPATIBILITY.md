@@ -17,6 +17,8 @@ Este documento registra versiones exactas y evidencia observada. No define arqui
 | drf-spectacular | 0.30.0 | Candidato compatible para OpenAPI |
 | Psycopg | 3.3.4 | Driver PostgreSQL |
 | pydantic-settings | 2.14.2 | Configuración local tipada y validada; añadido en la Iteración 2 |
+| django-axes | 8.3.1 | Protección de login persistida en PostgreSQL; añadido en 4.3 |
+| djangorestframework-stubs | 3.16.9 | Tipos y plugin mypy para DRF; añadido en 4.3 |
 | PostgreSQL | 17.10 | Imagen local `17.10-bookworm` fijada por digest en la Iteración 2 |
 | Node.js | 24.18.1 | LTS Krypton |
 | npm | 11.16.0 | Versión incluida con Node.js seleccionado |
@@ -39,11 +41,13 @@ No se utilizan versiones preliminares ni etiquetas flotantes. Los parches exacto
 - drf-spectacular: generación y validación OpenAPI.
 - Psycopg con binarios: driver PostgreSQL reproducible en Windows durante esta etapa.
 - pydantic-settings: perfiles locales tipados, secretos protegidos y fallo temprano de configuración.
+- django-axes: límite de intentos de login por combinación de correo canónico e IP.
 
 ### API de desarrollo
 
 - Ruff: formato y lint.
-- mypy y django-stubs: tipos estrictos compatibles con Django 5.2.
+- mypy, django-stubs y djangorestframework-stubs: tipos estrictos compatibles con Django 5.2 y
+  DRF 3.16.
 - pytest y pytest-django: pruebas técnicas.
 - coverage.py y pytest-cov: cobertura sin umbral global inicial.
 - pip-audit: auditoría separada y dependiente de red.
@@ -100,6 +104,16 @@ mypy 1.19.1 y django-stubs 5.2.9 funcionan con Django 5.2.16 en modo estricto. S
 `pydantic-settings` 2.14.2 resolvió de forma compatible con Python 3.13.14, Django 5.2.16, mypy estricto y los lockfiles existentes. Su resolución exacta incorpora Pydantic 2.13.4, pydantic-core 2.46.4, python-dotenv 1.2.2, annotated-types 0.8.0 y typing-inspection 0.4.2.
 
 PostgreSQL 17.10 fue comprobado mediante la imagen y digest registrados en [LOCAL_PLATFORM.md](LOCAL_PLATFORM.md). La aplicación se conectó con Psycopg 3.3.4, ejecutó sesiones UTC y pruebas reales sin introducir SQLite.
+
+## Extensión validada en 4.3
+
+`django-axes` 8.3.1 se comprobó con Python 3.13.14, Django 5.2.16 y PostgreSQL 17. El handler de
+base de datos conserva intentos expirables; Claridez suministra únicamente `REMOTE_ADDR` como IP
+confiable y aplica el bloqueo compuesto por correo canónico e IP. Las migraciones publicadas por
+Axes se conservan sin modificaciones.
+
+`djangorestframework-stubs` 3.16.9 y su plugin mypy permiten mantener el tipado estricto de las
+vistas, serializers y respuestas DRF sin desactivar comprobaciones.
 
 ## Límites
 

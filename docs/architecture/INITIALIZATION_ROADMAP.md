@@ -126,8 +126,9 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
-**Estado:** completadas 4.0 — Gobierno y descarte, 4.1 — Usuario primero y 4.2 — Organizaciones y
-membresías. El resto de la iteración no está autorizado.
+**Estado:** completadas 4.0 — Gobierno y descarte, 4.1 — Usuario primero, 4.2 — Organizaciones y
+membresías y 4.3 — Autenticación HTTP y sesiones de servidor. El resto de la iteración no está
+autorizado.
 
 ### Condición de entrada
 
@@ -161,6 +162,18 @@ membresías. El resto de la iteración no está autorizado.
   nueva fila ni cambiar `joined_at`.
 - El bootstrap local es transaccional, idempotente por organización y usa advisory lock.
 - No se crearon endpoints, capacidades, `OrganizationSettings`, tenancy productivo ni frontend.
+
+### Resultado de 4.3
+
+- La API expone CSRF, login, logout, usuario actual, cambio y recuperación de contraseña y
+  verificación de correo bajo `/api/v1/auth/`.
+- Las sesiones Django vencen de forma absoluta ocho horas después del login y no se renuevan por
+  actividad ni por el cambio de contraseña de la sesión actual.
+- `django-axes` protege el login por combinación de correo canónico e IP observada directamente,
+  con cinco fallos y enfriamiento de 15 minutos.
+- El correo permanece limitado al backend de consola local y al backend en memoria de pruebas.
+- No se implementaron selección de organización, capacidades, autorización por membresía,
+  `OrganizationSettings`, tenancy productivo, RLS, frontend, MFA ni OIDC.
 
 ### Criterio de salida
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from pydantic import Field, SecretStr, ValidationError, field_validator
@@ -56,6 +57,7 @@ class RuntimeSettings(_LocalConnectionSettings):
     db_name: Literal["claridez_local"]
     db_user: Literal["claridez_app"]
     db_password: LocalSecret
+    auth_link_base_url: str = "http://127.0.0.1:5173"
 
     @field_validator("allowed_hosts")
     @classmethod
@@ -70,6 +72,21 @@ class RuntimeSettings(_LocalConnectionSettings):
 
     def allowed_hosts_list(self) -> list[str]:
         return self.allowed_hosts.split(",")
+
+    @field_validator("auth_link_base_url")
+    @classmethod
+    def validate_auth_link_base_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("debe ser una URL HTTP local sin credenciales, query ni fragmento")
+        return value.rstrip("/")
 
 
 class MigrationSettings(_LocalConnectionSettings):

@@ -39,7 +39,25 @@ def test_identity_and_organizations_are_registered_without_django_admin() -> Non
     assert "django.contrib.auth" in settings.INSTALLED_APPS
     assert "django.contrib.contenttypes" in settings.INSTALLED_APPS
     assert "django.contrib.sessions" in settings.INSTALLED_APPS
+    assert "axes" in settings.INSTALLED_APPS
     assert "django.contrib.admin" not in settings.INSTALLED_APPS
+
+
+def test_authentication_middleware_order_and_axes_backend_are_explicit() -> None:
+    assert settings.MIDDLEWARE.index("django.contrib.sessions.middleware.SessionMiddleware") < (
+        settings.MIDDLEWARE.index("django.middleware.csrf.CsrfViewMiddleware")
+    )
+    assert settings.MIDDLEWARE.index("django.middleware.csrf.CsrfViewMiddleware") < (
+        settings.MIDDLEWARE.index("django.contrib.auth.middleware.AuthenticationMiddleware")
+    )
+    assert settings.MIDDLEWARE.index("django.contrib.auth.middleware.AuthenticationMiddleware") < (
+        settings.MIDDLEWARE.index("claridez.identity.middleware.AbsoluteSessionExpiryMiddleware")
+    )
+    assert settings.MIDDLEWARE[-1] == "axes.middleware.AxesMiddleware"
+    assert settings.AUTHENTICATION_BACKENDS == [
+        "axes.backends.AxesStandaloneBackend",
+        "django.contrib.auth.backends.ModelBackend",
+    ]
 
 
 def test_profiles_load_only_their_own_credentials() -> None:

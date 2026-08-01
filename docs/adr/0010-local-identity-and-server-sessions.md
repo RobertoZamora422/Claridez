@@ -13,8 +13,8 @@ existir en la primera migración de su aplicación porque sustituirlo después d
 dependientes tendría un costo alto.
 
 La identidad de una persona dentro de Claridez y las credenciales de un proveedor OIDC son
-conceptos distintos. Esta decisión define el usuario local productivo de 4.1 y la invalidación de
-sus sesiones; no autoriza endpoints de autenticación ni entidades organizacionales.
+conceptos distintos. Esta decisión define el usuario local productivo de 4.1 y la autenticación HTTP
+con sesiones de servidor incorporada en 4.3. Las entidades organizacionales se rigen por ADR 0011.
 
 ## Decisiones aceptadas
 
@@ -125,6 +125,26 @@ no sustituyen `Membership` y no autorizan endpoints administrativos.
 Django Admin permanecerá sin aplicación instalada y sin URL durante esta iteración y en
 producción. Esta decisión no es una prohibición permanente.
 
+### Autenticación HTTP y sesiones de servidor
+
+- Los nueve endpoints aprobados viven bajo `/api/v1/auth/` y cubren CSRF, login, logout, usuario
+  actual, cambio y recuperación de contraseña y verificación de correo.
+- Todo `POST`, incluido el login anónimo, exige CSRF. Las respuestas de autenticación usan
+  `Cache-Control: no-store` y un formato de error JSON pequeño y uniforme.
+- Cada login rota la sesión y fija un vencimiento absoluto de ocho horas. La actividad, las
+  escrituras posteriores de sesión y la conservación de la sesión durante un cambio de contraseña
+  no renuevan ese límite.
+- Las cookies de sesión y CSRF son `HttpOnly` y `SameSite=Lax`; `Secure` queda activo por defecto y
+  solo se desactiva en los perfiles locales y de prueba.
+- La recuperación usa UID y `default_token_generator`, con vencimiento de una hora. La verificación
+  usa un generador separado, vence en 24 horas y queda invalidada al verificar o cambiar correo o
+  `security_version`.
+- Desarrollo entrega correo simple mediante consola y las pruebas mediante memoria. Un proveedor
+  productivo permanece diferido.
+- `django-axes` 8.3.1 usa el handler PostgreSQL, cinco fallos y enfriamiento de 15 minutos. La clave
+  de bloqueo es únicamente la combinación correo canónico/IP. La IP procede de `REMOTE_ADDR`; no se
+  confía todavía en cabeceras de proxy.
+
 ## Aspectos provisionales
 
 Ninguno para el modelo inicial. Sus campos, base, estados, correo canónico y hash de sesión quedan
@@ -132,26 +152,15 @@ cerrados antes de generar `identity/0001_initial.py`.
 
 ## Asuntos diferidos
 
-Para 4.2:
+Permanecen diferidos el proveedor productivo de correo, OIDC, `ExternalIdentity`, registro público,
+invitaciones y MFA. La entrega real de correo será obligatoria antes de incorporar usuarios
+externos. MFA deberá resolverse antes del uso productivo de acciones privilegiadas o registrarse
+como riesgo temporal aceptado. La confianza en cabeceras de proxy deberá definirse al seleccionar
+el despliegue. La autorización tenant permanece regida y diferida por ADR 0011.
 
-- organizaciones, membresías, roles de producto y autorización tenant.
+## Validación
 
-Para 4.3:
-
-- expiración absoluta de sesión de ocho horas y ausencia de «recordarme»;
-- endpoints de login, logout, recuperación y verificación;
-- cookies, CSRF y rotación de la sesión durante autenticación;
-- evaluación e incorporación condicional de `django-axes`;
-- entrega real de correo.
-
-También permanecen diferidos el proveedor OIDC, `ExternalIdentity`, registro público, invitaciones
-y MFA. La entrega de correo será obligatoria antes de incorporar usuarios externos. MFA deberá
-resolverse antes del uso productivo de acciones privilegiadas o registrarse como riesgo temporal
-aceptado.
-
-## Validación pendiente
-
-4.1 deberá demostrar antes de finalizar:
+4.1 demostró:
 
 - que la migración inicial nace del modelo final y no deja cambios pendientes;
 - correo canónico, unicidad y coherencia estado/`is_active` en PostgreSQL;
@@ -163,8 +172,9 @@ aceptado.
 - migración desde cero, propiedad por el migrador, reversión y nueva migración en una base
   PostgreSQL desechable.
 
-La expiración absoluta, `django-axes`, cookies y endpoints no son bloqueadores de 4.1 porque
-pertenecen expresamente a 4.3.
+4.3 añade pruebas PostgreSQL y HTTP de CSRF real, rotación y vencimiento absoluto de sesión,
+invalidación de credenciales, tokens usados, alterados y vencidos, correo local, OpenAPI, cookies y
+la política compuesta de Axes.
 
 ## Alternativas consideradas
 
@@ -195,8 +205,8 @@ Se rechazan. Ocultarían una invariante central y no protegerían escrituras dir
 - La aplicación `claridez.identity` será la única aplicación productiva creada en 4.1.
 - Las migraciones estándar de Django conservarán su grafo natural; no se impondrá un orden manual.
 - El usuario global no prueba ni introduce aislamiento tenant o RLS.
-- No se añade todavía `django-axes`, correo, MFA, endpoints ni frontend.
-- Aceptar e implementar este ADR en 4.1 no autoriza 4.2 ni fases posteriores.
+- No se añade MFA, frontend, proveedor externo de correo ni selección de organización.
+- Implementar 4.3 no autoriza capacidades, tenancy productivo, RLS ni fases posteriores.
 
 ## Evidencia
 

@@ -1,5 +1,6 @@
 """Configuración común de Django independiente de credenciales."""
 
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +15,22 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "axes",
     "claridez.identity.apps.IdentityConfig",
     "claridez.organizations.apps.OrganizationsConfig",
     "rest_framework",
     "drf_spectacular",
 ]
-MIDDLEWARE: list[str] = []
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "claridez.identity.middleware.AuthenticationNoStoreMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "claridez.identity.middleware.AbsoluteSessionExpiryMiddleware",
+    "axes.middleware.AxesMiddleware",
+]
 ROOT_URLCONF = "claridez.urls"
 TEMPLATES: list[dict[str, object]] = []
 WSGI_APPLICATION = "claridez.wsgi.application"
@@ -31,6 +42,10 @@ USE_I18N = True
 USE_TZ = True
 
 AUTH_USER_MODEL = "identity.User"
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -47,13 +62,45 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+SESSION_ABSOLUTE_AGE_SECONDS = 8 * 60 * 60
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = True
+
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = True
+CSRF_FAILURE_VIEW = "claridez.identity.views.csrf_failure"
+
+PASSWORD_RESET_TIMEOUT = 60 * 60
+EMAIL_VERIFICATION_TIMEOUT = 24 * 60 * 60
+AUTH_LINK_BASE_URL = "http://testserver"
+DEFAULT_FROM_EMAIL = "Claridez <no-reply@claridez.local>"
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+AXES_HANDLER = "axes.handlers.database.AxesDatabaseHandler"
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_USE_ATTEMPT_EXPIRATION = True
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+AXES_HTTP_RESPONSE_CODE = 429
+AXES_USERNAME_FORM_FIELD = "email"
+AXES_CLIENT_IP_CALLABLE = "claridez.identity.axes.client_ip_from_remote_addr"
+AXES_LOCKOUT_CALLABLE = "claridez.identity.axes.json_lockout_response"
+AXES_ENABLE_ADMIN = False
+AXES_SENSITIVE_PARAMETERS = ["username", "email", "ip_address", "password"]
+
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "claridez.identity.errors.api_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Claridez API",
-    "DESCRIPTION": "Esquema técnico inicial sin endpoints funcionales.",
+    "DESCRIPTION": "API de Claridez con autenticación local mediante sesiones de servidor.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }

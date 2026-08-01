@@ -89,6 +89,7 @@ No se deben copiar esos valores a documentación, issues, logs o informes.
 | `CLARIDEZ_SECRET_KEY` | Django | Sí | Independiente y de al menos 32 caracteres |
 | `CLARIDEZ_ALLOWED_HOSTS` | Ejecución | No | Hosts locales conocidos separados por coma |
 | `CLARIDEZ_LOG_LEVEL` | Ejecución | No | `DEBUG`, `INFO`, `WARNING` o `ERROR` |
+| `CLARIDEZ_AUTH_LINK_BASE_URL` | Ejecución | No | Base HTTP local para enlaces de recuperación y verificación |
 | `CLARIDEZ_DB_HOST` | Todos | No | Loopback; predeterminado `127.0.0.1` |
 | `CLARIDEZ_DB_PORT` | Todos | No | Puerto 1–65535; predeterminado `55432` |
 | `CLARIDEZ_DB_CONNECT_TIMEOUT` | Todos | No | 1–10 segundos |
@@ -175,7 +176,7 @@ Los comandos de inicio, detención, estado y logs delegan en Docker Compose. Las
 
 El reset no elimina roles, contenedor, volumen ni clúster y no ejecuta `docker compose down -v`.
 
-## Endpoints técnicos
+## Endpoints técnicos y autenticación
 
 | Método y ruta | Éxito | Fallo | Comprobación |
 |---|---|---|---|
@@ -184,7 +185,26 @@ El reset no elimina roles, contenedor, volumen ni clúster y no ejecuta `docker 
 | `GET /ready` | `200 {"status":"ready"}` | `503 {"status":"unavailable"}` | `SELECT 1` |
 | `HEAD /ready` | `200`, cuerpo vacío | `503`, cuerpo vacío | `SELECT 1` |
 
-Todas las respuestas usan `Cache-Control: no-store`. Readiness no expone detalles de conexión ni comprueba migraciones en cada solicitud. No existen otros endpoints en esta iteración.
+Readiness no expone detalles de conexión ni comprueba migraciones en cada solicitud.
+
+La autenticación local expone bajo `/api/v1/auth/` `csrf/`, `login/`, `logout/`, `me/`,
+`password/change/`, `password/reset/request/`, `password/reset/confirm/`,
+`email/verification/request/` y `email/verification/confirm/`. Todos sus `POST` exigen CSRF, incluso
+el login anónimo. `csrf/` entrega en JSON el valor que debe enviarse como `X-CSRFToken`; la cookie
+CSRF es `HttpOnly`, por lo que el cliente no debe intentar leerla.
+
+Las sesiones vencen exactamente ocho horas después del login. No se guardan en cada petición ni se
+renuevan por actividad. Las cookies de sesión y CSRF son `HttpOnly`, `SameSite=Lax` y se marcan
+`Secure` fuera de los perfiles locales y de prueba. Todas las respuestas de autenticación y salud
+usan `Cache-Control: no-store`.
+
+Desarrollo entrega correos de texto por consola; las pruebas usan memoria. Los enlaces toman la
+base local no secreta `CLARIDEZ_AUTH_LINK_BASE_URL`. No existe proveedor real de correo y será
+obligatorio configurarlo antes de incorporar usuarios externos.
+
+Axes conserva intentos en PostgreSQL, bloquea después de cinco fallos por combinación de correo
+canónico e IP durante 15 minutos y responde JSON `429` con `Retry-After`. Solo se usa
+`REMOTE_ADDR`: no se confía en cabeceras de proxies hasta elegir y documentar el despliegue.
 
 ## Datos y recuperación
 
@@ -202,6 +222,6 @@ El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una co
 - `/health` permaneció en 200 con PostgreSQL detenido; `/ready` pasó de 200 a 503 y volvió a 200 al reiniciarlo.
 - Las pruebas rápidas, la integración PostgreSQL, `check`, `check:all` y ambas auditorías completaron correctamente.
 
-Las migraciones productivas `identity/0001_initial.py` y `organizations/0001_initial.py` se aplican
-con `claridez_migrator`. El segundo archivo crea únicamente las dos tablas globales de control; su
-reversión no requiere políticas RLS ni datos semilla.
+Las migraciones propias `identity/0001_initial.py` y `organizations/0001_initial.py`, además de las
+migraciones estándar de sesiones y Axes, se aplican con `claridez_migrator`. El rol normal recibe
+el DML requerido sobre esas tablas, pero no propiedad ni DDL. No se añade RLS en 4.3.

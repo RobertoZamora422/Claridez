@@ -20,5 +20,9 @@ DATABASES = build_database_configuration(
     sslmode=_local.db_sslmode,
 )
 LOGGING = build_logging_configuration(_local.log_level)
+AUTH_LINK_BASE_URL = _local.auth_link_base_url
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 del _local

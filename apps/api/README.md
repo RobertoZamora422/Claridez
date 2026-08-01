@@ -1,6 +1,7 @@
 # API de Claridez
 
-Esqueleto técnico de la API REST de Claridez. En la Iteración 2 incorpora configuración local validada, perfiles de credenciales separados, PostgreSQL real y los endpoints técnicos `/health` y `/ready`.
+API REST de Claridez con configuración local validada, perfiles de credenciales separados,
+PostgreSQL real, endpoints técnicos de salud y autenticación HTTP mediante sesiones Django.
 
 Contiene el usuario local productivo de 4.1 y las organizaciones y membresías globales de control
 de 4.2. No contiene todavía autorización del actor, datos privados tenant ni modelos funcionales de
@@ -32,12 +33,33 @@ Los perfiles son:
 
 `pydantic-settings` valida las variables requeridas desde el `.env` local ignorado. Los errores no incluyen valores. La guía completa se encuentra en [la plataforma local](../../docs/architecture/LOCAL_PLATFORM.md).
 
-## Endpoints
+## Endpoints técnicos
 
 - `/health` confirma únicamente que Django responde.
 - `/ready` ejecuta `SELECT 1` y responde de forma genérica.
 
 No existen endpoints de negocio.
+
+## Autenticación HTTP
+
+Los endpoints de 4.3 viven bajo `/api/v1/auth/`:
+
+| Método | Ruta |
+|---|---|
+| `GET` | `csrf/` |
+| `POST` | `login/` |
+| `POST` | `logout/` |
+| `GET` | `me/` |
+| `POST` | `password/change/` |
+| `POST` | `password/reset/request/` |
+| `POST` | `password/reset/confirm/` |
+| `POST` | `email/verification/request/` |
+| `POST` | `email/verification/confirm/` |
+
+Todos los `POST`, incluido `login/`, requieren el token obtenido en `csrf/` mediante
+`X-CSRFToken`. Las sesiones tienen un vencimiento absoluto de ocho horas sin renovación por
+actividad. Las respuestas usan `Cache-Control: no-store`; `me/` expone solo el usuario global, sin
+organización, membresías ni capacidades.
 
 ## Identidad local
 
@@ -46,8 +68,10 @@ canónico y único, `display_name`, estado coherente con `is_active`, versión d
 `created_at`/`updated_at`. La migración inicial está en
 `src/claridez/identity/migrations/0001_initial.py`.
 
-La aplicación no incorpora todavía RLS, serializers, vistas, URLs de autenticación, recuperación,
-correo, cookies, `django-axes` ni expiración absoluta de sesiones. Django Admin permanece
+La recuperación de contraseña usa las primitivas de Django y la verificación usa un token separado.
+En desarrollo el correo se entrega por consola y en pruebas se conserva en memoria. No hay
+proveedor productivo. `django-axes` limita a cinco fallos por combinación de correo canónico e IP,
+con enfriamiento de 15 minutos y sin confiar en cabeceras de proxy. Django Admin permanece
 deshabilitado y sin URL.
 
 ## Organizaciones y membresías
@@ -62,7 +86,9 @@ primer propietario sin conceder privilegios técnicos.
 
 ## OpenAPI
 
-`drf-spectacular` genera `openapi-schema.yaml` únicamente como artefacto temporal de comprobación. El archivo está ignorado y no debe editarse. El contrato OpenAPI se versionará cuando existan endpoints funcionales aprobados.
+`drf-spectacular` genera y valida `openapi-schema.yaml` como artefacto temporal ignorado. El esquema
+incluye los endpoints de autenticación aprobados, pero todavía no se publica ni genera un cliente
+TypeScript.
 
 ## Evidencia del spike de tenancy
 
