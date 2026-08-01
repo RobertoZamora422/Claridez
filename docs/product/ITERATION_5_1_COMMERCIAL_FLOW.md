@@ -4,6 +4,9 @@
 - **Fecha:** 31 de julio de 2026
 - **Módulo:** `claridez.commercial`
 
+El endurecimiento posterior de autorización, integridad y marca se documenta en
+[Iteración 5.1.1 — Endurecimiento y cierre](ITERATION_5_1_1_HARDENING.md).
+
 Esta especificación describe el primer flujo vertical funcional de Claridez tal como quedó
 implementado. Gobierna únicamente el registro del interesado, la solicitud, la disponibilidad, la
 cotización, su aceptación y la reserva.

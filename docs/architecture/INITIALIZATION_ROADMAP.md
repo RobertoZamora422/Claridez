@@ -197,7 +197,7 @@ de autorización, contexto organizacional y RLS.
 
 ## Iteración 5 — Primer flujo vertical funcional
 
-**Estado:** 5.1 completada con el flujo de consulta a reserva confirmada.
+**Estado:** 5.1 completada y cerrada mediante el endurecimiento 5.1.1.
 
 ### Condición de entrada
 
@@ -217,6 +217,8 @@ de autorización, contexto organizacional y RLS.
   organizacional.
 - La especificación implementada está en
   [Iteración 5.1 — De consulta a reserva confirmada](../product/ITERATION_5_1_COMMERCIAL_FLOW.md).
+- El cierre de autorización, integridad histórica y marca está en
+  [Iteración 5.1.1 — Endurecimiento](../product/ITERATION_5_1_1_HARDENING.md).
 
 ### Criterio de salida
 

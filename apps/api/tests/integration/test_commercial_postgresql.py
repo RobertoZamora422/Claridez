@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from threading import Barrier
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from django.db import (
@@ -18,6 +19,7 @@ from django.db import (
     transaction,
 )
 from django.utils import timezone
+from psycopg.types.range import Range
 
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import (
@@ -25,6 +27,7 @@ from claridez.commercial.models import (
     Person,
     PersonRevision,
     QuotationLine,
+    QuotationVersion,
     Reservation,
 )
 from claridez.commercial.services import (
@@ -352,6 +355,11 @@ def test_two_concurrent_acceptances_leave_one_active_reservation() -> None:
                 pk__in=[first_request["id"], second_request["id"]]
             ).values_list("status", flat=True)
         ) == [EventRequest.Status.ACCEPTED, EventRequest.Status.QUOTED]
+        assert sorted(
+            QuotationVersion.objects.filter(
+                pk__in=[first_quote["versions"][0]["id"], second_quote["versions"][0]["id"]]
+            ).values_list("status", flat=True)
+        ) == [QuotationVersion.Status.ACCEPTED, QuotationVersion.Status.ISSUED]
 
 
 def test_two_concurrent_person_revisions_have_one_winner() -> None:
@@ -385,3 +393,209 @@ def test_two_concurrent_person_revisions_have_one_winner() -> None:
     with authorized_tenant_scope(owner, organization_id, Capability.PERSON_READ):
         assert Person.objects.get(pk=person["id"]).revision == 2
         assert PersonRevision.objects.filter(person_id=person["id"]).count() == 2
+
+
+def test_postgresql_enforces_line_multiplication_for_orm_bulk_and_sql() -> None:
+    owner, creation = _owner("commercial-line-product")
+    organization_id = creation.organization.pk
+    _, quotation = _draft(
+        owner,
+        organization_id,
+        phone="0997777777",
+        starts_at=timezone.now() + timedelta(days=40),
+    )
+    version_id = quotation["versions"][0]["id"]
+
+    def line(position: int, subtotal: str) -> QuotationLine:
+        return QuotationLine(
+            organization_id=organization_id,
+            quotation_version_id=version_id,
+            position=position,
+            description="Redondeo monetario",
+            unit_label="unidad",
+            quantity=Decimal("1.005"),
+            unit_price=Decimal("1.00"),
+            discount_amount=Decimal("0.00"),
+            line_subtotal=Decimal(subtotal),
+            line_total=Decimal(subtotal),
+        )
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
+        valid = line(2, "1.01")
+        valid.save()
+        assert valid.line_subtotal == Decimal("1.01")
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            line(3, "2.00").save()
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            QuotationLine.objects.bulk_create([line(3, "2.00")])
+
+        with pytest.raises(IntegrityError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO commercial_quotationline (
+                    id, organization_id, quotation_version_id, position,
+                    description, unit_label, quantity, unit_price,
+                    discount_amount, line_subtotal, line_total, created_at, updated_at
+                ) VALUES (%s, %s, %s, 3, 'SQL incorrecto', 'unidad',
+                          1.005, 1.00, 0.00, 2.00, 2.00, now(), now())
+                """,
+                (uuid4(), organization_id, version_id),
+            )
+
+        with pytest.raises(IntegrityError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE commercial_quotationversion
+                SET subtotal = 1003.01, discount_total = 50.00, total = 953.01
+                WHERE id = %s
+                """,
+                (version_id,),
+            )
+            cursor.execute(
+                """
+                INSERT INTO commercial_quotationline (
+                    id, organization_id, quotation_version_id, position,
+                    description, unit_label, quantity, unit_price,
+                    discount_amount, line_subtotal, line_total, created_at, updated_at
+                ) VALUES (%s, %s, %s, 3, 'Agregado coherente pero producto incorrecto',
+                          'unidad', 1.005, 1.00, 0.00, 2.00, 2.00, now(), now())
+                """,
+                (uuid4(), organization_id, version_id),
+            )
+
+        stored = QuotationVersion.objects.get(pk=version_id)
+        assert (stored.subtotal, stored.discount_total, stored.total) == (
+            Decimal("1000.00"),
+            Decimal("50.00"),
+            Decimal("950.00"),
+        )
+
+
+def test_postgresql_enforces_reservation_request_snapshot_and_acceptance_coherence() -> None:
+    owner, creation = _owner("commercial-reservation-coherence")
+    organization_id = creation.organization.pk
+    start = timezone.now() + timedelta(days=50)
+    first_request, first_quote = _issued(
+        owner,
+        organization_id,
+        phone="0998888888",
+        starts_at=start,
+    )
+    reservation_payload = accept_quotation_version(
+        owner,
+        organization_id,
+        quotation_id=first_quote["id"],
+        version=1,
+        channel="whatsapp",
+        note="Aceptada",
+    )
+    second_request, second_quote = _draft(
+        owner,
+        organization_id,
+        phone="0999999999",
+        starts_at=start + timedelta(days=2),
+    )
+    invalid_version_id = second_quote["versions"][0]["id"]
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
+        reservation = Reservation.objects.get(pk=reservation_payload["id"])
+        original = (
+            reservation.event_request_id,
+            reservation.quotation_version_id,
+            reservation.event_interval,
+            reservation.event_timezone,
+        )
+        invalid_interval = Range(
+            reservation.event_interval.lower + timedelta(hours=1),
+            reservation.event_interval.upper + timedelta(hours=1),
+            bounds="[)",
+        )
+        orm_changes = (
+            {"event_request_id": second_request["id"]},
+            {"event_interval": invalid_interval},
+            {"event_timezone": "UTC"},
+            {"quotation_version_id": invalid_version_id},
+        )
+        for changes in orm_changes:
+            with pytest.raises(DatabaseError), transaction.atomic():
+                Reservation.objects.filter(pk=reservation.pk).update(**changes)
+
+        sql_changes: tuple[tuple[str, Any], ...] = (
+            ("event_request_id = %s", second_request["id"]),
+            ("event_interval = %s", invalid_interval),
+            ("event_timezone = %s", "UTC"),
+            ("quotation_version_id = %s", invalid_version_id),
+        )
+        for assignment, value in sql_changes:
+            with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+                cursor.execute(
+                    f"UPDATE commercial_reservation SET {assignment} WHERE id = %s",
+                    (value, reservation.pk),
+                )
+
+        invalid_version = QuotationVersion.objects.get(pk=invalid_version_id)
+        with pytest.raises(DatabaseError), transaction.atomic():
+            Reservation.objects.create(
+                organization_id=organization_id,
+                event_request_id=second_request["id"],
+                quotation_version=invalid_version,
+                event_interval=Range(
+                    invalid_version.event_starts_at_snapshot,
+                    invalid_version.event_ends_at_snapshot,
+                    bounds="[)",
+                ),
+                event_timezone=invalid_version.event_timezone_snapshot,
+                status=Reservation.Status.PROVISIONAL,
+                hold_expires_at=timezone.now() + timedelta(hours=48),
+            )
+
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO commercial_reservation (
+                    id, organization_id, event_request_id, quotation_version_id,
+                    event_interval, event_timezone, status, hold_expires_at,
+                    confirmation_kind, deposit_reference, waiver_reason,
+                    cancellation_reason, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, tstzrange(%s, %s, '[)'), %s,
+                    'provisional', now() + interval '48 hours', '', '', '', '', now(), now()
+                )
+                """,
+                (
+                    uuid4(),
+                    organization_id,
+                    second_request["id"],
+                    invalid_version_id,
+                    invalid_version.event_starts_at_snapshot,
+                    invalid_version.event_ends_at_snapshot,
+                    invalid_version.event_timezone_snapshot,
+                ),
+            )
+
+        reservation.refresh_from_db()
+        assert (
+            reservation.event_request_id,
+            reservation.quotation_version_id,
+            reservation.event_interval,
+            reservation.event_timezone,
+        ) == original
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT prosecdef,
+                       NOT EXISTS (
+                           SELECT 1
+                           FROM aclexplode(pg_proc.proacl) AS acl
+                           WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+                       )
+                FROM pg_proc
+                WHERE oid = 'public.claridez_validate_reservation_coherence()'::regprocedure
+                """
+            )
+            assert cursor.fetchone() == (False, True)
+
+        assert first_request["id"] == reservation.event_request_id

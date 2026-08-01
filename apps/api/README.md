@@ -42,6 +42,8 @@ El flujo comercial vive bajo `/api/v1/organizations/{organization_id}/` y expone
 solicitudes, disponibilidad, cotizaciones/versiones y comandos explícitos de emisión, aceptación,
 cierre, confirmación y cancelación. El contrato exacto está en la
 [especificación 5.1](../../docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md).
+El [cierre 5.1.1](../../docs/product/ITERATION_5_1_1_HARDENING.md) documenta la representación
+restringida de snapshots personales, el `PATCH` idempotente y las defensas PostgreSQL adicionales.
 
 ## Autenticación HTTP
 

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import indexHtml from "../index.html?raw";
 import { App } from "./App";
 
 function json(body: unknown, status = 200): Response {
@@ -26,6 +27,12 @@ describe("flujo comercial de Claridez", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Ingresa a tu organización" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Claridez" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("claridez-logo-horizontal-color"),
+    );
+    expect(indexHtml).toContain("<title>Claridez — Centro de control comercial</title>");
+    expect(indexHtml).toContain("Claridez_Brand_Assets_v1.0/web-icons/favicon.svg");
     fireEvent.click(screen.getByRole("button", { name: "Olvidé mi contraseña" }));
     expect(screen.getByRole("heading", { name: "Recupera tu acceso" })).toBeVisible();
     expect(screen.getByLabelText("Correo electrónico")).toBeRequired();

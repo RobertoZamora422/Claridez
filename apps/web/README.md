@@ -5,6 +5,10 @@ organizacional e incorpora agenda, solicitudes, personas inline, cotizaciones ve
 confirmación o cancelación de reservas. La interfaz sigue la dirección visual oficial y responde
 en escritorio y móvil.
 
+Los componentes de marca usan los SVG oficiales de `docs/Claridez_Brand_Assets_v1.0`. Inter y Plus
+Jakarta Sans se sirven desde dependencias FontSource locales fijadas por el lockfile; no dependen de
+una CDN. `src/Brand.tsx` concentra el logotipo horizontal y el isotipo según el fondo.
+
 ## Requisitos
 
 - Node.js 24.18.1.

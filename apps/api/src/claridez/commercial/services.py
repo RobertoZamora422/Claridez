@@ -220,6 +220,13 @@ def update_person(
         person = _get_person(authorization.organization_id, person_id, lock=True)
         if person.revision != revision:
             raise conflict("stale_revision", "La persona cambió; vuelve a cargarla.")
+        original = (
+            person.full_name,
+            person.phone_e164,
+            person.email,
+            person.origin,
+            person.origin_detail,
+        )
         try:
             if "full_name" in changes:
                 person.full_name = canonical_text(
@@ -237,6 +244,15 @@ def update_person(
                 )
         except ValueError as error:
             raise invalid(str(error)) from error
+        current = (
+            person.full_name,
+            person.phone_e164,
+            person.email,
+            person.origin,
+            person.origin_detail,
+        )
+        if current == original:
+            return _person_data(person)
         person.revision += 1
         try:
             with transaction.atomic():
@@ -449,6 +465,17 @@ def update_event_request(
             raise conflict("stale_revision", "La solicitud cambió; vuelve a cargarla.")
         if row.status not in {EventRequest.Status.NEW, EventRequest.Status.QUOTED}:
             raise conflict("invalid_transition", "La solicitud ya no puede editarse.")
+        original = (
+            row.event_type,
+            row.starts_at,
+            row.ends_at,
+            row.estimated_guests,
+            row.general_need,
+            row.notes,
+            row.origin,
+            row.origin_detail,
+            row.responsible_membership_id,
+        )
         try:
             if "event_type" in changes:
                 row.event_type = canonical_text(
@@ -483,6 +510,19 @@ def update_event_request(
                 )
         except (TypeError, ValueError) as error:
             raise invalid(str(error)) from error
+        current = (
+            row.event_type,
+            row.starts_at,
+            row.ends_at,
+            row.estimated_guests,
+            row.general_need,
+            row.notes,
+            row.origin,
+            row.origin_detail,
+            row.responsible_membership_id,
+        )
+        if current == original:
+            return _request_data(row, authorization)
         row.revision += 1
         row.save()
         return _request_data(row, authorization)
@@ -609,7 +649,7 @@ def create_quotation(
             version=1,
             valid_until=valid_until,
         )
-        return _quotation_data(quotation)
+        return _quotation_data(quotation, authorization)
 
 
 def create_quotation_version(
@@ -645,7 +685,7 @@ def create_quotation_version(
             version=int(maximum or 0) + 1,
             valid_until=valid_until,
         )
-        return _quotation_data(quotation)
+        return _quotation_data(quotation, authorization)
 
 
 def _get_quotation(
@@ -690,7 +730,7 @@ def _line_data(line: QuotationLine) -> dict[str, Any]:
     }
 
 
-def _version_data(row: QuotationVersion) -> dict[str, Any]:
+def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, Any]:
     effective_status = (
         "expired"
         if row.status == QuotationVersion.Status.ISSUED and row.valid_until <= timezone.now()
@@ -702,6 +742,15 @@ def _version_data(row: QuotationVersion) -> dict[str, Any]:
     reservation = Reservation.objects.filter(
         organization_id=row.organization_id, quotation_version=row
     ).first()
+    person: dict[str, Any] = (
+        {
+            "full_name": row.person_name_snapshot,
+            "phone_e164": row.person_phone_snapshot,
+            "email": row.person_email_snapshot or None,
+        }
+        if include_contact
+        else {"restricted": True}
+    )
     return {
         "id": row.pk,
         "version": row.version,
@@ -712,11 +761,7 @@ def _version_data(row: QuotationVersion) -> dict[str, Any]:
         "valid_until": row.valid_until,
         "currency": row.currency,
         "organization_name": row.organization_name_snapshot,
-        "person": {
-            "full_name": row.person_name_snapshot,
-            "phone_e164": row.person_phone_snapshot,
-            "email": row.person_email_snapshot or None,
-        },
+        "person": person,
         "event": {
             "event_type": row.event_type_snapshot,
             "starts_at": row.event_starts_at_snapshot,
@@ -739,7 +784,7 @@ def _version_data(row: QuotationVersion) -> dict[str, Any]:
     }
 
 
-def _quotation_data(quotation: Quotation) -> dict[str, Any]:
+def _quotation_data(quotation: Quotation, authorization: TenantAuthorization) -> dict[str, Any]:
     versions = QuotationVersion.objects.filter(
         organization_id=quotation.organization_id, quotation=quotation
     ).order_by("version")
@@ -747,7 +792,13 @@ def _quotation_data(quotation: Quotation) -> dict[str, Any]:
         "id": quotation.pk,
         "event_request_id": quotation.event_request_id,
         "visible_number": quotation.visible_number,
-        "versions": tuple(_version_data(row) for row in versions),
+        "versions": tuple(
+            _version_data(
+                row,
+                include_contact=_can(authorization, Capability.PERSON_READ),
+            )
+            for row in versions
+        ),
         "created_at": quotation.created_at,
         "updated_at": quotation.updated_at,
     }
@@ -760,7 +811,9 @@ def read_quotation(
         actor, organization_reference, Capability.SALES_READ
     ) as authorization:
         _expire_overdue(authorization)
-        return _quotation_data(_get_quotation(authorization.organization_id, quotation_id))
+        return _quotation_data(
+            _get_quotation(authorization.organization_id, quotation_id), authorization
+        )
 
 
 def replace_quotation_draft(
@@ -846,7 +899,7 @@ def replace_quotation_draft(
             organization_id=authorization.organization_id, quotation_version=draft
         ).delete()
         QuotationLine.objects.bulk_create(prepared)
-        return _quotation_data(quotation)
+        return _quotation_data(quotation, authorization)
 
 
 def issue_quotation_version(
@@ -866,7 +919,7 @@ def issue_quotation_version(
         row = _get_version(authorization.organization_id, quotation, version, lock=True)
         if row.status != QuotationVersion.Status.DRAFT:
             if row.status == QuotationVersion.Status.ISSUED:
-                return _quotation_data(quotation)
+                return _quotation_data(quotation, authorization)
             raise conflict("invalid_transition", "La versión no puede emitirse.")
         latest = QuotationVersion.objects.filter(
             organization_id=authorization.organization_id, quotation=quotation
@@ -891,7 +944,7 @@ def issue_quotation_version(
         row.save(update_fields=["status", "issued_at", "issued_by_membership", "updated_at"])
         event_request.status = EventRequest.Status.QUOTED
         event_request.save(update_fields=["status", "updated_at"])
-        return _quotation_data(quotation)
+        return _quotation_data(quotation, authorization)
 
 
 def _reservation_summary(row: Reservation) -> dict[str, Any]:
@@ -1009,6 +1062,23 @@ def accept_quotation_version(
             raise invalid(str(error)) from error
         try:
             with transaction.atomic():
+                row.status = QuotationVersion.Status.ACCEPTED
+                row.accepted_at = now
+                row.accepted_by_membership_id = authorization.membership_id
+                row.acceptance_channel = channel
+                row.acceptance_note = canonical_note
+                row.save(
+                    update_fields=[
+                        "status",
+                        "accepted_at",
+                        "accepted_by_membership",
+                        "acceptance_channel",
+                        "acceptance_note",
+                        "updated_at",
+                    ]
+                )
+                event_request.status = EventRequest.Status.ACCEPTED
+                event_request.save(update_fields=["status", "updated_at"])
                 reservation = Reservation.objects.create(
                     organization_id=authorization.organization_id,
                     event_request=event_request,
@@ -1026,23 +1096,6 @@ def accept_quotation_version(
             raise conflict(
                 "schedule_conflict", "El horario ya no se encuentra disponible."
             ) from error
-        row.status = QuotationVersion.Status.ACCEPTED
-        row.accepted_at = now
-        row.accepted_by_membership_id = authorization.membership_id
-        row.acceptance_channel = channel
-        row.acceptance_note = canonical_note
-        row.save(
-            update_fields=[
-                "status",
-                "accepted_at",
-                "accepted_by_membership",
-                "acceptance_channel",
-                "acceptance_note",
-                "updated_at",
-            ]
-        )
-        event_request.status = EventRequest.Status.ACCEPTED
-        event_request.save(update_fields=["status", "updated_at"])
         return _reservation_summary(reservation)
 
 

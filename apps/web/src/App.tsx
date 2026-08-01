@@ -21,6 +21,7 @@ import {
   type Reservation,
   type User,
 } from "./api";
+import { BrandLogo, BrandSymbol } from "./Brand";
 import "./styles.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -167,12 +168,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: User) => voi
   return (
     <main className="auth-layout">
       <section className="auth-brand" aria-labelledby="brand-title">
-        <div className="brand-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
+        <BrandSymbol />
         <p className="eyebrow">Centro de control para salones de eventos</p>
         <h1 id="brand-title">Todo tu negocio, claro y bajo control.</h1>
         <p>
@@ -181,7 +177,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: User) => voi
         </p>
       </section>
       <section className="auth-card" aria-labelledby="auth-title">
-        <p className="wordmark">Claridez</p>
+        <BrandLogo />
         <h2 id="auth-title">{resetMode ? "Recupera tu acceso" : "Ingresa a tu organización"}</h2>
         <p className="muted">
           {resetMode
@@ -248,7 +244,7 @@ function OrganizationPicker({
   return (
     <main className="center-layout">
       <section className="picker-card" aria-labelledby="organization-title">
-        <p className="wordmark">Claridez</p>
+        <BrandLogo />
         <h1 id="organization-title">Elige una organización</h1>
         <p className="muted">El contexto seleccionado define los datos que puedes consultar.</p>
         {error && <Notice>{error}</Notice>}
@@ -1439,7 +1435,7 @@ function Workspace({
     <div className="app-shell">
       <aside className="sidebar">
         <div>
-          <p className="wordmark wordmark--light">Claridez</p>
+          <BrandLogo theme="light" />
           <button className="tenant-switch" onClick={onSwitch} disabled={organizations.length < 2}>
             <span>{organization.name}</span>
             <small>
@@ -1480,7 +1476,7 @@ function Workspace({
         </div>
       </aside>
       <header className="mobile-header">
-        <p className="wordmark">Claridez</p>
+        <BrandLogo />
         <button className="button button--ghost" onClick={onSwitch}>
           {organization.name}
         </button>

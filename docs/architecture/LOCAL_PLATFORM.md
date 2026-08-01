@@ -257,4 +257,5 @@ los grants y la política RLS. El rol normal recibe solo el DML requerido, pero 
 `organizations/0003` añade la clave compuesta requerida por actores tenant-aware. Las migraciones
 `commercial/0001` y `0002` crean las entidades funcionales, `btree_gist`, FK compuestas,
 constraints y triggers de integridad, privilegios mínimos y RLS forzado para las ocho tablas
-privadas.
+privadas. `commercial/0003` añade la igualdad entre subtotal de línea y producto redondeado, y
+protege por trigger la versión aceptada, solicitud, intervalo y zona horaria de cada reserva.

@@ -105,7 +105,8 @@ El Modelo de Conversión, la página pública y los dominios propios pertenecen 
 Ninguno de estos asuntos debe resolverse implícitamente dentro de código de infraestructura o componentes visuales.
 
 El primer flujo vertical dejó de estar abierto: la especificación aprobada e implementada se
-encuentra en [Iteración 5.1 — De consulta a reserva confirmada](ITERATION_5_1_COMMERCIAL_FLOW.md).
+encuentra en [Iteración 5.1 — De consulta a reserva confirmada](ITERATION_5_1_COMMERCIAL_FLOW.md) y
+su cierre técnico en [Iteración 5.1.1 — Endurecimiento](ITERATION_5_1_1_HARDENING.md).
 
 ## Fuentes de marca
 

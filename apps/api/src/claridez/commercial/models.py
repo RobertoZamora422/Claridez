@@ -7,7 +7,7 @@ from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import F, Q
-from django.db.models.functions import Trim
+from django.db.models.functions import Round, Trim
 
 from claridez.organizations.models import Membership, Organization
 
@@ -323,6 +323,10 @@ class QuotationLine(TenantModel):
                 & Q(discount_amount__lte=F("line_subtotal"))
                 & Q(line_total=F("line_subtotal") - F("discount_amount")),
                 name="commercial_quoteline_amounts_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(line_subtotal=Round(F("quantity") * F("unit_price"), precision=2)),
+                name="commercial_quoteline_subtotal_product",
             ),
         ]
 

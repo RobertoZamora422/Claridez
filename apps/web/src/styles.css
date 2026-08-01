@@ -2,7 +2,7 @@
   color: #0f172a;
   background: #f8fafc;
   font-family:
-    Inter,
+    "Inter",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -51,9 +51,8 @@ p {
 }
 h1,
 h2,
-h3,
-.wordmark {
-  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+h3 {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
 }
 h1 {
   font-size: clamp(1.75rem, 3vw, 2.4rem);
@@ -80,14 +79,15 @@ h3 {
   text-transform: uppercase;
   margin-bottom: 8px;
 }
-.wordmark {
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  margin: 0;
+.brand-logo {
+  display: block;
+  width: 132px;
+  height: auto;
+  object-fit: contain;
+  object-position: left center;
 }
-.wordmark--light {
-  color: white;
+.brand-logo--light {
+  width: 148px;
 }
 
 .button {
@@ -153,21 +153,11 @@ h3 {
   max-width: 560px;
   line-height: 1.7;
 }
-.brand-mark {
-  display: grid;
-  grid-template-columns: repeat(2, 16px);
-  gap: 4px;
+.brand-symbol {
+  width: 64px;
+  height: 64px;
   margin-bottom: 40px;
-}
-.brand-mark span {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background: #14b8a6;
-}
-.brand-mark span:nth-child(2),
-.brand-mark span:nth-child(3) {
-  opacity: 0.48;
+  object-fit: contain;
 }
 .auth-card {
   background: white;
@@ -179,7 +169,7 @@ h3 {
   justify-content: center;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.26);
 }
-.auth-card .wordmark {
+.auth-card .brand-logo {
   margin-bottom: 56px;
 }
 .auth-card .button--ghost {
@@ -287,7 +277,7 @@ legend {
   border-radius: 20px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
-.picker-card .wordmark {
+.picker-card .brand-logo {
   margin-bottom: 40px;
 }
 .organization-list {
@@ -717,6 +707,16 @@ dd {
     background: rgba(255, 255, 255, 0.96);
     border-bottom: 1px solid #e2e8f0;
     backdrop-filter: blur(12px);
+  }
+  .mobile-header .brand-logo {
+    width: 96px;
+    flex: 0 0 auto;
+  }
+  .mobile-header .button {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .mobile-nav {
     display: grid;

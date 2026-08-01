@@ -14,8 +14,8 @@ reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el s
 — Usuario primero**, **4.2 — Organizaciones y membresías**, **4.3 — Autenticación HTTP y sesiones
 de servidor** y el cierre integrado de autorización y aislamiento tenant. Contiene PostgreSQL local
 reproducible, identidad y sesiones locales, organizaciones, membresías, contexto organizacional y
-la primera tabla privada protegida por RLS. La Iteración 4 y el primer flujo vertical de la
-Iteración 5.1 están completados. `claridez.commercial` permite registrar personas y solicitudes,
+la primera tabla privada protegida por RLS. La Iteración 4, el primer flujo vertical de la
+Iteración 5.1 y su endurecimiento 5.1.1 están completados. `claridez.commercial` permite registrar personas y solicitudes,
 cotizar, aceptar y confirmar o cancelar reservas con agenda concurrente y RLS.
 
 Todavía no existen:
@@ -55,6 +55,7 @@ La línea base aprobada se encuentra en [docs/product/PRODUCT_BASELINE.md](docs/
 - [Índice documental](docs/README.md)
 - [Línea base del producto v0.1](docs/product/PRODUCT_BASELINE.md)
 - [Especificación funcional de la Iteración 5.1](docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md)
+- [Cierre de la Iteración 5.1.1](docs/product/ITERATION_5_1_1_HARDENING.md)
 - [Roadmap técnico de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md)
 - [Matriz de compatibilidad de toolchains](docs/architecture/TOOLCHAIN_COMPATIBILITY.md)
 - [Plataforma local y configuración](docs/architecture/LOCAL_PLATFORM.md)
