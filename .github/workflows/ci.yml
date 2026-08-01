@@ -26,6 +26,45 @@ jobs:
     name: Calidad
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: claridez-ci-postgres-admin-password
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
+          TZ: UTC
+          PGTZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres -h 127.0.0.1 -p 5432"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      CLARIDEZ_ENVIRONMENT: local
+      CLARIDEZ_SECRET_KEY: claridez-ci-secret-key-at-least-thirty-two-characters
+      CLARIDEZ_ALLOWED_HOSTS: 127.0.0.1,localhost
+      CLARIDEZ_LOG_LEVEL: INFO
+      CLARIDEZ_AUTH_LINK_BASE_URL: http://127.0.0.1:5173
+      CLARIDEZ_DB_HOST: 127.0.0.1
+      CLARIDEZ_DB_PORT: "5432"
+      CLARIDEZ_DB_CONNECT_TIMEOUT: "3"
+      CLARIDEZ_DB_STATEMENT_TIMEOUT_MS: "3000"
+      CLARIDEZ_DB_SSLMODE: disable
+      CLARIDEZ_DB_NAME: claridez_local
+      CLARIDEZ_DB_USER: claridez_app
+      CLARIDEZ_DB_PASSWORD: claridez-ci-application-password-0001
+      CLARIDEZ_MIGRATION_DB_USER: claridez_migrator
+      CLARIDEZ_MIGRATION_DB_PASSWORD: claridez-ci-migrator-password-000001
+      CLARIDEZ_TEST_DB_NAME: claridez_test
+      CLARIDEZ_TEST_DB_USER: claridez_test_runner
+      CLARIDEZ_TEST_DB_PASSWORD: claridez-ci-test-runner-password-0001
+      CLARIDEZ_POSTGRES_ADMIN_DB: postgres
+      CLARIDEZ_POSTGRES_ADMIN_USER: postgres
+      CLARIDEZ_POSTGRES_ADMIN_PASSWORD: claridez-ci-postgres-admin-password
     steps:
       - name: Descargar el repositorio
         # actions/checkout v7.0.1
@@ -62,6 +101,23 @@ jobs:
           uv --directory apps/api lock --check
           uv --directory apps/api sync --locked
           npm ci
+      - name: Aplicar configuración del clúster
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET cluster_name = 'claridez-local'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET timezone = 'UTC'"
+          docker restart "$POSTGRES_CONTAINER_ID"
+          for attempt in {1..30}; do
+            if docker exec "$POSTGRES_CONTAINER_ID" pg_isready -U postgres -d postgres -h 127.0.0.1 -p 5432; then
+              exit 0
+            fi
+            echo "Esperando PostgreSQL (${attempt}/30)"
+            sleep 1
+          done
+          exit 1
+      - name: Preparar roles y base con la herramienta del repositorio
+        run: npm run db:prepare
       - name: Ejecutar puerta de calidad
         run: npm run check
       - name: Verificar árbol reproducible
