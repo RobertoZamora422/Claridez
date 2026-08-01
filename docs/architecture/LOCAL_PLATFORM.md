@@ -126,7 +126,7 @@ Staging y producción deberán incorporar módulos separados, secretos inyectado
 |---|---:|---:|---|---|---|
 | `postgres` | Sí | Sí | Bootstrap total | Total | Solo comandos locales explícitos |
 | `claridez_migrator` | Sí | No | Propietario de base/esquema; aplica migraciones | Por propiedad | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
-| `claridez_app` | Sí | No | Ninguno | DML en tablas aplicables; sin `DELETE` sobre `Organization` ni `Membership` | Sin CREATE, propiedad ni acceso a `django_migrations` |
+| `claridez_app` | Sí | No | Ninguno | DML aplicable; sin `DELETE` sobre `Organization`, `Membership` ni `OrganizationSettings` | Sin CREATE, propiedad, `BYPASSRLS` ni acceso a `django_migrations` |
 | `claridez_test_runner` | Sí | Sí | Solo en bases de prueba que crea localmente | Total dentro de su base efímera | Sin superusuario, CREATEROLE, REPLICATION o BYPASSRLS |
 
 El bootstrap revoca privilegios de `PUBLIC` en `claridez_local` y en su esquema. `db:migrate` ejecuta Django con el migrador y luego vuelve a aplicar los grants de objetos para la aplicación.
@@ -206,6 +206,18 @@ Axes conserva intentos en PostgreSQL, bloquea después de cinco fallos por combi
 canónico e IP durante 15 minutos y responde JSON `429` con `Retry-After`. Solo se usa
 `REMOTE_ADDR`: no se confía en cabeceras de proxies hasta elegir y documentar el despliegue.
 
+La API organizacional añade `GET /api/v1/organizations/`, `GET` y `POST` sobre `context/`, y las
+lecturas `settings/` y `memberships/` por UUID. La selección de contexto exige CSRF, guarda solo
+`last_organization_id` y no renueva el vencimiento absoluto. No existen endpoints privilegiados de
+escritura.
+
+`organizations_organizationsettings` pertenece a `claridez_migrator`, aplica `ENABLE` y `FORCE ROW
+LEVEL SECURITY` y no devuelve filas sin el GUC local establecido por `authorized_tenant_scope`.
+Las migraciones de datos futuras deben iterar organizaciones dentro de transacciones explícitas,
+establecer `set_config('claridez.organization_id', ..., true)` para cada operación y materializar
+todo antes de cambiar el contexto. El migrador participa en la misma política y no debe desactivar
+RLS silenciosamente.
+
 ## Datos y recuperación
 
 El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una copia de seguridad. Los procedimientos de dump, restore, retención y recuperación se definirán cuando existan datos funcionales y objetivos reales de recuperación.
@@ -223,5 +235,7 @@ El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una co
 - Las pruebas rápidas, la integración PostgreSQL, `check`, `check:all` y ambas auditorías completaron correctamente.
 
 Las migraciones propias `identity/0001_initial.py` y `organizations/0001_initial.py`, además de las
-migraciones estándar de sesiones y Axes, se aplican con `claridez_migrator`. El rol normal recibe
-el DML requerido sobre esas tablas, pero no propiedad ni DDL. No se añade RLS en 4.3.
+migraciones estándar de sesiones y Axes, se aplican con `claridez_migrator`.
+`organizations/0002_organizationsettings.py` realiza el backfill, crea la función mínima del GUC,
+los grants y la política RLS. El rol normal recibe solo el DML requerido, pero no propiedad, DDL,
+`BYPASSRLS` ni `DELETE` sobre las tres tablas organizacionales.

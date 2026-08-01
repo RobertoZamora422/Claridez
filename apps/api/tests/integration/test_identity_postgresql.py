@@ -47,7 +47,7 @@ def test_identity_constraints_and_indexes_exist_in_postgresql() -> None:
     )
 
 
-def test_no_private_tenant_tables_exist_before_later_subiterations() -> None:
+def test_only_the_approved_private_settings_table_exists() -> None:
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -56,10 +56,11 @@ def test_no_private_tenant_tables_exist_before_later_subiterations() -> None:
             WHERE schemaname = 'public'
               AND (
                 tablename LIKE 'tenancy%%'
-                OR tablename = 'organizations_organizationsettings'
+                OR tablename LIKE 'organizations_%%settings%%'
               )
+            ORDER BY tablename
             """
         )
         tables = cursor.fetchall()
 
-    assert tables == []
+    assert tables == [("organizations_organizationsettings",)]

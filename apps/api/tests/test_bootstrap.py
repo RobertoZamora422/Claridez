@@ -7,7 +7,7 @@ from django.core.checks import run_checks
 from django.core.management import call_command
 
 
-def test_bootstrap_uses_postgresql_and_generates_auth_openapi_without_database() -> None:
+def test_bootstrap_uses_postgresql_and_generates_approved_openapi_without_database() -> None:
     """Validar configuración y esquema sin abrir una conexión de base de datos."""
     assert run_checks() == []
 
@@ -31,6 +31,10 @@ def test_bootstrap_uses_postgresql_and_generates_auth_openapi_without_database()
         "/api/v1/auth/password/reset/confirm/:",
         "/api/v1/auth/email/verification/request/:",
         "/api/v1/auth/email/verification/confirm/:",
+        "/api/v1/organizations/:",
+        "/api/v1/organizations/context/:",
+        "/api/v1/organizations/{organization_id}/settings/:",
+        "/api/v1/organizations/{organization_id}/memberships/:",
     ):
         assert path in schema
     assert "cookieAuth:" in schema

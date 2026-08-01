@@ -26,10 +26,11 @@ Se aprueban las entidades productivas `Organization`, `Membership` y `Organizati
   invariantes concurrentes de sus membresías.
 - `Membership` vincula un usuario local con una organización, un rol provisional y un estado de
   membresía. La combinación usuario-organización será única en PostgreSQL.
-- `OrganizationSettings` pertenece obligatoriamente a una organización y será la primera entidad
-  privada productiva protegida por RLS. Contendrá inicialmente la moneda y la zona horaria de la
+- `OrganizationSettings` pertenece obligatoriamente a una organización y es la primera entidad
+  privada productiva protegida por RLS. Contiene inicialmente la moneda y la zona horaria de la
   organización, con USD y `America/Guayaquil` como valores iniciales configurables. Su
-  implementación y el RLS productivo pertenecen a 4.5, no a 4.2.
+  implementación y el RLS productivo se completan en el cierre integrado posterior a 4.3, no en
+  4.2.
 
 Los ciclos de vida, campos y transiciones no enumerados aquí no quedan autorizados por inferencia.
 Las entidades se implementarán dentro del monolito modular y no constituyen un servicio separado.
@@ -139,8 +140,6 @@ mediante una decisión explícita y controles equivalentes.
 - Los cinco roles y las capacidades de infraestructura de la matriz son provisionales.
 - Los nombres técnicos de las capacidades podrán normalizarse antes de constituir API pública si
   se conserva una correspondencia exacta y probada con esta matriz.
-- El ciclo de vida detallado de una organización y una membresía se limitará a los estados mínimos
-  que apruebe la especificación de 4.2.
 
 ## Asuntos diferidos
 
@@ -150,8 +149,6 @@ mediante una decisión explícita y controles equivalentes.
 - Acceso transversal de soporte y su auditoría reforzada.
 - Administración visual de organizaciones y membresías.
 - Una reevaluación futura de Django Admin.
-- Capacidades, permisos DRF y autorización del actor, que pertenecen a 4.4.
-- `OrganizationSettings`, `authorized_tenant_scope` y RLS productivo, que pertenecen a 4.5.
 - Auditoría detallada de múltiples ciclos de una membresía.
 
 ## Validación de 4.2
@@ -169,6 +166,21 @@ La migración inicial de organizaciones deberá demostrar:
 
 Las acciones privilegiadas de esta matriz no podrán usarse productivamente sin MFA, salvo que el
 propietario registre de forma explícita un riesgo temporal aceptado según ADR 0010.
+
+## Validación del cierre integrado
+
+- El catálogo contiene exactamente siete capacidades y prueba la matriz completa de cinco roles.
+- `authorized_tenant_scope` revalida usuario, organización, membresía y capacidad dentro de una
+  transacción y restaura el GUC al salir.
+- `OrganizationSettings` tiene una fila por organización, moneda canónica y zona horaria IANA; las
+  organizaciones nuevas crean su fila dentro de la misma operación atómica.
+- RLS cierra lecturas sin contexto y cruces entre organizaciones para ORM, SQL, bulk y relaciones;
+  `WITH CHECK` rechaza cambios hacia otro tenant.
+- Los wrappers autorizados combinan esta matriz con los bloqueos de 4.2. Un administrador no puede
+  promover ni modificar propietarios y el último propietario permanece protegido bajo
+  concurrencia.
+- Los endpoints se limitan al listado, contexto y lecturas. Las mutaciones privilegiadas existen
+  solo como servicios internos y no se exponen por HTTP mientras MFA permanezca diferido.
 
 ## Alternativas consideradas
 
@@ -198,13 +210,13 @@ las capacidades ni el servicio transaccional aprobado.
 - La autorización queda centralizada en servicios backend-first y deniega por defecto.
 - Varias personas pueden compartir el rol `propietario` sin crear un concepto de propiedad
   principal.
-- `claridez.organizations` contiene en 4.2 únicamente `Organization` y `Membership` como tablas
-  globales de control.
-- `OrganizationSettings` será el primer caso productivo para demostrar RLS, aislamiento negativo y
-  materialización dentro del scope.
+- `claridez.organizations` contiene `Organization` y `Membership` como tablas globales de control y
+  `OrganizationSettings` como primera tabla privada.
+- `OrganizationSettings` demuestra RLS productivo, aislamiento negativo y materialización dentro
+  del scope.
 - No se implementan todavía invitaciones, soporte transversal, administración visual ni módulos
   funcionales.
-- Aceptar este ADR no autoriza modelos, migraciones, endpoints ni el resto de la Iteración 4.
+- El cierre de la Iteración 4 no autoriza módulos funcionales, frontend ni nuevas capacidades.
 
 ## Evidencia
 

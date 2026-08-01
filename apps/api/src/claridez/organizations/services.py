@@ -24,7 +24,7 @@ from .exceptions import (
     OrganizationSlugConflict,
     UserNotActive,
 )
-from .models import Membership, Organization
+from .models import Membership, Organization, OrganizationSettings
 from .normalization import canonicalize_organization_name, canonicalize_organization_slug
 
 BOOTSTRAP_ADVISORY_LOCK_KEY = int.from_bytes(b"CLARIDEZ", byteorder="big", signed=False)
@@ -133,6 +133,16 @@ def create_organization(
             )
             owner_membership.full_clean(validate_unique=False, validate_constraints=False)
             owner_membership.save()
+
+            from .capabilities import Capability
+            from .tenant_scope import authorized_tenant_scope
+
+            with authorized_tenant_scope(
+                owner,
+                organization.pk,
+                Capability.ORGANIZATION_SETTINGS_UPDATE,
+            ):
+                OrganizationSettings.objects.create(organization=organization)
             return OrganizationCreation(organization, owner_membership)
     except IntegrityError as error:
         if _constraint_name(error) == "organizations_organization_slug_unique":
@@ -308,6 +318,24 @@ def transition_membership(
         else:
             membership.revoked_at = now
         membership.save(update_fields=["status", "suspended_at", "revoked_at", "updated_at"])
+        return membership
+
+
+def revoke_membership_sessions(
+    *,
+    organization_id: UUID,
+    membership_id: UUID,
+) -> Membership:
+    """Invalidar todas las sesiones del usuario respetando el orden de bloqueos."""
+    with transaction.atomic():
+        organization = _lock_organization(organization_id)
+        membership = _lock_membership(organization, membership_id)
+        try:
+            user = User.objects.select_for_update().get(pk=membership.user_id)
+        except User.DoesNotExist as error:
+            raise UserNotActive("El usuario no existe.") from error
+        user.security_version += 1
+        user.save(update_fields=["security_version", "updated_at"])
         return membership
 
 

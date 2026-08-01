@@ -15,7 +15,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 
 from claridez.identity.models import User
-from claridez.organizations.models import Membership, Organization
+from claridez.organizations.models import Membership, Organization, OrganizationSettings
 from claridez.organizations.services import add_membership, create_organization
 from claridez.settings.environment import BootstrapSettings, load_bootstrap_settings
 
@@ -62,6 +62,11 @@ def test_organization_constraints_indexes_and_global_table_contract() -> None:
             "organizations_membership_suspended_after_joined",
             "organizations_membership_revoked_after_joined",
         },
+        OrganizationSettings._meta.db_table: {
+            "organizations_settings_currency_canonical",
+            "organizations_settings_timezone_canonical",
+            "organizations_settings_timezone_iana_valid",
+        },
     }
 
     with connection.cursor() as cursor:
@@ -101,7 +106,7 @@ def test_organization_constraints_indexes_and_global_table_contract() -> None:
     ]
     assert "organizations_active_owner_idx" in indexes
     assert "WHERE" in indexes["organizations_active_owner_idx"]
-    assert "organizations_organizationsettings" not in connection.introspection.table_names()
+    assert OrganizationSettings._meta.db_table in connection.introspection.table_names()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -207,7 +212,11 @@ def test_application_role_has_dml_without_delete_or_ddl() -> None:
             "can_delete": False,
         }
 
-        for table in (Organization._meta.db_table, Membership._meta.db_table):
+        for table in (
+            Organization._meta.db_table,
+            Membership._meta.db_table,
+            OrganizationSettings._meta.db_table,
+        ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 application.execute(f'DELETE FROM "{table}" WHERE false')
         with pytest.raises(psycopg.errors.InsufficientPrivilege):

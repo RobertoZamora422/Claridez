@@ -14,8 +14,13 @@ from django.utils import timezone
 from .normalization import (
     MAX_ORGANIZATION_NAME_LENGTH,
     MAX_ORGANIZATION_SLUG_LENGTH,
+    MAX_TIMEZONE_LENGTH,
+    PostgreSQLTimezoneIsValid,
+    canonicalize_currency,
     canonicalize_organization_name,
     canonicalize_organization_slug,
+    canonicalize_timezone,
+    validate_iana_timezone,
 )
 
 
@@ -162,3 +167,52 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id}@{self.organization_id}"
+
+
+class OrganizationSettings(models.Model):
+    """Configuración privada y tenant-aware de una organización."""
+
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="settings",
+        primary_key=True,
+    )
+    currency = models.CharField(max_length=3, default="USD")
+    timezone = models.CharField(
+        max_length=MAX_TIMEZONE_LENGTH,
+        default="America/Guayaquil",
+        validators=[validate_iana_timezone],
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "organization settings"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(currency__regex=r"^[A-Z]{3}$"),
+                name="organizations_settings_currency_canonical",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(timezone="") & models.Q(timezone=Trim("timezone")),
+                name="organizations_settings_timezone_canonical",
+            ),
+            models.CheckConstraint(
+                condition=PostgreSQLTimezoneIsValid(F("timezone")),
+                name="organizations_settings_timezone_iana_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"settings@{self.organization_id}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.currency = canonicalize_currency(self.currency)
+        self.timezone = canonicalize_timezone(self.timezone)
+        super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        self.currency = canonicalize_currency(self.currency)
+        self.timezone = canonicalize_timezone(self.timezone)
+        super().clean()

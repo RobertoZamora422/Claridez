@@ -3,9 +3,9 @@
 API REST de Claridez con configuración local validada, perfiles de credenciales separados,
 PostgreSQL real, endpoints técnicos de salud y autenticación HTTP mediante sesiones Django.
 
-Contiene el usuario local productivo de 4.1 y las organizaciones y membresías globales de control
-de 4.2. No contiene todavía autorización del actor, datos privados tenant ni modelos funcionales de
-negocio.
+Contiene el usuario local productivo, organizaciones y membresías globales de control, autorización
+backend-first y `OrganizationSettings` como primera entidad privada con RLS. No contiene módulos
+funcionales de negocio.
 
 ## Requisitos
 
@@ -84,11 +84,24 @@ y organización es única y persistente.
 Después de migrar, `npm run auth:bootstrap` permite crear localmente una organización activa y su
 primer propietario sin conceder privilegios técnicos.
 
+El catálogo cerrado de siete capacidades aplica la matriz provisional de ADR 0011 sin jerarquías
+implícitas. `authorized_tenant_scope` revalida actor, organización, membresía y capacidad dentro de
+una transacción y establece el GUC local únicamente durante la operación. Los servicios autorizados
+materializan sus resultados antes de cerrar el scope.
+
+`OrganizationSettings` contiene solo moneda y zona horaria. Su tabla aplica `ENABLE` y `FORCE ROW
+LEVEL SECURITY`, una política simétrica `USING`/`WITH CHECK` y cierre por defecto sin contexto. El
+rol de aplicación no es propietario, no tiene `BYPASSRLS` ni `DELETE` sobre la tabla.
+
+Los únicos endpoints organizacionales aprobados son el listado, consulta/selección de contexto y
+lectura de settings y membresías bajo `/api/v1/organizations/`. No existen mutaciones HTTP
+privilegiadas.
+
 ## OpenAPI
 
 `drf-spectacular` genera y valida `openapi-schema.yaml` como artefacto temporal ignorado. El esquema
-incluye los endpoints de autenticación aprobados, pero todavía no se publica ni genera un cliente
-TypeScript.
+incluye los endpoints de autenticación y las cinco operaciones organizacionales aprobadas, pero
+todavía no se publica ni genera un cliente TypeScript.
 
 ## Evidencia del spike de tenancy
 
@@ -96,5 +109,5 @@ El código y los scripts ejecutables de la Iteración 3 fueron eliminados en 4.0
 [protocolo](../../docs/architecture/TENANCY_SPIKE_PROTOCOL.md), los
 [resultados](../../docs/architecture/TENANCY_SPIKE_RESULTS.md) y el
 [modelo de amenazas](../../docs/security/TENANCY_SPIKE_THREAT_MODEL.md) como evidencia histórica.
-ADR 0009 acepta aplicación tenant-aware más RLS sin convertir el experimento en implementación
-productiva.
+ADR 0009 gobierna la implementación productiva independiente; el experimento eliminado no fue
+restaurado ni importado.

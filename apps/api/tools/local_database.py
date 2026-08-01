@@ -32,6 +32,7 @@ ROLE_SPECIFICATIONS: dict[str, dict[str, bool]] = {
 NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",
+    "organizations_organizationsettings",
 }
 
 

@@ -126,9 +126,9 @@ Este roadmap ordena la inicialización del producto. No es un cronograma comerci
 
 ## Iteración 4 — Identidad, organizaciones y autorización
 
-**Estado:** completadas 4.0 — Gobierno y descarte, 4.1 — Usuario primero, 4.2 — Organizaciones y
-membresías y 4.3 — Autenticación HTTP y sesiones de servidor. El resto de la iteración no está
-autorizado.
+**Estado:** completada, incluidas 4.0 — Gobierno y descarte, 4.1 — Usuario primero, 4.2 —
+Organizaciones y membresías, 4.3 — Autenticación HTTP y sesiones de servidor y el cierre integrado
+de autorización, contexto organizacional y RLS.
 
 ### Condición de entrada
 
@@ -174,6 +174,19 @@ autorizado.
 - El correo permanece limitado al backend de consola local y al backend en memoria de pruebas.
 - No se implementaron selección de organización, capacidades, autorización por membresía,
   `OrganizationSettings`, tenancy productivo, RLS, frontend, MFA ni OIDC.
+
+### Resultado del cierre integrado
+
+- La matriz exacta de siete capacidades de ADR 0011 se aplica sin jerarquías implícitas y con
+  denegación por defecto.
+- `authorized_tenant_scope` es el único límite para datos privados; revalida actor, organización,
+  membresía y capacidad y usa contexto PostgreSQL local a la transacción.
+- `OrganizationSettings` es la primera entidad privada, con una fila por organización, USD y
+  `America/Guayaquil` iniciales y RLS `ENABLE` más `FORCE`.
+- Se exponen únicamente listado organizacional, consulta/selección de contexto y lecturas de
+  settings y membresías. No existen escrituras privilegiadas HTTP.
+- Las pruebas negativas cubren dos organizaciones, ORM, SQL, bulk, relaciones, scopes anidados,
+  conexiones reutilizadas, concurrencia y privilegios.
 
 ### Criterio de salida
 

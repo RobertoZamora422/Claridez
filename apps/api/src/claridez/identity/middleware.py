@@ -18,6 +18,7 @@ PROTECTED_AUTH_PATHS = frozenset(
         "/api/v1/auth/password/change/",
     }
 )
+NO_STORE_API_PREFIXES = (AUTH_API_PREFIX, "/api/v1/organizations/")
 
 
 class AuthenticationNoStoreMiddleware:
@@ -28,7 +29,7 @@ class AuthenticationNoStoreMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         response = self.get_response(request)
-        if request.path_info.startswith(AUTH_API_PREFIX):
+        if request.path_info.startswith(NO_STORE_API_PREFIXES):
             response["Cache-Control"] = "no-store"
         return response
 

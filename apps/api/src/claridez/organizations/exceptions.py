@@ -43,3 +43,23 @@ class LastActiveOwnerRequired(OrganizationDomainError):
 
 class BootstrapConflict(OrganizationDomainError):
     pass
+
+
+class AuthorizationDenied(OrganizationDomainError):
+    """Denegación cerrada sin detalles sensibles."""
+
+
+class UnknownCapability(AuthorizationDenied):
+    pass
+
+
+class UnknownMembershipRole(AuthorizationDenied):
+    pass
+
+
+class TenantAccessDenied(AuthorizationDenied):
+    pass
+
+
+class ConflictingTenantScope(AuthorizationDenied):
+    pass

@@ -84,30 +84,32 @@ posterior aprobada.
 
 ## 8. Alcance técnico establecido
 
-Las Iteraciones 0 a 3 y las subiteraciones 4.0 a 4.3 están completadas. 4.1 incorpora el usuario
+Las Iteraciones 0 a 3 y la Iteración 4 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
-4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. No
-existe todavía tenancy productivo ni autorización del actor. Django y React/Vite se ejecutan
-nativamente en Windows; únicamente PostgreSQL está contenerizado. Hasta que exista una nueva
-instrucción explícita para fases posteriores, no se deben crear:
+4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
+cierre añade la matriz provisional, contexto organizacional y `OrganizationSettings` protegido por
+RLS. Django y React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está
+contenerizado. Hasta que exista una nueva instrucción explícita para fases posteriores, no se deben
+crear:
 
-- `OrganizationSettings`, tablas privadas, RLS o `authorized_tenant_scope`.
-- Catálogos ejecutables de capacidades, permisos DRF o selección de organización activa.
+- Nuevas tablas privadas, políticas RLS o capacidades fuera del contrato aprobado.
+- Endpoints privilegiados de escritura o permisos de módulos funcionales.
 - Aplicaciones funcionales, modelos o migraciones de negocio.
 - Workflows de CI.
 - Contenedores o infraestructura adicionales.
 - Integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
-Los endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`, además de los
-nueve endpoints de autenticación de ADR 0010 bajo `/api/v1/auth/`. PostgreSQL local se publica solo
-sobre loopback. Django normal usa `claridez_app`; las migraciones usan `claridez_migrator`; las
-pruebas usan `claridez_test_runner`; y `postgres` queda reservado al bootstrap local explícito.
+Los endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`, los nueve endpoints
+de autenticación de ADR 0010 y las cinco operaciones organizacionales de solo lectura/contexto de
+ADR 0011. PostgreSQL local se publica solo sobre loopback. Django normal usa `claridez_app`; las
+migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
+reservado al bootstrap local explícito.
 
 `npm run auth:bootstrap` crea localmente una organización activa y su propietario mediante los
 servicios aprobados. No concede privilegios técnicos. `claridez_app` no tiene `DELETE` sobre
-organizaciones o membresías.
+organizaciones, membresías ni `OrganizationSettings`.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.

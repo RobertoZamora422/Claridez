@@ -30,8 +30,9 @@ El rol normal de aplicación será no propietario de las tablas privadas, no ten
 podrá alterar tablas, políticas ni privilegios. Las políticas deberán incluir controles de lectura
 y escritura equivalentes a `USING` y `WITH CHECK`.
 
-`OrganizationSettings`, aceptada por ADR 0011, será la primera entidad privada productiva con RLS.
-Esta elección no convierte el código del spike en código productivo.
+`OrganizationSettings`, aceptada por ADR 0011, es la primera entidad privada productiva con RLS.
+Su implementación fue escrita de forma independiente y no convierte el código del spike en código
+productivo.
 
 ### Límite autorizado de tenant
 
@@ -98,17 +99,19 @@ que incluya `organization_id`. No existirá un UUID especial para datos globales
   extender la misma frontera organizacional cuando esos componentes existan.
 - Requisitos que pudieran justificar una base o un esquema por organización.
 
-## Validación pendiente
+## Validación productiva
 
-Antes de crear la primera migración privada deberán quedar comprobados:
+La primera migración privada comprueba:
 
-- el uso productivo de `FORCE ROW LEVEL SECURITY` y el procedimiento explícito para migraciones de
-  datos bajo el rol propietario;
-- la imposibilidad práctica de importar o invocar el helper del GUC desde capas no autorizadas;
-- el cierre del scope antes de cualquier evaluación diferida mediante pruebas de regresión;
-- errores genéricos e indistinguibles ante colisiones y referencias cruzadas;
-- casos negativos con dos organizaciones para ORM, SQL directo, bulk, relaciones y conexiones
-  reutilizadas.
+- `ENABLE` y `FORCE ROW LEVEL SECURITY`, política simétrica y propietario migrador sin
+  `BYPASSRLS`;
+- ausencia de filas sin contexto, invisibilidad cruzada y rechazo de escrituras mediante
+  `WITH CHECK`;
+- restricción arquitectónica de imports del helper privado del GUC;
+- materialización dentro del scope y evaluación diferida cerrada fuera de él;
+- errores genéricos y casos negativos con dos organizaciones para ORM, SQL directo, bulk,
+  relaciones, rollback y conexiones reutilizadas;
+- el procedimiento explícito para futuras migraciones de datos bajo la misma política.
 
 ## Alternativas consideradas
 
@@ -140,8 +143,8 @@ regulatorios o de escala.
 - Comandos, futuros workers y migraciones de datos necesitarán APIs y casos de prueba específicos;
   no podrán reutilizar silenciosamente el helper de bajo nivel.
 - Las consultas y planes se observarán cuando existan cargas representativas.
-- Esta aceptación aprueba la arquitectura, pero no autoriza por sí sola modelos, migraciones ni el
-  resto de la Iteración 4.
+- La implementación de cierre de la Iteración 4 materializa esta decisión únicamente para
+  `OrganizationSettings`; cada tabla privada futura requerirá su propia política y pruebas.
 
 ## Evidencia
 

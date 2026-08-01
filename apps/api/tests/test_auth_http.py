@@ -271,10 +271,12 @@ def test_openapi_contains_only_the_nine_approved_authentication_endpoints() -> N
         "/api/v1/auth/email/verification/request/",
         "/api/v1/auth/email/verification/confirm/",
     }
-    rendered = json.dumps(schema)
+    rendered = json.dumps(
+        {path: schema["paths"][path] for path in auth_paths},
+    )
     assert all(word not in rendered for word in ("organization_id", "membership", "capability"))
 
 
-def test_root_routes_keep_health_and_mount_only_the_approved_authentication_group() -> None:
+def test_root_routes_keep_health_and_mount_only_the_approved_api_groups() -> None:
     routes = {str(pattern.pattern) for pattern in get_resolver().url_patterns}
-    assert routes == {"health", "ready", "api/v1/auth/"}
+    assert routes == {"health", "ready", "api/v1/auth/", "api/v1/organizations/"}
