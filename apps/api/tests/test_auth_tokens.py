@@ -268,20 +268,19 @@ def test_email_verification_token_tracks_email_security_version_and_timeout() ->
     first = User.objects.create_user(email="token-email@example.com", password=PASSWORD)
     with patch.object(email_verification_token_generator, "_now", return_value=issued_at):
         token = email_verification_token_generator.make_token(first)
-    assert email_verification_token_generator.check_token(first, token)
+        assert email_verification_token_generator.check_token(first, token)
 
-    first.email = "changed-token-email@example.com"
-    first.save(update_fields=["email", "updated_at"])
-    assert not email_verification_token_generator.check_token(first, token)
+        first.email = "changed-token-email@example.com"
+        first.save(update_fields=["email", "updated_at"])
+        assert not email_verification_token_generator.check_token(first, token)
 
-    second = User.objects.create_user(email="token-version@example.com", password=PASSWORD)
-    version_token = email_verification_token_generator.make_token(second)
-    second.security_version += 1
-    second.save(update_fields=["security_version", "updated_at"])
-    assert not email_verification_token_generator.check_token(second, version_token)
+        second = User.objects.create_user(email="token-version@example.com", password=PASSWORD)
+        version_token = email_verification_token_generator.make_token(second)
+        second.security_version += 1
+        second.save(update_fields=["security_version", "updated_at"])
+        assert not email_verification_token_generator.check_token(second, version_token)
 
-    third = User.objects.create_user(email="token-expiry@example.com", password=PASSWORD)
-    with patch.object(email_verification_token_generator, "_now", return_value=issued_at):
+        third = User.objects.create_user(email="token-expiry@example.com", password=PASSWORD)
         expiry_token = email_verification_token_generator.make_token(third)
     with patch.object(
         email_verification_token_generator,
