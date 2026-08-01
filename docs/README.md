@@ -9,6 +9,7 @@ Este directorio contiene las fuentes versionadas que gobiernan producto, arquite
 - [Línea base del producto v0.1](product/PRODUCT_BASELINE.md): decisiones de producto aprobadas, alcance inicial, exclusiones y asuntos pendientes. No es una especificación funcional completa.
 - [Iteración 5.1 — De consulta a reserva confirmada](product/ITERATION_5_1_COMMERCIAL_FLOW.md): especificación implementada del primer flujo vertical.
 - [Iteración 5.1.1 — Endurecimiento y cierre](product/ITERATION_5_1_1_HARDENING.md): cierre de autorización, integridad PostgreSQL, consistencia histórica e identidad visual del flujo comercial.
+- [Iteración 5.1.2 — Mantenibilidad y CI](product/ITERATION_5_1_2_MAINTAINABILITY_CI.md): arquitectura interna modular, compatibilidad preservada y controles automatizados de integración.
 
 ### Arquitectura
 

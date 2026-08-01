@@ -3,8 +3,8 @@
 ## Estado actual
 
 Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles,
-plataforma PostgreSQL local, esqueletos técnicos mínimos y la evidencia histórica del spike de
-tenancy, pero todavía no contiene módulos funcionales ni modelos multiempresa productivos.
+PostgreSQL local, identidad y organizaciones, aislamiento multiempresa y el flujo funcional
+`claridez.commercial` de consulta a reserva confirmada.
 
 Toda contribución debe respetar [AGENTS.md](AGENTS.md), la [línea base del producto](docs/product/PRODUCT_BASELINE.md), los [ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
 
@@ -67,6 +67,25 @@ npm run check:all
 ```
 
 `npm run format` aplica correcciones y debe ser idempotente. `check:all` requiere PostgreSQL local iniciado y preparado. `npm run audit` se ejecuta por separado porque requiere acceso a servicios externos.
+
+Todo cambio destinado a integración debe superar estas cinco categorías, sin reducir sus controles:
+
+- calidad estática: locks, formato, lint, mypy y TypeScript;
+- pruebas unitarias y cobertura backend y frontend;
+- build de Django, OpenAPI y Vite;
+- PostgreSQL 17 real: migraciones, RLS, concurrencia e integración;
+- auditoría de dependencias con los umbrales fijados.
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) las agrupa en tres checks. Una
+vez que el propietario publique el primer commit y GitHub registre sus nombres, la protección de
+`main` debe exigir exactamente:
+
+1. `Calidad`
+2. `PostgreSQL 17`
+3. `Auditoría de dependencias`
+
+La configuración remota de protección pertenece exclusivamente al propietario. Una validación
+local no sustituye la primera ejecución alojada de estos checks.
 
 El código y los scripts del spike fueron descartados en 4.0. Su protocolo, resultados y modelo de
 amenazas se conservan como evidencia; una implementación productiva debe seguir los ADR aceptados

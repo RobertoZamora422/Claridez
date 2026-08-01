@@ -44,6 +44,16 @@ cierre, confirmación y cancelación. El contrato exacto está en la
 [especificación 5.1](../../docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md).
 El [cierre 5.1.1](../../docs/product/ITERATION_5_1_1_HARDENING.md) documenta la representación
 restringida de snapshots personales, el `PATCH` idempotente y las defensas PostgreSQL adicionales.
+La [Iteración 5.1.2](../../docs/product/ITERATION_5_1_2_MAINTAINABILITY_CI.md) documenta la
+separación interna de `claridez.commercial.services`, su superficie pública estable y los controles
+de CI que protegen este contrato.
+
+## Servicios comerciales
+
+`claridez.commercial.services` es la superficie pública de 21 casos de uso. Internamente se divide
+en personas, solicitudes, cotizaciones, reservas, disponibilidad, representaciones y primitivas
+compartidas. Vistas, pruebas y futuros consumidores deben importar desde
+`claridez.commercial.services`, no desde sus módulos internos.
 
 ## Autenticación HTTP
 

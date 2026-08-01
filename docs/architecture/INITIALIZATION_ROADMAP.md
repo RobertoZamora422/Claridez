@@ -197,7 +197,8 @@ de autorización, contexto organizacional y RLS.
 
 ## Iteración 5 — Primer flujo vertical funcional
 
-**Estado:** 5.1 completada y cerrada mediante el endurecimiento 5.1.1.
+**Estado:** 5.1 completada, cerrada mediante el endurecimiento 5.1.1 y estructuralmente consolidada
+mediante mantenibilidad y CI en 5.1.2.
 
 ### Condición de entrada
 
@@ -219,6 +220,16 @@ de autorización, contexto organizacional y RLS.
   [Iteración 5.1 — De consulta a reserva confirmada](../product/ITERATION_5_1_COMMERCIAL_FLOW.md).
 - El cierre de autorización, integridad histórica y marca está en
   [Iteración 5.1.1 — Endurecimiento](../product/ITERATION_5_1_1_HARDENING.md).
+
+### Resultado de 5.1.2
+
+- Los casos de uso de `claridez.commercial.services` se separaron por responsabilidad conservando
+  una superficie pública única y compatible.
+- `App.tsx` quedó como composición; las pantallas, formularios y comandos viven por funcionalidad.
+- GitHub Actions ejecutará calidad, PostgreSQL 17 y auditoría con toolchains y acciones fijados.
+- No cambiaron modelos, migraciones, contratos HTTP, reglas de dominio, autorización ni interfaz.
+- La arquitectura y los checks están documentados en
+  [Iteración 5.1.2 — Mantenibilidad y CI](../product/ITERATION_5_1_2_MAINTAINABILITY_CI.md).
 
 ### Criterio de salida
 
