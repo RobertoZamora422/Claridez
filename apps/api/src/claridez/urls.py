@@ -10,4 +10,5 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("ready", ready, name="ready"),
     path("api/v1/auth/", include("claridez.identity.urls")),
     path("api/v1/organizations/", include("claridez.organizations.urls")),
+    path("api/v1/organizations/", include("claridez.operations.urls")),
 ]

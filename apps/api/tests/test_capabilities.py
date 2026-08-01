@@ -33,6 +33,9 @@ EXPECTED_MATRIX = {
         Capability.RESERVATION_CONFIRM,
         Capability.RESERVATION_CANCEL,
         Capability.RESERVATION_WAIVE_DEPOSIT,
+        Capability.OPERATION_READ,
+        Capability.OPERATION_MANAGE,
+        Capability.OPERATION_EXECUTE,
     },
     Membership.Role.COMMERCIAL: {
         Capability.ORGANIZATION_ACCESS,
@@ -43,12 +46,16 @@ EXPECTED_MATRIX = {
         Capability.SALES_MANAGE,
         Capability.AVAILABILITY_READ,
         Capability.RESERVATION_CONFIRM,
+        Capability.OPERATION_READ,
     },
     Membership.Role.OPERATIONS: {
         Capability.ORGANIZATION_ACCESS,
         Capability.ORGANIZATION_SETTINGS_READ,
         Capability.SALES_READ,
         Capability.AVAILABILITY_READ,
+        Capability.OPERATION_READ,
+        Capability.OPERATION_MANAGE,
+        Capability.OPERATION_EXECUTE,
     },
     Membership.Role.FINANCE: {
         Capability.ORGANIZATION_ACCESS,
@@ -77,6 +84,9 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "reservation:confirm",
         "reservation:cancel",
         "reservation:waive_deposit",
+        "operation:read",
+        "operation:manage",
+        "operation:execute",
     }
 
 

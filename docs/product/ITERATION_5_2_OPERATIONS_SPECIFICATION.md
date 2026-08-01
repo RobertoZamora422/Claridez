@@ -1,17 +1,20 @@
 # Iteración 5.2 — De reserva confirmada a evento preparado
 
-- **Estado:** Propuesta
+- **Estado:** Aprobada
 - **Fecha de propuesta:** 1 de agosto de 2026
-- **Módulo propuesto:** `claridez.operations`
-- **Naturaleza:** especificación funcional y técnica; no autoriza implementación
+- **Fecha de aprobación:** 1 de agosto de 2026
+- **Módulo:** `claridez.operations`
+- **Naturaleza:** especificación funcional y técnica aprobada; implementación validada localmente
+  dentro de este alcance
 - **Flujo precedente:** Iteración 5.1, 5.1.1 y 5.1.2 completadas
 
 ## 0. Estado documental y alcance de la decisión
 
-Este documento propone el siguiente flujo vertical de Claridez. La iteración no está aprobada,
-iniciada ni implementada. La sección 14 distingue tres criterios documentales ya aceptados de las
-decisiones que todavía requieren aprobación expresa del propietario antes de modificar código o
-esquema.
+Este documento gobierna el siguiente flujo vertical de Claridez. El propietario aprobó formalmente
+la especificación el 1 de agosto de 2026 y autorizó su implementación íntegra. La implementación
+quedó completada y validada en el entorno local el mismo día, con la evidencia de la sección 13.8.
+Esto no declara ejecutado el cutover ni desplegada la versión en un entorno compartido: el
+procedimiento de la sección 11.2 continúa siendo obligatorio antes de aceptar tráfico real.
 
 La propuesta parte del contrato implementado en la
 [Iteración 5.1](ITERATION_5_1_COMMERCIAL_FLOW.md): una `Reservation` confirmada conserva el horario,
@@ -33,16 +36,16 @@ termina en la confirmación y no responde, desde un límite operativo propio:
 - si la ejecución ya comenzó o terminó;
 - qué trabajo debe cerrarse cuando comercial cancela la reserva.
 
-### Resultado de producto propuesto
+### Resultado de producto aprobado
 
-5.2 terminaría cuando un evento confirmado quede `completed` o cuando una cancelación comercial
+5.2 termina funcionalmente cuando un evento confirmado queda `completed` o cuando una cancelación comercial
 cierre su preparación como `cancelled`. No incorpora trabajo posterior al evento.
 
 ## 1. Límite del módulo
 
-### 1.1 Recomendación
+### 1.1 Decisión
 
-Se recomienda crear `claridez.operations` como módulo del monolito modular. La preparación tiene
+Se crea `claridez.operations` como módulo del monolito modular. La preparación tiene
 lenguaje, ciclo de vida, permisos e invariantes distintos de comercial; incorporarla a
 `claridez.commercial` mezclaría la decisión de vender y reservar con la responsabilidad de
 preparar y ejecutar.
@@ -82,7 +85,7 @@ autoriza a operaciones a consultar tablas comerciales de forma dispersa.
 
 ### 1.3 Desacoplamiento
 
-Se recomienda una **orquestación transaccional explícita** por encima de los dos módulos. El caso de
+Se adopta una **orquestación transaccional explícita** por encima de los dos módulos. El caso de
 uso de confirmación invoca, dentro del mismo `transaction.atomic()` y del mismo
 `authorized_tenant_scope`, el servicio comercial que confirma la reserva y el servicio operativo
 que crea `EventPreparation`, sus siete `PreparationItem` y la transición `initialized`. El
@@ -104,11 +107,12 @@ Una reserva que alcanza `confirmed` debe tener exactamente una `EventPreparation
 preparación, la baseline o la transición falla, se revierte también la confirmación. Reservas
 provisionales, vencidas o canceladas antes de confirmar no tienen preparación.
 
-Un trigger PostgreSQL transversal permanece como **decisión pendiente**, no aceptada. Esta
-propuesta recomienda evaluar la combinación de orquestación explícita como ruta principal y trigger
-como defensa final para SQL directo o bulk, pero exige un ADR antes de implementarla. El ADR deberá
-comparar dependencia entre módulos, garantías transaccionales, operaciones fuera de servicios y
-orden y reversión de migraciones.
+El [ADR 0013](../adr/0013-commercial-operations-coordination-and-integrity.md) resuelve la decisión
+transversal exigida: la orquestación explícita es la única ruta de dominio soportada y un constraint
+trigger PostgreSQL diferido actúa solamente como guardián final ante SQL directo,
+`QuerySet.update` y operaciones bulk. El guardián no crea datos, no autoriza acciones y no sustituye
+los servicios. El ADR fija además la dirección de dependencias y el orden y reversión de
+migraciones.
 
 ## 2. Modelo de dominio propuesto
 
@@ -564,13 +568,13 @@ Casos concurrentes:
 | Invariante                                                       | Defensa propuesta                                                                                                                                                                                  |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Como máximo una preparación por reserva                          | PK/FK uno-a-uno.                                                                                                                                                                                   |
-| Toda reserva que alcanzó confirmación tiene preparación completa | Orquestador para flujo nuevo y backfill determinista para `confirmed_at` histórico; la defensa PostgreSQL para SQL directo/bulk queda sujeta al ADR transversal.                                   |
+| Toda reserva que alcanzó confirmación tiene preparación completa | Orquestador para flujo nuevo y backfill determinista para `confirmed_at` histórico; el guardián diferido de ADR 0013 rechaza al commit rutas directas o bulk incoherentes.                         |
 | Corte histórico representable                                    | Preflight bajo bloqueo aborta si un evento aún confirmado ya comenzó o si una cancelación posterior a confirmar ocurrió desde `starts_at`; no se infieren estados operativos.                      |
 | Fuente estable durante el backfill                               | `SHARE ROW EXCLUSIVE` sobre `commercial_reservation`, adquirido antes de la clasificación y retenido hasta commit/rollback, bloquea escrituras comerciales y permite lecturas ordinarias.          |
 | Sin escritor 5.1 después del backfill                            | Corte con tráfico cerrado, procesos antiguos detenidos y sesiones verificadas; solo la versión 5.2 puede arrancar antes de reabrir. El lock por sí solo no protege la ventana posterior al commit. |
 | Pertenencia al mismo tenant                                      | FK compuesta `(organization_id, reservation_id)` y equivalentes para preparación, ítems, transiciones y membresías.                                                                                |
-| Cancelación solo antes de ejecutar                               | Orquestador bloquea preparación y permite únicamente `preparing`/`ready`; el trigger guardián para rutas directas es candidato pendiente.                                                          |
-| Cancelación coherente                                            | Servicio operativo cambia preparación y agrega transición en la misma transacción comercial; un trigger de sincronización se recomienda solo como defensa final pendiente de ADR.                  |
+| Cancelación solo antes de ejecutar                               | Orquestador bloquea preparación y permite únicamente `preparing`/`ready`; el guardián diferido rechaza al commit cancelaciones directas desde `in_progress` o `completed`.                         |
+| Cancelación coherente                                            | Servicio operativo cambia preparación y agrega transición en la misma transacción comercial; el guardián diferido comprueba el estado final sin intentar sincronizarlo.                            |
 | Estado y marcas coherentes                                       | `CHECK` para catálogo, revisión positiva y combinaciones de `ready_at`, `started_at`, `completed_at`; trigger interno de operaciones para el orden de transiciones.                                |
 | Listo realmente válido                                           | Trigger interno inmediato al entrar en `ready`, bajo bloqueo de preparación, comprueba responsable, baseline, obligatorios, revisión final y bloqueos.                                             |
 | No invalidar listo por SQL directo                               | Trigger interno de ítems rechaza mutaciones mientras el padre esté `ready` salvo que la transacción ya lo haya reabierto a `preparing`.                                                            |
@@ -580,12 +584,13 @@ Casos concurrentes:
 | Reapertura coherente                                             | Servicio y trigger interno exigen estado, ítem y `checklist_reopened` atómicos, con una sola revisión agregada resultante compartida por la transición.                                            |
 | Orden e idempotencia                                             | `UNIQUE` por preparación para posición, `baseline_key` y `client_request_id`.                                                                                                                      |
 
-Los triggers **internos de operaciones** propuestos serían funciones invoker con `search_path`
-fijo, sin `SECURITY DEFINER` y con ejecución revocada a `PUBLIC`, siguiendo 5.1. El eventual trigger
-sobre `commercial_reservation` no pertenece todavía a este conjunto decidido: el ADR deberá
-determinar si crea o exige el agregado al confirmar, si bloquea cancelaciones tardías y si
-sincroniza la cancelación para SQL directo/bulk. También deberá resolver si puede ser inmediato sin
-duplicar lógica y sin perder el GUC tenant antes del commit.
+Los triggers **internos de operaciones** y el guardián transversal serían funciones invoker con
+`search_path` fijo, sin `SECURITY DEFINER` y con ejecución revocada a `PUBLIC`, siguiendo 5.1. De
+acuerdo con ADR 0013, el guardián sobre `commercial_reservation` es un constraint trigger
+`AFTER ROW`, `DEFERRABLE INITIALLY DEFERRED`: verifica el resultado final al commit y nunca crea ni
+sincroniza el agregado. Como `authorized_tenant_scope` restaura el GUC antes del commit, la función
+establece temporalmente el tenant de `NEW.organization_id` solo para consultar bajo RLS y restaura
+siempre el valor anterior.
 
 Todas las tablas operativas tendrían RLS `ENABLE` + `FORCE`, políticas `USING` y `WITH CHECK`
 basadas en `claridez_current_organization_id()`. `claridez_app` recibiría solo `SELECT`, `INSERT` y
@@ -593,12 +598,14 @@ basadas en `claridez_current_organization_id()`. `claridez_app` recibiría solo 
 y el test runner los privilegios de integración definidos por la plataforma.
 
 ORM, `QuerySet.update`, `bulk_create`, `bulk_update` y SQL directo no son rutas de dominio para
-confirmar o cancelar. Antes de implementar, el ADR debe fijar y probar si PostgreSQL los rechaza o
-los completa de forma coherente; nunca podrán dejar silenciosamente una reserva confirmada sin
-preparación, cancelar durante/después de ejecución ni mantener una preparación activa tras cancelar.
-RLS, FK y checks siguen aplicando en cualquier alternativa. Vistas, serializers y tareas futuras no
-podrían establecer el GUC directamente ni salir de `authorized_tenant_scope` durante validación,
-consulta y materialización.
+confirmar o cancelar. ADR 0013 exige que PostgreSQL rechace al commit una mutación comercial
+aislada que no deje el agregado exacto y coherente. Una herramienta técnica podría confirmar o
+cancelar únicamente si materializa en la misma transacción toda la preparación, baseline e
+historial válidos; aun así continúa siendo una ruta no soportada. Nunca podrá dejar silenciosamente
+una reserva confirmada sin preparación, cancelar durante/después de ejecución ni mantener una
+preparación activa tras cancelar. RLS, FK y checks siguen aplicando. Vistas, serializers y tareas
+futuras no podrían establecer el GUC directamente ni salir de `authorized_tenant_scope` durante
+validación, consulta y materialización.
 
 ## 9. API REST propuesta
 
@@ -832,12 +839,12 @@ El backfill reconstruible usa exclusivamente evidencia comercial existente:
   `reservation_id`, `baseline_version`, clave y causa, para que una reaplicación sobre la misma
   verdad comercial produzca las mismas identidades.
 
-El orden técnico propuesto dentro de la migración atómica es: bloquear y validar la fuente; crear
+El orden técnico decidido dentro de la migración atómica es: bloquear y validar la fuente; crear
 tablas y restricciones estructurales; ejecutar el backfill; comprobar cardinalidad, siete claves y
 secuencias de revisión; y solo entonces instalar triggers internos, `ENABLE/FORCE RLS` y privilegios.
-Un trigger transversal sobre commercial, si el ADR llegara a aprobarlo, pertenecería a una migración
-posterior y no se necesita para completar el backfill. Cualquier fallo revierte esquema y datos de
-operations de esa migración y deja intactas las filas comerciales.
+El guardián transversal aceptado por ADR 0013 pertenece a una migración posterior y no se necesita
+para completar el backfill. Cualquier fallo revierte esquema y datos de operations de esa migración
+y deja intactas las filas comerciales.
 
 Después del corte, el invariante es: toda reserva con `confirmed_at` no nulo tiene exactamente una
 preparación; si su estado comercial es `cancelled`, la preparación también es `cancelled`; las
@@ -885,8 +892,8 @@ el intento; nunca se libera el lock para que esa escritura 5.1 continúe sobre e
 
 `SHARE ROW EXCLUSIVE` protege la foto de corte y el backfill, pero termina al cerrar la transacción.
 La ausencia de procesos antiguos y el gate de tráfico protegen el intervalo hasta activar 5.2. El
-posible trigger transversal sigue siendo una decisión pendiente del ADR y no se aprueba ni se usa
-como solución de este cutover.
+guardián transversal aceptado por ADR 0013 tampoco sustituye este procedimiento ni se usa como
+solución del cutover.
 
 ### 11.3 Cancelación
 
@@ -909,13 +916,13 @@ porque nunca tuvo preparación. La razón de una cancelación confirmada no se c
 autorizado la lee de la reserva. Una reserva cancelada permanece terminal; 5.2 no permite
 reactivarla. Interrupciones durante la ejecución y correcciones posteriores permanecen fuera.
 
-### 11.4 Defensa transversal pendiente
+### 11.4 Defensa transversal resuelta por ADR 0013
 
-La orquestación anterior es la ruta funcional recomendada. Un trigger sobre
-`commercial_reservation` para proteger confirmación/cancelación por SQL directo o bulk es una
-alternativa complementaria pendiente de ADR. La especificación no decide todavía su forma, orden
-de disparo ni migración, y no lo presenta como sustituto de los servicios, la autorización o los
-bloqueos explícitos.
+La orquestación anterior es la única ruta funcional soportada. ADR 0013 acepta un constraint trigger
+diferido sobre `commercial_reservation` como defensa complementaria: al commit comprueba que una
+confirmación o cancelación dejó el agregado operativo final completo y coherente. No crea
+preparaciones, ítems ni transiciones, no sustituye servicios, autorización o bloqueos explícitos y
+se instala solo después de completar y validar el backfill.
 
 ### 11.5 Propiedad de datos
 
@@ -948,7 +955,7 @@ Quedan expresamente fuera de 5.2:
 Tampoco se incluyen plantillas configurables por organización, dependencias entre ítems, subtareas,
 recurrencia, prioridades, porcentajes, diagramas, dashboard general ni gestor genérico de proyectos.
 
-## 13. Estrategia de pruebas para una futura implementación
+## 13. Estrategia de pruebas y evidencia de implementación
 
 ### 13.1 Dominio y servicios
 
@@ -1033,13 +1040,15 @@ Con al menos dos organizaciones:
   agregado completo;
 - `QuerySet.update`, `bulk_update` y SQL directo no saltan estados, evidencia, readiness ni
   congelación de ítems;
-- según la alternativa aprobada en el ADR, SQL directo y bulk de confirmación/cancelación se
-  rechazan o completan coherentemente; nunca dejan una confirmada sin preparación, cancelan desde
+- SQL directo y bulk de confirmación/cancelación aislados se rechazan al commit; una herramienta
+  técnica solo puede confirmar o cancelar si completa el agregado exacto y coherente en la misma
+  transacción, aunque sigue siendo una ruta no soportada; nunca dejan una confirmada sin preparación, cancelan desde
   `in_progress`/`completed` ni dejan preparación activa después de cancelar;
 - mutación de ítems en `ready` sin reapertura previa falla;
 - `UPDATE`/`DELETE` de transiciones y todo `DELETE` de ítems falla para la aplicación;
-- triggers internos son invoker, tienen `search_path` fijo, no son públicos y los roles no poseen
-  `BYPASSRLS` ni tablas; cualquier trigger transversal aprobado debe superar las mismas pruebas.
+- triggers internos y guardián transversal son invoker, tienen `search_path` fijo, no son públicos
+  y los roles no poseen `BYPASSRLS` ni tablas; el guardián restaura el GUC tenant temporal incluso
+  ante error.
 
 ### 13.5 API y contrato
 
@@ -1076,7 +1085,7 @@ Con al menos dos organizaciones:
 ### 13.7 Migraciones y puerta completa
 
 - migración desde cero sobre PostgreSQL 17 sin reservas históricas crea tablas, FK, checks, triggers
-  internos, RLS y privilegios; el trigger transversal solo se incluye si el ADR lo aprueba;
+  internos, RLS y privilegios; una migración posterior instala el guardián transversal aceptado;
 - backfill de `confirmed` futuro crea revisión 1, siete pendientes sin resolución y `initialized`
   con identidades UUIDv5 y evidencia comercial deterministas;
 - backfill de `cancelled` previamente confirmada y cancelada antes de `starts_at` crea revisión 2,
@@ -1098,8 +1107,8 @@ Con al menos dos organizaciones:
   cutover después de terminar esa sesión, sin permitir que escriba al liberarse el lock;
 - cardinalidad, baseline, resoluciones nulas, secuencia de revisiones y estados se validan antes de
   activar triggers internos, RLS y privilegios;
-- si el ADR aprueba el trigger transversal, una migración posterior lo instala después del backfill;
-  su reversión en base desechable lo elimina antes de las tablas operativas;
+- la migración posterior instala el guardián transversal después del backfill; su reversión en base
+  desechable lo elimina antes de las tablas operativas;
 - reversión en base desechable no altera commercial; reaplicación previa a actividad operativa real
   reconstruye las mismas identidades y evidencias. No se promete preservar trabajo operativo al
   revertir las tablas;
@@ -1108,9 +1117,30 @@ Con al menos dos organizaciones:
   `npm run build`, `npm run check`, `npm run check:all`, `npm run audit` y `git diff --check` según
   el cierre futuro, distinguiendo resultados locales de CI remota.
 
+### 13.8 Evidencia local observada el 1 de agosto de 2026
+
+- Backend: Ruff y mypy sin hallazgos; Django `check`, `compileall`, OpenAPI con
+  `--validate --fail-on-warn` y `makemigrations --check --dry-run` correctos.
+- Pruebas Django: 137 pruebas no marcadas como integración y 34 pruebas de integración sobre
+  PostgreSQL 17 aprobadas. Cubren servicios, API, CSRF, permisos, privacidad, concurrencia, RLS,
+  FK tenant-aware, SQL directo, `QuerySet.update`, operaciones bulk, bloqueo de cutover y
+  migración desde cero, reversión y reaplicación.
+- Frontend: Prettier, ESLint, TypeScript estricto y build de Vite correctos; 6 archivos y 13 pruebas
+  Vitest aprobados.
+- Revisión visual local: 1280 × 720, 768 × 1024, 390 × 844 y 320 × 720 sin desbordamiento
+  horizontal, con labels y acción principal visibles y sin errores de consola.
+- PostgreSQL local: conexión, versión 17, codificación UTF-8, migración guardián y postcheck
+  estructural correctos. La base local no contenía organizaciones ni reservas reales; los casos
+  de backfill se ejecutaron en bases de prueba desechables.
+- Auditoría: `pip-audit` y `npm audit --audit-level=high` no encontraron vulnerabilidades conocidas.
+- Las puertas paraguas `npm run check` y `npm run check:all` no pudieron ejecutarse con su wrapper
+  oficial porque el host no expone `uv` y tiene Node.js 22.23.1/npm 10.9.8 en lugar de las versiones
+  fijadas 24.18.1/11.16.0. Se ejecutaron directamente sus componentes disponibles; esta limitación
+  local no equivale a una ejecución de CI.
+
 ## 14. Decisiones, alternativas y deuda
 
-### 14.1 Decisiones recomendadas por esta propuesta
+### 14.1 Decisiones aprobadas
 
 1. Crear `claridez.operations` con `EventPreparation`, `PreparationItem` y
    `PreparationTransition`.
@@ -1125,7 +1155,7 @@ Con al menos dos organizaciones:
    e `in_progress`, mediante proyección mínima y sin conceder `person:read`.
 8. Calcular alertas al consultar y conservar la zona capturada por la reserva.
 9. Combinar servicios transaccionales, revisión optimista, FK compuestas, checks, triggers internos
-   y RLS; someter el trigger transversal a ADR.
+   y RLS; usar el guardián transversal diferido definido por ADR 0013 únicamente como defensa final.
 10. Mantener la cancelación en comercial y reflejarla atómicamente solo desde `preparing` o `ready`,
     sin señales Django.
 11. Ejecutar un backfill determinista de históricos representables y abortar el corte ante eventos
@@ -1161,43 +1191,17 @@ Con al menos dos organizaciones:
   cancelada;
 - borrar ítems y perder por qué dejaron de aplicar.
 
-### 14.3 Decisiones que requieren aprobación expresa del propietario
+### 14.3 Aprobación y asuntos que permanecen fuera
 
-Por instrucción expresa del propietario, tres correcciones quedan fijadas dentro de esta propuesta y
-ya no se consideran pendientes: la estrategia de backfill y fail-fast para históricos, la evidencia
-común `resolved_at`/`resolved_by_membership_id` y el incremento agregado único al reabrir por una
-mutación de ítem. Esta aceptación parcial no aprueba la Iteración 5.2, su implementación ni el nuevo
-procedimiento de cutover.
+El propietario aprobó formalmente todas las decisiones funcionales y técnicas de esta
+especificación, incluido el cutover con indisponibilidad controlada. Antes de modificar código se
+creó y aceptó ADR 0013, que comparó la orquestación transaccional, SQL directo,
+`QuerySet.update`, bulk, dependencias entre módulos y orden y reversión de migraciones.
 
-Antes de implementar debe aprobarse, como mínimo:
-
-1. el nuevo módulo, el coordinador de aplicación y sus dependencias públicas;
-2. creación automática y atómica como parte de la confirmación comercial;
-3. nombres y semántica de los cinco estados;
-4. los siete ítems base, su obligatoriedad, `not_applicable` y vencimientos de 7/1 días;
-5. las tres capacidades y la matriz de cinco roles;
-6. el nombre histórico y el teléfono vivo limitado a `preparing`, `ready` e `in_progress`, sin
-   `person:read`;
-7. cancelación solo desde `preparing` o `ready`, con rechazo en `in_progress` y `completed`;
-8. rutas, payloads, códigos de error y ventana visual de siete días;
-9. el alcance de historial mínimo frente a una auditoría de cambios más detallada;
-10. el ADR transversal antes de decidir o crear cualquier trigger sobre tablas comerciales;
-11. el procedimiento operativo de cutover, incluida la autoridad para cerrar tráfico, verificar
-    procesos/sesiones, abortar el despliegue y mantener la aplicación indisponible ante fallos.
-
-Ese ADR deberá comparar expresamente:
-
-1. la orquestación transaccional explícita entre servicios como ruta soportada;
-2. el trigger PostgreSQL como posible defensa final, nunca como sustituto de autorización y dominio;
-3. el resultado de confirmación y cancelación mediante SQL directo, `QuerySet.update` y bulk;
-4. la dirección de dependencia entre `commercial`, `operations` y el coordinador de aplicación;
-5. el orden de migraciones, la eliminación segura del trigger al revertir y la reaplicación.
-
-La combinación recomendada en esta propuesta es orquestación explícita más defensa PostgreSQL
-final, siempre que el ADR demuestre que no duplica reglas de forma divergente y conserva el contexto
-tenant. Esta recomendación no está aceptada.
-
-La aprobación de esta especificación no debe inferirse de la creación del archivo.
+No quedan decisiones de 5.2 pendientes de aprobación previa a la implementación. La aceptación del
+guardián transversal está limitada exactamente por ADR 0013: es una defensa final diferida, no un
+orquestador funcional. Los asuntos de 14.5 y las exclusiones de la sección 12 no se aprueban por
+implicación y requieren iteraciones futuras.
 
 ### 14.4 Riesgos
 
@@ -1215,10 +1219,10 @@ La aprobación de esta especificación no debe inferirse de la creación del arc
   no una recomendación operativa;
 - un fallo posterior al commit impide volver a 5.1 y puede prolongar la indisponibilidad mientras se
   corrige 5.2 hacia adelante;
-- el posible trigger sobre `commercial_reservation` crea acoplamiento de esquema y duplicación de
-  defensas; su conveniencia, orden y reversión siguen pendientes del ADR;
-- hasta resolver el ADR, SQL directo y bulk de transiciones comerciales no tienen una defensa final
-  seleccionada y no pueden considerarse rutas soportadas;
+- el guardián sobre `commercial_reservation` crea acoplamiento de esquema y duplicación deliberada
+  de invariantes finales; ADR 0013 limita su alcance y exige probar su orden y reversión;
+- SQL directo y bulk de transiciones comerciales continúan siendo rutas no soportadas, aun cuando el
+  guardián impida estados finales incoherentes;
 - el teléfono es dato personal legítimamente útil, pero amplía la exposición frente a 5.1.1 y
   requiere omisión estricta al completar o cancelar;
 - una baseline única puede no cubrir todos los tipos de salón; `not_applicable` mitiga sin resolver
@@ -1245,14 +1249,19 @@ La aprobación de esta especificación no debe inferirse de la creación del arc
 - métricas agregadas o dashboard operativo;
 - responsabilidades por equipos, personal externo o turnos.
 
-## 15. Criterio propuesto de salida futura
+## 15. Criterio de salida
 
-Si el propietario aprueba 5.2, la implementación solo podría declararse terminada cuando el flujo
+La implementación solo puede declararse terminada cuando el flujo
 completo, la matriz, la minimización personal, la concurrencia, SQL/bulk, RLS con dos organizaciones,
 CSRF, OpenAPI, frontend responsive/accesible, evidencia de resolución y el corte con reservas
 preexistentes —incluidos sus casos fail-fast—, además de migraciones desde
 cero/reversión/reaplicación, hayan sido observados y documentados. También debe demostrarse en un
 ensayo de cutover que 5.1 queda totalmente detenido, el lock ordena escritores concurrentes, la
 validación posterior precede al tráfico y cualquier fallo mantiene la aplicación cerrada sin
-huérfanos operativos. Este criterio no declara que ninguna de esas comprobaciones se haya ejecutado
-en la fase actual de especificación.
+huérfanos operativos.
+
+La implementación satisface este criterio en pruebas locales automatizadas y en la revisión visual
+descrita en 13.8. El ensayo sobre PostgreSQL real demostró bloqueo, clasificación, backfill,
+integridad, reversión y reaplicación. El cierre de tráfico, la verificación del gestor de procesos,
+el arranque del artefacto desplegado y la reapertura son acciones del cutover del entorno destino;
+no se ejecutaron localmente ni se presentan como CI o despliegue realizado.

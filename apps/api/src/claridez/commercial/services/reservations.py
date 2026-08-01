@@ -95,7 +95,7 @@ def read_reservation(
         return _reservation_summary(_get_reservation(authorization.organization_id, reservation_id))
 
 
-def confirm_reservation(
+def _confirm_reservation_commercial(
     actor: User,
     organization_reference: UUID | str,
     *,
@@ -163,7 +163,7 @@ def confirm_reservation(
         return _reservation_summary(row)
 
 
-def cancel_reservation(
+def _cancel_reservation_commercial(
     actor: User,
     organization_reference: UUID | str,
     *,
@@ -210,3 +210,47 @@ def cancel_reservation(
         event_request.closed_reason = canonical_reason
         event_request.save(update_fields=["status", "closed_at", "closed_reason", "updated_at"])
         return _reservation_summary(row)
+
+
+def confirm_reservation(
+    actor: User,
+    organization_reference: UUID | str,
+    *,
+    reservation_id: UUID | str,
+    kind: str,
+    recognized_amount: Decimal | None = None,
+    reported_at: datetime | None = None,
+    reference: str = "",
+    waiver_reason: str = "",
+) -> dict[str, Any]:
+    """Superficie 5.1 estable; 5.2 coordina el efecto operativo obligatorio."""
+    from claridez.operations.coordinator import confirm_reservation_with_operations
+
+    return confirm_reservation_with_operations(
+        actor,
+        organization_reference,
+        reservation_id=reservation_id,
+        kind=kind,
+        recognized_amount=recognized_amount,
+        reported_at=reported_at,
+        reference=reference,
+        waiver_reason=waiver_reason,
+    )
+
+
+def cancel_reservation(
+    actor: User,
+    organization_reference: UUID | str,
+    *,
+    reservation_id: UUID | str,
+    reason: str,
+) -> dict[str, Any]:
+    """Superficie 5.1 estable; 5.2 coordina cancelaciones ya confirmadas."""
+    from claridez.operations.coordinator import cancel_reservation_with_operations
+
+    return cancel_reservation_with_operations(
+        actor,
+        organization_reference,
+        reservation_id=reservation_id,
+        reason=reason,
+    )

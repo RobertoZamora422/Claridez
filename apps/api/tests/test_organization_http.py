@@ -242,7 +242,7 @@ def test_membership_read_requires_approved_role_and_has_no_write_endpoint() -> N
     assert forbidden_write.status_code == 405
 
 
-def test_openapi_contains_only_approved_organization_and_commercial_methods() -> None:
+def test_openapi_contains_only_approved_organization_commercial_and_operations_methods() -> None:
     schema = SchemaGenerator().get_schema(request=None, public=True)  # type: ignore[no-untyped-call]
     assert schema is not None
     organization_paths = {
@@ -287,5 +287,32 @@ def test_openapi_contains_only_approved_organization_and_commercial_methods() ->
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/": {"get"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/confirm/": {"post"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/cancel/": {"post"},
+        "/api/v1/organizations/{organization_id}/operations/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/operations/assignees/": {"get"},
+        "/api/v1/organizations/{organization_id}/operations/events/": {"get"},
+        "/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/": {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/preparation/"
+        ): {"patch"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/assign/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/items/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/items/{item_id}/"
+        ): {"patch"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/ready/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/start/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/complete/"): {
+            "post"
+        },
     }
     assert organization_paths == expected_paths

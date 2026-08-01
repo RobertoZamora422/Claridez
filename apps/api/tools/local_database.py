@@ -40,6 +40,9 @@ NO_DELETE_TABLES = {
     "commercial_quotation",
     "commercial_quotationversion",
     "commercial_reservation",
+    "operations_eventpreparation",
+    "operations_preparationitem",
+    "operations_preparationtransition",
 }
 
 

@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { api, logout, type Organization, type User } from "../api";
 import { BrandLogo } from "../Brand";
 import { AgendaView } from "../features/agenda/AgendaView";
+import { OperationsView } from "../features/operations/OperationsView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
 
-type Page = "agenda" | "requests";
+type Page = "agenda" | "requests" | "operations";
 
 export function Workspace({
   user,
@@ -33,9 +34,12 @@ export function Workspace({
         `/api/v1/organizations/${organization.id}/commercial/capabilities/`,
       ),
       api<{ settings: { timezone: string } }>(`/api/v1/organizations/${organization.id}/settings/`),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/operations/capabilities/`,
+      ),
     ])
-      .then(([capabilityBody, settingsBody]) => {
-        setCapabilities(new Set(capabilityBody.capabilities));
+      .then(([capabilityBody, settingsBody, operationsBody]) => {
+        setCapabilities(new Set([...capabilityBody.capabilities, ...operationsBody.capabilities]));
         setTimeZone(settingsBody.settings.timezone);
       })
       .catch((caught: unknown) => {
@@ -71,6 +75,17 @@ export function Workspace({
             >
               <span aria-hidden="true">◎</span>Solicitudes
             </button>
+            {capabilities.has("operation:read") ? (
+              <button
+                aria-current={page === "operations" ? "page" : undefined}
+                onClick={() => {
+                  setPage("operations");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">✓</span>Operación
+              </button>
+            ) : null}
           </nav>
         </div>
         <div className="profile">
@@ -110,12 +125,23 @@ export function Workspace({
         >
           Solicitudes
         </button>
+        {capabilities.has("operation:read") ? (
+          <button
+            aria-current={page === "operations" ? "page" : undefined}
+            onClick={() => {
+              setPage("operations");
+              setSelectedRequest(null);
+            }}
+          >
+            Operación
+          </button>
+        ) : null}
       </nav>
       <main className="workspace">
         {error && <Notice>{error}</Notice>}
         {page === "agenda" ? (
           <AgendaView organizationId={organization.id} timeZone={timeZone} />
-        ) : (
+        ) : page === "requests" ? (
           <RequestsView
             organizationId={organization.id}
             timeZone={timeZone}
@@ -123,6 +149,12 @@ export function Workspace({
             selectedId={selectedRequest}
             onSelect={setSelectedRequest}
             capabilities={capabilities}
+          />
+        ) : (
+          <OperationsView
+            organizationId={organization.id}
+            canManage={capabilities.has("operation:manage")}
+            canExecute={capabilities.has("operation:execute")}
           />
         )}
       </main>

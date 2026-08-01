@@ -156,3 +156,64 @@ export interface Availability {
   available: boolean;
   blocks: Reservation[];
 }
+
+export type OperationStatus = "preparing" | "ready" | "in_progress" | "completed" | "cancelled";
+
+export interface OperationMembership {
+  membership_id: string;
+  display_name: string;
+  role: string;
+  available: boolean;
+}
+
+export interface PreparationItem {
+  id: string;
+  client_request_id: string;
+  baseline_key: string | null;
+  section: "definitions" | "setup" | "final_review";
+  position: number;
+  title: string;
+  is_required: boolean;
+  responsible: OperationMembership | null;
+  due_on: string | null;
+  status: "pending" | "in_progress" | "blocked" | "completed" | "not_applicable";
+  notes: string;
+  status_note: string;
+  revision: number;
+  resolved_at?: string;
+  resolved_by?: OperationMembership;
+}
+
+export interface OperationEvent {
+  reservation_id: string;
+  event: {
+    event_type: string;
+    starts_at: string;
+    ends_at: string;
+    timezone: string;
+    estimated_guests: number;
+    general_need: string;
+  };
+  contact: { display_name: string; phone_e164?: string };
+  preparation: {
+    status: OperationStatus;
+    revision: number;
+    responsible: OperationMembership | null;
+    operational_notes: string;
+    baseline_version: string;
+    ready_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    attention: {
+      pending_count: number;
+      overdue_count: number;
+      blocked_count: number;
+      is_overdue: boolean;
+      is_upcoming: boolean;
+      is_ready: boolean;
+      has_blockers: boolean;
+      responsible_unavailable: boolean;
+    };
+    items?: PreparationItem[];
+  };
+}

@@ -53,6 +53,8 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(
           json({ capabilities: ["sales:read", "sales:manage", "availability:read"] }),
         );
+      if (url.endsWith("/operations/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.includes("/availability/?"))
@@ -185,6 +187,8 @@ describe("flujo comercial de Claridez", () => {
             ],
           }),
         );
+      if (url.endsWith("/operations/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.includes("/availability/?"))

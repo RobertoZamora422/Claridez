@@ -198,7 +198,8 @@ de autorización, contexto organizacional y RLS.
 ## Iteración 5 — Primer flujo vertical funcional
 
 **Estado:** 5.1 completada, cerrada mediante el endurecimiento 5.1.1 y estructuralmente consolidada
-mediante mantenibilidad y CI en 5.1.2.
+mediante mantenibilidad y CI en 5.1.2; 5.2 implementada y validada localmente, con cutover del
+entorno destino pendiente de despliegue.
 
 ### Condición de entrada
 
@@ -235,6 +236,21 @@ mediante mantenibilidad y CI en 5.1.2.
 
 La salida de 5.1 exige reglas, estados, permisos, API, frontend, migraciones y pruebas de
 concurrencia y aislamiento coherentes con su especificación funcional.
+
+### Resultado de 5.2
+
+- `claridez.operations` incorpora una preparación uno a uno por reserva confirmada, siete ítems
+  base, ítems libres y transiciones append-only.
+- La confirmación y cancelación comerciales se coordinan atómicamente sin señales Django; ADR 0013
+  limita el trigger transversal a guardián diferido del estado final.
+- Las cinco etapas operativas, revisión optimista, responsables, privacidad condicionada del
+  teléfono, RLS, claves tenant-aware y reglas de readiness se aplican en backend y PostgreSQL.
+- La API de comandos y la vista React cubren bandeja, detalle, checklist, asignación, listo, inicio y
+  finalización sin `DELETE` ni un sistema genérico de proyectos.
+- El backfill y el cutover con indisponibilidad controlada están implementados y documentados; su
+  ejecución sobre el entorno destino sigue siendo obligatoria antes de aceptar tráfico.
+- La especificación y evidencia local están en
+  [Iteración 5.2 — De reserva confirmada a evento preparado](../product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md).
 
 ## Decisiones transversales diferidas
 

@@ -15,13 +15,15 @@ reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el s
 de servidor** y el cierre integrado de autorización y aislamiento tenant. Contiene PostgreSQL local
 reproducible, identidad y sesiones locales, organizaciones, membresías, contexto organizacional y
 la primera tabla privada protegida por RLS. La Iteración 4, el primer flujo vertical de la
-Iteración 5.1, su endurecimiento 5.1.1 y la refactorización estructural y CI de 5.1.2 están
-completados. `claridez.commercial` permite registrar personas y solicitudes, cotizar, aceptar y
-confirmar o cancelar reservas con agenda concurrente y RLS.
+Iteración 5.1, su endurecimiento 5.1.1, la refactorización estructural y CI de 5.1.2 y la
+implementación local de 5.2 están completados. `claridez.commercial` permite registrar personas y
+solicitudes, cotizar, aceptar y confirmar o cancelar reservas con agenda concurrente y RLS;
+`claridez.operations` convierte cada confirmación en una preparación operativa con checklist,
+responsables, estados y defensas PostgreSQL. El cutover de 5.2 no se ha desplegado.
 
 Todavía no existen:
 
-- Módulos operativos o financieros.
+- Módulos financieros.
 - Proveedor productivo de correo o proveedores de identidad externos.
 - Despliegues o ambientes remotos.
 
@@ -58,6 +60,8 @@ La línea base aprobada se encuentra en [docs/product/PRODUCT_BASELINE.md](docs/
 - [Especificación funcional de la Iteración 5.1](docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md)
 - [Cierre de la Iteración 5.1.1](docs/product/ITERATION_5_1_1_HARDENING.md)
 - [Mantenibilidad y CI de la Iteración 5.1.2](docs/product/ITERATION_5_1_2_MAINTAINABILITY_CI.md)
+- [Especificación implementada de la Iteración 5.2](docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md)
+- [Cutover obligatorio de la Iteración 5.2](docs/architecture/ITERATION_5_2_CUTOVER.md)
 - [Roadmap técnico de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md)
 - [Matriz de compatibilidad de toolchains](docs/architecture/TOOLCHAIN_COMPATIBILITY.md)
 - [Plataforma local y configuración](docs/architecture/LOCAL_PLATFORM.md)

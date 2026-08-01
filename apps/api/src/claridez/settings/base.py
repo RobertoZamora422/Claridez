@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "claridez.identity.apps.IdentityConfig",
     "claridez.organizations.apps.OrganizationsConfig",
     "claridez.commercial.apps.CommercialConfig",
+    "claridez.operations.apps.OperationsConfig",
     "rest_framework",
     "drf_spectacular",
 ]

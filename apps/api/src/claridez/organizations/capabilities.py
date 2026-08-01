@@ -26,6 +26,9 @@ class Capability(StrEnum):
     RESERVATION_CONFIRM = "reservation:confirm"
     RESERVATION_CANCEL = "reservation:cancel"
     RESERVATION_WAIVE_DEPOSIT = "reservation:waive_deposit"
+    OPERATION_READ = "operation:read"
+    OPERATION_MANAGE = "operation:manage"
+    OPERATION_EXECUTE = "operation:execute"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -47,6 +50,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RESERVATION_CONFIRM,
                 Capability.RESERVATION_CANCEL,
                 Capability.RESERVATION_WAIVE_DEPOSIT,
+                Capability.OPERATION_READ,
+                Capability.OPERATION_MANAGE,
+                Capability.OPERATION_EXECUTE,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -59,6 +65,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.SALES_MANAGE,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
+                Capability.OPERATION_READ,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -67,6 +74,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.ORGANIZATION_SETTINGS_READ,
                 Capability.SALES_READ,
                 Capability.AVAILABILITY_READ,
+                Capability.OPERATION_READ,
+                Capability.OPERATION_MANAGE,
+                Capability.OPERATION_EXECUTE,
             }
         ),
         Membership.Role.FINANCE: frozenset(
