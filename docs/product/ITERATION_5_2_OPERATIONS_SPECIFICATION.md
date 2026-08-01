@@ -8,9 +8,10 @@
 
 ## 0. Estado documental y alcance de la decisión
 
-Este documento propone el siguiente flujo vertical de Claridez. No está aprobado, aceptado,
-iniciado ni implementado. Sus nombres, reglas, capacidades, endpoints y defensas PostgreSQL son
-recomendaciones sujetas a aprobación expresa del propietario antes de modificar código o esquema.
+Este documento propone el siguiente flujo vertical de Claridez. La iteración no está aprobada,
+iniciada ni implementada. La sección 14 distingue tres criterios documentales ya aceptados de las
+decisiones que todavía requieren aprobación expresa del propietario antes de modificar código o
+esquema.
 
 La propuesta parte del contrato implementado en la
 [Iteración 5.1](ITERATION_5_1_COMMERCIAL_FLOW.md): una `Reservation` confirmada conserva el horario,
@@ -515,6 +516,25 @@ bloquea después `EventPreparation` para validar que todavía esté `preparing` 
 evita el ciclo inverso. Asignaciones validan la membresía tenant-aware dentro de la misma
 transacción, sin convertirla en pivote de bloqueo del agregado.
 
+El corte de migración usa además un bloqueo de tabla, distinto de esos bloqueos ordinarios:
+
+```sql
+LOCK TABLE commercial_reservation IN SHARE ROW EXCLUSIVE MODE;
+```
+
+`claridez_migrator` lo obtiene dentro de la misma transacción `atomic=True`, como primera operación
+que accede a datos comerciales y antes de fijar `cutover_at` o evaluar cualquier queryset. En
+PostgreSQL, `INSERT`, `UPDATE` y `DELETE` toman `ROW EXCLUSIVE`, incompatible con
+`SHARE ROW EXCLUSIVE`; por tanto, una escritura ya activa debe terminar o revertirse antes de que la
+migración adquiera el bloqueo, y una escritura posterior espera hasta su liberación. Un `SELECT`
+ordinario usa `ACCESS SHARE` y sigue permitido. El modo también serializa dos intentos de cutover.
+
+La clasificación se ejecuta con `READ COMMITTED` después de adquirir el lock, en una nueva vista que
+incluye cualquier escritura previa ya confirmada. `cutover_at` se captura una sola vez en ese punto
+mediante `clock_timestamp()` y se reutiliza en todo el backfill. El bloqueo se conserva hasta que
+terminan backfill y validación y la transacción hace commit o rollback. Un timeout o error al
+adquirirlo aborta la fase; nunca se continúa con una clasificación parcial.
+
 Casos concurrentes:
 
 - mismo ítem: una revisión gana y la otra recibe `409`;
@@ -541,22 +561,24 @@ Casos concurrentes:
 
 ### 8.3 Defensas por capa
 
-| Invariante                                                       | Defensa propuesta                                                                                                                                                                                 |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Como máximo una preparación por reserva                          | PK/FK uno-a-uno.                                                                                                                                                                                  |
-| Toda reserva que alcanzó confirmación tiene preparación completa | Orquestador para flujo nuevo y backfill determinista para `confirmed_at` histórico; la defensa PostgreSQL para SQL directo/bulk queda sujeta al ADR transversal.                                  |
-| Corte histórico representable                                    | Preflight bajo bloqueo aborta si un evento aún confirmado ya comenzó o si una cancelación posterior a confirmar ocurrió desde `starts_at`; no se infieren estados operativos.                     |
-| Pertenencia al mismo tenant                                      | FK compuesta `(organization_id, reservation_id)` y equivalentes para preparación, ítems, transiciones y membresías.                                                                               |
-| Cancelación solo antes de ejecutar                               | Orquestador bloquea preparación y permite únicamente `preparing`/`ready`; el trigger guardián para rutas directas es candidato pendiente.                                                         |
-| Cancelación coherente                                            | Servicio operativo cambia preparación y agrega transición en la misma transacción comercial; un trigger de sincronización se recomienda solo como defensa final pendiente de ADR.                 |
-| Estado y marcas coherentes                                       | `CHECK` para catálogo, revisión positiva y combinaciones de `ready_at`, `started_at`, `completed_at`; trigger interno de operaciones para el orden de transiciones.                               |
-| Listo realmente válido                                           | Trigger interno inmediato al entrar en `ready`, bajo bloqueo de preparación, comprueba responsable, baseline, obligatorios, revisión final y bloqueos.                                            |
-| No invalidar listo por SQL directo                               | Trigger interno de ítems rechaza mutaciones mientras el padre esté `ready` salvo que la transacción ya lo haya reabierto a `preparing`.                                                           |
-| Resolución de ítems                                              | Servicio valida membresía activa y `operation:manage`; `CHECK` exige fecha/actor juntos solo en estados resueltos; FK compuesta tenant-aware con `PROTECT`; trigger impide omitir revisión final. |
-| Ítems terminales/evidencia                                       | `CHECK` de estado y `status_note`; trigger interno limpia evidencia al reabrir e impide edición tras inicio y todo `DELETE`.                                                                      |
-| Historial                                                        | Transiciones append-only; trigger interno valida estado/revisión actuales y rechaza inserciones incoherentes, `UPDATE` y `DELETE`.                                                                |
-| Reapertura coherente                                             | Servicio y trigger interno exigen estado, ítem y `checklist_reopened` atómicos, con una sola revisión agregada resultante compartida por la transición.                                           |
-| Orden e idempotencia                                             | `UNIQUE` por preparación para posición, `baseline_key` y `client_request_id`.                                                                                                                     |
+| Invariante                                                       | Defensa propuesta                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Como máximo una preparación por reserva                          | PK/FK uno-a-uno.                                                                                                                                                                                   |
+| Toda reserva que alcanzó confirmación tiene preparación completa | Orquestador para flujo nuevo y backfill determinista para `confirmed_at` histórico; la defensa PostgreSQL para SQL directo/bulk queda sujeta al ADR transversal.                                   |
+| Corte histórico representable                                    | Preflight bajo bloqueo aborta si un evento aún confirmado ya comenzó o si una cancelación posterior a confirmar ocurrió desde `starts_at`; no se infieren estados operativos.                      |
+| Fuente estable durante el backfill                               | `SHARE ROW EXCLUSIVE` sobre `commercial_reservation`, adquirido antes de la clasificación y retenido hasta commit/rollback, bloquea escrituras comerciales y permite lecturas ordinarias.          |
+| Sin escritor 5.1 después del backfill                            | Corte con tráfico cerrado, procesos antiguos detenidos y sesiones verificadas; solo la versión 5.2 puede arrancar antes de reabrir. El lock por sí solo no protege la ventana posterior al commit. |
+| Pertenencia al mismo tenant                                      | FK compuesta `(organization_id, reservation_id)` y equivalentes para preparación, ítems, transiciones y membresías.                                                                                |
+| Cancelación solo antes de ejecutar                               | Orquestador bloquea preparación y permite únicamente `preparing`/`ready`; el trigger guardián para rutas directas es candidato pendiente.                                                          |
+| Cancelación coherente                                            | Servicio operativo cambia preparación y agrega transición en la misma transacción comercial; un trigger de sincronización se recomienda solo como defensa final pendiente de ADR.                  |
+| Estado y marcas coherentes                                       | `CHECK` para catálogo, revisión positiva y combinaciones de `ready_at`, `started_at`, `completed_at`; trigger interno de operaciones para el orden de transiciones.                                |
+| Listo realmente válido                                           | Trigger interno inmediato al entrar en `ready`, bajo bloqueo de preparación, comprueba responsable, baseline, obligatorios, revisión final y bloqueos.                                             |
+| No invalidar listo por SQL directo                               | Trigger interno de ítems rechaza mutaciones mientras el padre esté `ready` salvo que la transacción ya lo haya reabierto a `preparing`.                                                            |
+| Resolución de ítems                                              | Servicio valida membresía activa y `operation:manage`; `CHECK` exige fecha/actor juntos solo en estados resueltos; FK compuesta tenant-aware con `PROTECT`; trigger impide omitir revisión final.  |
+| Ítems terminales/evidencia                                       | `CHECK` de estado y `status_note`; trigger interno limpia evidencia al reabrir e impide edición tras inicio y todo `DELETE`.                                                                       |
+| Historial                                                        | Transiciones append-only; trigger interno valida estado/revisión actuales y rechaza inserciones incoherentes, `UPDATE` y `DELETE`.                                                                 |
+| Reapertura coherente                                             | Servicio y trigger interno exigen estado, ítem y `checklist_reopened` atómicos, con una sola revisión agregada resultante compartida por la transición.                                            |
+| Orden e idempotencia                                             | `UNIQUE` por preparación para posición, `baseline_key` y `client_request_id`.                                                                                                                      |
 
 Los triggers **internos de operaciones** propuestos serían funciones invoker con `search_path`
 fijo, sin `SECURITY DEFINER` y con ejecución revocada a `PUBLIC`, siguiendo 5.1. El eventual trigger
@@ -761,6 +783,10 @@ El endpoint comercial de confirmación delega en un coordinador explícito. Dent
 Si cualquier escritura o verificación falla, todo hace rollback y la reserva conserva su estado
 anterior. No hay señal Django, polling, outbox ni consistencia eventual.
 
+Este contrato solo puede recibir tráfico después de completar el procedimiento de 11.2. Aplicar el
+backfill sin activar inmediatamente esta versión coordinada no habilita una fase de compatibilidad
+con 5.1.
+
 La bandeja operativa consulta exclusivamente `EventPreparation` y su proyección comercial dentro
 de `authorized_tenant_scope(operation:read)`. Toda reserva que alcanzó `confirmed` ya tiene el
 agregado. Provisionales, expiradas y canceladas sin confirmación previa no pertenecen a operations.
@@ -772,9 +798,10 @@ ambiguos**. La mera existencia de reservas confirmadas o canceladas después de 
 fallar la migración: se reconstruyen cuando la evidencia comercial permite un único resultado. No
 se infiere preparación, ejecución ni finalización por el paso del tiempo.
 
-La migración futura sería `atomic=True`, fijaría un único `cutover_at` con el reloj transaccional y
-bloquearía las transiciones de `commercial_reservation` durante preflight y backfill. Clasificaría
-las filas en orden estable `(organization_id, reservation_id)`:
+La migración futura sería `atomic=True`. Después de detener y verificar los procesos de aplicación,
+adquiriría `LOCK TABLE commercial_reservation IN SHARE ROW EXCLUSIVE MODE`, fijaría un único
+`cutover_at` posterior al lock y bloquearía las escrituras comerciales durante preflight y backfill.
+Clasificaría las filas en orden estable `(organization_id, reservation_id)`:
 
 | Reserva preexistente                                                                 | Resultado obligatorio                                                                                                                  |
 | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -817,6 +844,49 @@ preparación; si su estado comercial es `cancelled`, la preparación también es
 canceladas sin confirmación, provisionales y expiradas no la tienen. La reversión solo se valida en
 base desechable antes de actividad operativa real: elimina datos de operations pero no modifica
 commercial; reaplicar reconstruye nuevamente el mismo backfill determinista.
+
+#### Procedimiento obligatorio de cutover
+
+No se admite despliegue gradual, rolling update ni convivencia de procesos 5.1 y 5.2. El cutover es
+una ventana de mantenimiento con tráfico de aplicación cerrado y esta secuencia obligatoria:
+
+1. **Cerrar el ingreso y detener todos los procesos de aplicación.** Se retiran de servicio todas
+   las instancias Django capaces de usar `claridez_app`, incluidos servidores web y comandos de
+   administración con escritura. Ninguna petición comercial nueva puede comenzar.
+2. **Verificar ausencia de versión antigua.** Se comprueba el inventario del despliegue y el gestor
+   de procesos, y se consulta `pg_stat_activity` para confirmar que no quedan sesiones de
+   `claridez_app`, transacciones `idle in transaction` ni instancias 5.1 activas. Una sesión dudosa
+   bloquea el procedimiento; no se presume terminada.
+3. **Ejecutar migración atómica y backfill.** Solo `claridez_migrator` entra. El lock de tabla se
+   adquiere antes de toda lectura clasificatoria, se captura `cutover_at` y se ejecutan preflight,
+   esquema, backfill y validaciones internas en la misma transacción.
+4. **Validar nuevamente después del backfill.** Antes del commit, todavía bajo el lock, se exige
+   cardinalidad exacta, siete claves, transiciones/revisiones coherentes y ninguna sesión
+   `claridez_app` esperando escribir. Después del commit, una conexión nueva ejecuta de nuevo las
+   consultas de cardinalidad e integridad sobre el estado persistido. Cualquier diferencia falla el
+   corte.
+5. **Iniciar únicamente la versión nueva.** Con el ingreso aún cerrado, se levantan solo procesos del
+   artefacto 5.2 que contiene el coordinador de confirmación/cancelación. La versión 5.1 no es un
+   destino de rollback después de aplicar el esquema.
+6. **Realizar comprobación posterior sin tráfico público.** Se verifica identidad del artefacto,
+   cabeza de migraciones, configuración del coordinador, `/health`, `/ready` y nuevamente que no
+   exista reserva con `confirmed_at` sin preparación completa ni cancelación comercial incoherente.
+   El proceso nuevo puede estar iniciado, pero el router permanece cerrado.
+7. **Aceptar tráfico solo tras éxito completo.** Se habilita el ingreso únicamente cuando las seis
+   fases anteriores dejan evidencia satisfactoria. Desde ese instante, toda confirmación o
+   cancelación pasa por el coordinador 5.2.
+
+Si cualquier parada, verificación, lock, migración, validación, arranque o comprobación posterior
+falla, la aplicación permanece cerrada. Si el fallo ocurre dentro de la migración, se hace rollback
+atómico. Si ocurre después del commit, no se inicia ni se restaura 5.1: se corrige hacia adelante o
+se aplica un procedimiento de recuperación aprobado, manteniendo el ingreso cerrado. Si aparece una
+sesión antigua esperando detrás del lock, primero se detienen su proceso y sesión y luego se aborta
+el intento; nunca se libera el lock para que esa escritura 5.1 continúe sobre el esquema migrado.
+
+`SHARE ROW EXCLUSIVE` protege la foto de corte y el backfill, pero termina al cerrar la transacción.
+La ausencia de procesos antiguos y el gate de tráfico protegen el intervalo hasta activar 5.2. El
+posible trigger transversal sigue siendo una decisión pendiente del ADR y no se aprueba ni se usa
+como solución de este cutover.
 
 ### 11.3 Cancelación
 
@@ -920,6 +990,13 @@ recurrencia, prioridades, porcentajes, diagramas, dashboard general ni gestor ge
 - cancelación comercial concurrente con edición, asignación y `ready` conserva atomicidad;
 - carrera cancelación/`start`: cancela si gana el bloqueo o devuelve `409` si ejecución empieza;
 - cancelación durante `in_progress` o después de `complete` siempre se rechaza;
+- una confirmación o cancelación 5.1 que ya posee `ROW EXCLUSIVE` cuando la migración solicita
+  `SHARE ROW EXCLUSIVE` termina antes de la clasificación: si hace commit, la consulta posterior al
+  lock la incluye; si revierte, no deja fila que clasificar;
+- una confirmación o cancelación que intenta escribir después de adquirido el lock queda esperando,
+  no modifica la fuente visible y se cancela junto con su sesión antes de liberar el cutover;
+- una consulta ordinaria continúa mientras se mantiene `SHARE ROW EXCLUSIVE`, demostrando que el
+  lock bloquea escritores y no `ACCESS SHARE`;
 - rollback inyectado después de cada bloqueo sin estado parcial;
 - ausencia de deadlock y concurrencia independiente entre organizaciones.
 
@@ -1009,6 +1086,16 @@ Con al menos dos organizaciones:
   histórica desde `starts_at`, evidencia incompleta, cronología inválida o zona no usable;
 - una escritura comercial concurrente queda bloqueada durante corte y no puede escapar del conjunto
   clasificado;
+- una prueba de despliegue mantiene el gate de tráfico cerrado, detiene y verifica toda instancia
+  5.1, ejecuta migración, arranca solo 5.2 y demuestra que no existe intervalo donde el servicio
+  antiguo pueda confirmar sin crear preparación;
+- la versión 5.2 iniciada no recibe tráfico hasta que una comprobación posterior independiente valida
+  artefacto, migraciones, coordinador, salud y cardinalidad;
+- fallos inyectados en parada, lock, preflight, backfill, validación, arranque o comprobación mantienen
+  el gate cerrado; los fallos transaccionales no dejan una reserva confirmada sin preparación y los
+  posteriores al commit nunca reactivan 5.1;
+- se prueba que una sesión `claridez_app` inesperada o esperando detrás del lock hace abortar el
+  cutover después de terminar esa sesión, sin permitir que escriba al liberarse el lock;
 - cardinalidad, baseline, resoluciones nulas, secuencia de revisiones y estados se validan antes de
   activar triggers internos, RLS y privilegios;
 - si el ADR aprueba el trigger transversal, una migración posterior lo instala después del backfill;
@@ -1047,6 +1134,8 @@ Con al menos dos organizaciones:
     `not_applicable`, derivada exclusivamente por backend.
 13. Tratar reapertura, mutación invalidante y `checklist_reopened` como un solo comando que aumenta
     exactamente una vez `EventPreparation.revision`.
+14. Ejecutar un cutover con indisponibilidad controlada: tráfico cerrado, todas las instancias 5.1
+    detenidas, `SHARE ROW EXCLUSIVE`, validación posterior y apertura exclusiva con 5.2.
 
 ### 14.2 Alternativas no recomendadas para 5.2
 
@@ -1055,6 +1144,8 @@ Con al menos dos organizaciones:
 - creación manual, reserva confirmada sin preparación o endpoint operativo para crearla;
 - omitir reservas históricas, completar eventos por su fecha o convertir automáticamente históricos
   ambiguos en `preparing`, `completed` o `cancelled`;
+- ejecutar un despliegue rolling, mantener una instancia 5.1 como rollback, migrar con tráfico
+  abierto o confiar en que el lock de migración cubre la ventana posterior a su commit;
 - señales Django o sincronización eventual mediante worker;
 - usar un trigger PostgreSQL como único orquestador funcional;
 - copiar persona, correo, notas comerciales, cotización, importes o anticipo;
@@ -1072,6 +1163,12 @@ Con al menos dos organizaciones:
 
 ### 14.3 Decisiones que requieren aprobación expresa del propietario
 
+Por instrucción expresa del propietario, tres correcciones quedan fijadas dentro de esta propuesta y
+ya no se consideran pendientes: la estrategia de backfill y fail-fast para históricos, la evidencia
+común `resolved_at`/`resolved_by_membership_id` y el incremento agregado único al reabrir por una
+mutación de ítem. Esta aceptación parcial no aprueba la Iteración 5.2, su implementación ni el nuevo
+procedimiento de cutover.
+
 Antes de implementar debe aprobarse, como mínimo:
 
 1. el nuevo módulo, el coordinador de aplicación y sus dependencias públicas;
@@ -1082,13 +1179,11 @@ Antes de implementar debe aprobarse, como mínimo:
 6. el nombre histórico y el teléfono vivo limitado a `preparing`, `ready` e `in_progress`, sin
    `person:read`;
 7. cancelación solo desde `preparing` o `ready`, con rechazo en `in_progress` y `completed`;
-8. la estrategia de corte: backfill determinista, UUIDv5, reconstrucción de marcas y preflight que
-   bloquea históricos operativamente ambiguos;
-9. evidencia común de resolución, su representación mínima y reglas de limpieza/renovación;
-10. incremento agregado único al reabrir mediante una mutación de ítem;
-11. rutas, payloads, códigos de error y ventana visual de siete días;
-12. el alcance de historial mínimo frente a una auditoría de cambios más detallada;
-13. el ADR transversal antes de decidir o crear cualquier trigger sobre tablas comerciales.
+8. rutas, payloads, códigos de error y ventana visual de siete días;
+9. el alcance de historial mínimo frente a una auditoría de cambios más detallada;
+10. el ADR transversal antes de decidir o crear cualquier trigger sobre tablas comerciales;
+11. el procedimiento operativo de cutover, incluida la autoridad para cerrar tráfico, verificar
+    procesos/sesiones, abortar el despliegue y mantener la aplicación indisponible ante fallos.
 
 Ese ADR deberá comparar expresamente:
 
@@ -1113,6 +1208,13 @@ La aprobación de esta especificación no debe inferirse de la creación del arc
   migración;
 - reconstruir `created_at` y transiciones desde evidencia comercial conserva la secuencia lógica,
   pero representa un backfill y no prueba que el trabajo operativo existiera en esas fechas;
+- el cutover exige indisponibilidad completa; una transacción comercial larga puede retrasar el
+  `SHARE ROW EXCLUSIVE`, y un timeout debe abortar sin tentar al operador a continuar sin lock;
+- el lock termina en el commit: cualquier instancia 5.1 omitida en el inventario podría escribir
+  después. Por eso la verificación de procesos, sesiones y tráfico es una condición de integridad,
+  no una recomendación operativa;
+- un fallo posterior al commit impide volver a 5.1 y puede prolongar la indisponibilidad mientras se
+  corrige 5.2 hacia adelante;
 - el posible trigger sobre `commercial_reservation` crea acoplamiento de esquema y duplicación de
   defensas; su conveniencia, orden y reversión siguen pendientes del ADR;
 - hasta resolver el ADR, SQL directo y bulk de transiciones comerciales no tienen una defensa final
@@ -1149,5 +1251,8 @@ Si el propietario aprueba 5.2, la implementación solo podría declararse termin
 completo, la matriz, la minimización personal, la concurrencia, SQL/bulk, RLS con dos organizaciones,
 CSRF, OpenAPI, frontend responsive/accesible, evidencia de resolución y el corte con reservas
 preexistentes —incluidos sus casos fail-fast—, además de migraciones desde
-cero/reversión/reaplicación, hayan sido observados y documentados. Este criterio no declara que
-ninguna de esas comprobaciones se haya ejecutado en la fase actual de especificación.
+cero/reversión/reaplicación, hayan sido observados y documentados. También debe demostrarse en un
+ensayo de cutover que 5.1 queda totalmente detenido, el lock ordena escritores concurrentes, la
+validación posterior precede al tráfico y cualquier fallo mantiene la aplicación cerrada sin
+huérfanos operativos. Este criterio no declara que ninguna de esas comprobaciones se haya ejecutado
+en la fase actual de especificación.
