@@ -1,7 +1,7 @@
 # ADR 0014 — Multi-espacio y límites de configuración funcional P6
 
 - **Estado:** Aceptado
-- **Fecha:** 2026-08-01
+- **Fecha:** 2026-08-02
 - **Reemplaza a:** La decisión de espacio único de ADR 0012
 - **Reemplazado por:** No aplica
 
@@ -68,7 +68,10 @@ continúan condicionadas por MFA y una etapa posterior.
     con vigencias no solapadas y composición explícita de paquetes. Al cotizar, el backend copia
     descripción, unidad, precio, referencia de revisión y composición aplicables a la línea. Las
     líneas ad hoc siguen permitidas y una versión emitida nunca consulta el catálogo vivo para
-    reconstruir su historia.
+    reconstruir su historia. `CatalogItemRevision.package_components` es el snapshot histórico
+    canónico que consumen catálogo y cotizaciones; `PackageComponent` es su proyección relacional
+    normalizada para referencias tenant-aware, orden e integridad. No se administra de forma
+    independiente: PostgreSQL exige equivalencia exacta entre ambas al finalizar la transacción.
 11. **Capacidades P6.** Propietario y administrador gestionan configuración, sedes, espacios,
     catálogo y precios. Comercial consulta y usa el catálogo activo al cotizar, sin modificarlo.
     Operaciones consulta definiciones operativas mínimas y finanzas consulta valores autorizados.
@@ -98,8 +101,12 @@ continúan condicionadas por MFA y una etapa posterior.
 La puerta local demostró migración desde el esquema 5.2 con una reserva confirmada y su agregado
 operativo, backfill UUIDv5, ida/vuelta en la base de pruebas, dos organizaciones, aislamiento RLS,
 FK tenant-aware, privilegios mínimos, carreras en el mismo y en distintos espacios, snapshots
-inmutables, compatibilidad del guardián, OpenAPI y build. `npm run check:all` cerró con 144 pruebas no
-integración, 37 integración PostgreSQL y 16 frontend. La revisión web adicional cubrió 375×812 y
+inmutables, compatibilidad del guardián, OpenAPI y build. La auditoría postimplementación demostró
+que ORM bulk y SQL directo podían separar los cabezales de sus revisiones y hacer divergir las dos
+representaciones de composición. La migración `catalog.0002_catalog_history_integrity` cerró esos
+bypasses con secuencia de revisión, historia completa y equivalencia de composición diferidas; las
+pruebas negativas cubren ambos caminos de escritura. `npm run check:all` cerró con 144 pruebas no
+integración, 40 integración PostgreSQL y 16 frontend. La revisión web adicional cubrió 375×812 y
 1440×900 sin desbordamiento horizontal. El cutover de un entorno desplegado permanece sin ejecutar
 hasta que exista ese entorno y autorización externa.
 

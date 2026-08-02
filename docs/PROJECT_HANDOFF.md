@@ -1,6 +1,6 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 1 de agosto de 2026
+- **Fecha de corte:** 2 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P6 está completada localmente
 - **Siguiente etapa:** P7 — CRM y seguimiento comercial
 
@@ -56,7 +56,11 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   tres fuentes maestras.
 - P6 incorpora configuración funcional, sedes/espacios, catálogo versionado, paquetes explícitos,
   precios con vigencias y su uso real en comercial, agenda y proyección operativa.
-- `npm run check:all` pasó con los toolchains fijados: 144 pruebas no integración, 37 integración
+- La auditoría postimplementación P6 añadió integridad PostgreSQL para impedir por ORM bulk o SQL
+  directo cabezales sin historia coherente, revisiones arbitrarias y composición divergente.
+- `CatalogItemRevision.package_components` es el snapshot histórico canónico; las filas
+  `PackageComponent` son su proyección relacional obligatoriamente equivalente al commit.
+- `npm run check:all` pasó con los toolchains fijados: 144 pruebas no integración, 40 integración
   PostgreSQL y 16 frontend, además de OpenAPI y builds. No hay etapa funcional autorizada en
   ejecución. `npm run audit` no encontró vulnerabilidades conocidas en Python ni npm.
 

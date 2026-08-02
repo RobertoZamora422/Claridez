@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 1 de agosto de 2026
+- **Fecha de corte:** 2 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -254,10 +254,11 @@ las versiones emitidas siguen inmutables.
 
 **Criterio verificable de finalización:** CRUD autorizado sin borrado histórico, cotización completa
 desde catálogo/ad hoc, backfill de espacio default, dos tenants, concurrencia, OpenAPI y web
-responsive. La puerta local observada cerró con 144 pruebas no integración, 37 integración
+responsive. La puerta local observada cerró con 144 pruebas no integración, 40 integración
 PostgreSQL y 16 frontend; migraciones, RLS, GiST/advisory lock por espacio, guardián 5.2,
 OpenAPI y builds correctos. La validación visual adicional cubrió 375×812 y 1440×900 sin
-desbordamiento horizontal.
+desbordamiento horizontal. La auditoría postimplementación cerró por PostgreSQL los bypasses de
+ORM bulk/SQL directo sobre revisiones y equivalencia de composición de paquetes.
 
 **Riesgos principales:** Romper la exclusión de agenda, reescribir precios emitidos, duplicar
 productos o convertir sedes en configuración sin uso real.

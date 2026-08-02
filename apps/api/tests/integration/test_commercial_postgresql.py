@@ -22,12 +22,19 @@ from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 from psycopg.types.range import Range
 
-from claridez.catalog.models import CatalogItem, EventType
+from claridez.catalog.models import (
+    CatalogItem,
+    CatalogItemRevision,
+    EventType,
+    EventTypeRevision,
+    PackageComponent,
+)
 from claridez.catalog.services import (
     create_catalog_item,
     create_catalog_price,
     create_event_type,
     list_event_types,
+    update_event_type,
 )
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import (
@@ -318,6 +325,14 @@ def test_p6_tables_enforce_rls_tenant_relations_and_minimal_privileges() -> None
         cursor.execute(
             """
             SELECT
+                has_table_privilege('claridez_app', 'catalog_eventtype', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_catalogitem', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_eventtyperevision', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_eventtyperevision', 'DELETE'),
+                has_table_privilege('claridez_app', 'catalog_catalogitemrevision', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_catalogitemrevision', 'DELETE'),
+                has_table_privilege('claridez_app', 'catalog_packagecomponent', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_packagecomponent', 'DELETE'),
                 has_table_privilege('claridez_app', 'catalog_catalogprice', 'UPDATE'),
                 has_table_privilege('claridez_app', 'catalog_catalogprice', 'DELETE'),
                 has_table_privilege('claridez_app', 'organizations_space', 'DELETE')
@@ -328,7 +343,200 @@ def test_p6_tables_enforce_rls_tenant_relations_and_minimal_privileges() -> None
     assert all(row[1:] == (True, True) for row in metadata)
     assert len(policies) == len(P6_PRIVATE_TABLES)
     assert all(row[1] == "ALL" and row[3] is True for row in policies)
-    assert privileges == (True, False, False)
+    assert privileges == (
+        True,
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+    )
+
+
+def test_catalog_history_rejects_orm_bulk_bypasses() -> None:
+    owner, creation = _owner("catalog-history-orm")
+    organization_id = creation.organization.pk
+    event_type = create_event_type(owner, organization_id, name="Boda")
+    item = create_catalog_item(
+        owner,
+        organization_id,
+        kind="service",
+        name="Coordinación",
+        description="Versión original",
+        unit_label="evento",
+        components=[],
+    )
+
+    with authorized_tenant_scope(owner, organization_id, Capability.CATALOG_MANAGE):
+        event_row = EventType.objects.get(pk=event_type["id"])
+        event_row.name = "Boda alterada por bulk_update"
+        event_row.revision += 1
+        with pytest.raises(DatabaseError), transaction.atomic():
+            EventType.objects.bulk_update([event_row], ["name", "revision"])
+            with connection.cursor() as cursor:
+                cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+        event_row.refresh_from_db()
+        assert (event_row.name, event_row.revision) == ("Boda", 1)
+
+        updated_event = update_event_type(
+            owner,
+            organization_id,
+            event_type_id=event_type["id"],
+            revision=1,
+            name="Boda actualizada por servicio",
+            is_active=True,
+        )
+        assert updated_event["revision"] == 2
+        assert EventTypeRevision.objects.filter(event_type_id=event_type["id"]).count() == 2
+
+        item_row = CatalogItem.objects.get(pk=item["id"])
+        item_row.revision = 77
+        with pytest.raises(DatabaseError), transaction.atomic():
+            CatalogItem.objects.bulk_update([item_row], ["revision"])
+
+        item_row.refresh_from_db()
+        assert item_row.revision == 1
+
+
+def test_catalog_history_rejects_direct_sql_bypasses() -> None:
+    owner, creation = _owner("catalog-history-sql")
+    organization_id = creation.organization.pk
+    event_type = create_event_type(owner, organization_id, name="Graduación")
+    item = create_catalog_item(
+        owner,
+        organization_id,
+        kind="product",
+        name="Silla",
+        description="Versión original",
+        unit_label="unidad",
+        components=[],
+    )
+
+    with authorized_tenant_scope(owner, organization_id, Capability.CATALOG_MANAGE):
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE catalog_eventtype SET revision = 91 WHERE id = %s",
+                (event_type["id"],),
+            )
+
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE catalog_catalogitem
+                SET name = 'Silla alterada por SQL', revision = revision + 1
+                WHERE id = %s
+                """,
+                (item["id"],),
+            )
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+        assert EventType.objects.get(pk=event_type["id"]).revision == 1
+        stored_item = CatalogItem.objects.get(pk=item["id"])
+        assert (stored_item.name, stored_item.revision) == ("Silla", 1)
+
+
+def test_package_snapshot_and_relational_projection_cannot_diverge() -> None:
+    owner, creation = _owner("catalog-package-equivalence")
+    organization_id = creation.organization.pk
+    first = create_catalog_item(
+        owner,
+        organization_id,
+        kind="service",
+        name="Coordinación",
+        description="",
+        unit_label="evento",
+        components=[],
+    )
+    second = create_catalog_item(
+        owner,
+        organization_id,
+        kind="product",
+        name="Silla",
+        description="",
+        unit_label="unidad",
+        components=[],
+    )
+    package = create_catalog_item(
+        owner,
+        organization_id,
+        kind="package",
+        name="Paquete esencial",
+        description="",
+        unit_label="evento",
+        components=[{"item_id": first["id"], "quantity": Decimal("1.000")}],
+    )
+
+    with authorized_tenant_scope(owner, organization_id, Capability.CATALOG_MANAGE):
+        package_revision = CatalogItemRevision.objects.get(
+            item_id=package["id"], revision=package["revision"]
+        )
+        stored_components = list(
+            PackageComponent.objects.filter(
+                package_id=package["id"], package_revision=package["revision"]
+            )
+            .select_related("component_revision")
+            .order_by("position")
+        )
+        relational_projection = [
+            {
+                "item_id": str(component.component_id),
+                "revision_id": str(component.component_revision_id),
+                "revision": component.component_revision.revision,
+                "kind": component.component_revision.kind,
+                "name": component.component_revision.name,
+                "unit_label": component.component_revision.unit_label,
+                "quantity": f"{component.quantity:.3f}",
+            }
+            for component in stored_components
+        ]
+        assert package_revision.package_components == relational_projection
+
+        second_revision = CatalogItemRevision.objects.get(item_id=second["id"], revision=1)
+        extra_component = PackageComponent(
+            organization_id=organization_id,
+            package_id=package["id"],
+            package_revision=package["revision"],
+            component_id=second["id"],
+            component_revision=second_revision,
+            position=2,
+            quantity=Decimal("2.000"),
+        )
+        with pytest.raises(DatabaseError), transaction.atomic():
+            PackageComponent.objects.bulk_create([extra_component])
+            with connection.cursor() as cursor:
+                cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO catalog_packagecomponent (
+                    id, organization_id, package_id, package_revision, component_id,
+                    component_revision_id, position, quantity, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, 2, 2.000, now())
+                """,
+                (
+                    uuid4(),
+                    organization_id,
+                    package["id"],
+                    package["revision"],
+                    second["id"],
+                    second_revision.pk,
+                ),
+            )
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+        assert (
+            PackageComponent.objects.filter(
+                package_id=package["id"], package_revision=package["revision"]
+            ).count()
+            == 1
+        )
 
 
 def test_sql_direct_bulk_totals_snapshots_and_lifecycle_are_guarded() -> None:
