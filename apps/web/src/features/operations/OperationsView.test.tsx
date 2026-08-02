@@ -25,7 +25,6 @@ const summary = {
     status: "preparing",
     revision: 1,
     responsible: null,
-    operational_notes: "",
     baseline_version: "operations-5.2-v1",
     ready_at: null,
     started_at: null,

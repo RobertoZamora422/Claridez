@@ -96,7 +96,6 @@ class PreparationSummarySerializer(serializers.Serializer[dict[str, object]]):
     status = serializers.ChoiceField(choices=EventPreparation.Status.choices)
     revision = serializers.IntegerField(min_value=1)
     responsible = ResponsibleMembershipSerializer(allow_null=True)
-    operational_notes = serializers.CharField(allow_blank=True)
     baseline_version = serializers.CharField()
     ready_at = serializers.DateTimeField(allow_null=True)
     ready_by = HistoricalActorSerializer(allow_null=True)
@@ -110,6 +109,7 @@ class PreparationSummarySerializer(serializers.Serializer[dict[str, object]]):
 
 
 class PreparationDetailSerializer(PreparationSummarySerializer):
+    operational_notes = serializers.CharField(allow_blank=True)
     items = PreparationItemResponseSerializer(many=True)
 
 
@@ -154,6 +154,9 @@ class ItemMutationResponseSerializer(serializers.Serializer[dict[str, object]]):
 class ErrorDetailSerializer(serializers.Serializer[dict[str, object]]):
     code = serializers.ChoiceField(choices=ERROR_CODE_CHOICES)
     message = serializers.CharField()
+    fields = serializers.DictField(  # type: ignore[assignment]
+        child=serializers.ListField(child=serializers.CharField()), required=False
+    )
 
     class Meta:
         ref_name = "OperationsErrorDetail"

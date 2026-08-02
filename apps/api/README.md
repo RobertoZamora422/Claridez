@@ -4,8 +4,8 @@ API REST de Claridez con configuración local validada, perfiles de credenciales
 PostgreSQL real, endpoints técnicos de salud y autenticación HTTP mediante sesiones Django.
 
 Contiene el usuario local productivo, organizaciones y membresías globales de control, autorización
-backend-first, `OrganizationSettings` y el módulo funcional `claridez.commercial`, todos los datos
-privados con RLS.
+backend-first, `OrganizationSettings` y los módulos funcionales `claridez.commercial` y
+`claridez.operations`, con todos sus datos privados protegidos por RLS.
 
 ## Requisitos
 
@@ -48,12 +48,22 @@ La [Iteración 5.1.2](../../docs/product/ITERATION_5_1_2_MAINTAINABILITY_CI.md) 
 separación interna de `claridez.commercial.services`, su superficie pública estable y los controles
 de CI que protegen este contrato.
 
-## Servicios comerciales
+El flujo operativo vive bajo el mismo prefijo organizacional y expone capacidades, responsables,
+bandeja, detalle, edición de preparación/ítems y comandos de listo, inicio y completado. Confirmar o
+cancelar una reserva coordina comercial y operaciones atómicamente. Su contrato exacto está en la
+[especificación 5.2](../../docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md) y su despliegue
+requiere el [cutover obligatorio](../../docs/architecture/ITERATION_5_2_CUTOVER.md).
+
+## Superficies de servicios
 
 `claridez.commercial.services` es la superficie pública de 21 casos de uso. Internamente se divide
 en personas, solicitudes, cotizaciones, reservas, disponibilidad, representaciones y primitivas
 compartidas. Vistas, pruebas y futuros consumidores deben importar desde
 `claridez.commercial.services`, no desde sus módulos internos.
+
+`claridez.operations.services` expone consultas, preparación, ítems y transiciones. El coordinador
+de aplicación consume las superficies públicas de ambos módulos; no se usan señales Django ni
+consultas dispersas desde comercial hacia tablas operativas.
 
 ## Autenticación HTTP
 
@@ -99,8 +109,9 @@ y organización es única y persistente.
 Después de migrar, `npm run auth:bootstrap` permite crear localmente una organización activa y su
 primer propietario sin conceder privilegios técnicos.
 
-El catálogo cerrado contiene las siete capacidades de infraestructura de ADR 0011 y las ocho
-capacidades funcionales de 5.1, sin jerarquías implícitas. `authorized_tenant_scope` revalida actor,
+El catálogo cerrado contiene las siete capacidades de infraestructura de ADR 0011, las ocho
+capacidades comerciales de 5.1 y las tres capacidades operativas de 5.2, sin jerarquías implícitas.
+`authorized_tenant_scope` revalida actor,
 organización, membresía y capacidad dentro de
 una transacción y establece el GUC local únicamente durante la operación. Los servicios autorizados
 materializan sus resultados antes de cerrar el scope.
@@ -116,8 +127,8 @@ limitan al contrato comercial 5.1 y no habilitan administración privilegiada de
 ## OpenAPI
 
 `drf-spectacular` genera y valida `openapi-schema.yaml` como artefacto temporal ignorado. El esquema
-incluye autenticación, operaciones organizacionales y el contrato comercial 5.1, pero todavía no
-se publica ni genera un cliente TypeScript.
+incluye autenticación, operaciones organizacionales y los contratos 5.1/5.2, pero todavía no se
+publica ni genera un cliente TypeScript.
 
 ## Evidencia del spike de tenancy
 

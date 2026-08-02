@@ -2,7 +2,7 @@
   "name": "claridez",
   "version": "0.0.0",
   "private": true,
-  "description": "Toolchains y plataforma local reproducibles del monorepo privado Claridez.",
+  "description": "Monorepo privado de la plataforma SaaS multiempresa Claridez.",
   "workspaces": [
     "apps/web"
   ],
@@ -12,6 +12,7 @@
   },
   "packageManager": "npm@11.16.0",
   "scripts": {
+    "clean": "python tools/clean_workspace.py",
     "db:start": "docker compose up -d --wait postgres",
     "db:stop": "docker compose stop postgres",
     "db:status": "docker compose ps postgres",
@@ -25,13 +26,13 @@
     "api:run": "uv --directory apps/api run python manage.py api_run 127.0.0.1:8000 --settings=claridez.settings.development",
     "auth:bootstrap": "uv --directory apps/api run python manage.py auth_bootstrap --settings=claridez.settings.development",
     "format": "npm run format:api && npm run format:web",
-    "format:api": "uv --directory apps/api run ruff check --fix . && uv --directory apps/api run ruff format .",
+    "format:api": "uv --directory apps/api run ruff check --fix . ../../tools && uv --directory apps/api run ruff format . ../../tools",
     "format:web": "npm run format --workspace @claridez/web",
     "format:check": "npm run format:check:api && npm run format:check:web",
-    "format:check:api": "uv --directory apps/api run ruff format --check .",
+    "format:check:api": "uv --directory apps/api run ruff format --check . ../../tools",
     "format:check:web": "npm run format:check --workspace @claridez/web",
     "lint": "npm run lint:api && npm run lint:web",
-    "lint:api": "uv --directory apps/api run ruff check .",
+    "lint:api": "uv --directory apps/api run ruff check . ../../tools",
     "lint:web": "npm run lint --workspace @claridez/web",
     "typecheck": "npm run typecheck:api && npm run typecheck:web",
     "typecheck:api": "uv --directory apps/api run mypy",

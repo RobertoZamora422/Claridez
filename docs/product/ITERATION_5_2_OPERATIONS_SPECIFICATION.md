@@ -1,6 +1,6 @@
 # Iteración 5.2 — De reserva confirmada a evento preparado
 
-- **Estado:** Aprobada
+- **Estado:** Aprobada e implementada localmente
 - **Fecha de propuesta:** 1 de agosto de 2026
 - **Fecha de aprobación:** 1 de agosto de 2026
 - **Módulo:** `claridez.operations`
@@ -428,7 +428,7 @@ específica:
 | Teléfono E.164 vivo                       |            No             | Solo en `preparing`, `ready` e `in_progress` | Coordinación inmediata mientras el evento sigue activo.  |
 | Correo                                    |            No             |                      No                      | No es necesario para preparación en 5.2.                 |
 | Tipo, horario e invitados del evento      |            Sí             |                      Sí                      | Núcleo de planificación; proviene del snapshot aceptado. |
-| Necesidad general                         | Resumen truncado opcional |                      Sí                      | Requerimiento operativo confirmado.                      |
+| Necesidad general                         |            Sí             |                      Sí                      | Requerimiento operativo confirmado.                      |
 | Notas comerciales                         |            No             |                      No                      | Pueden incluir negociación o datos no necesarios.        |
 | Cotización, líneas, importes y descuentos |            No             |                      No                      | Propiedad comercial y fuera del propósito operativo.     |
 | Anticipo, referencia o excepción          |            No             |                      No                      | Información financiera/comercial no necesaria.           |
@@ -652,9 +652,10 @@ El recurso de detalle se identifica por `reservation_id` y tiene esta forma conc
 }
 ```
 
-Toda respuesta operativa corresponde a una preparación existente. `preparation` incorpora estado,
-revisión, responsable mínimo, notas, baseline, marcas, flags/conteos y los ítems ordenados. El
-listado omite teléfono, notas extensas y detalle de ítems; expone conteos y nombre de contacto. En
+Toda respuesta operativa corresponde a una preparación existente. En detalle, `preparation`
+incorpora estado, revisión, responsable mínimo, notas, baseline, marcas, flags/conteos y los ítems
+ordenados. El listado omite por completo `operational_notes`, teléfono y detalle de ítems; no envía
+notas como cadena vacía. Expone conteos y nombre de contacto. En
 detalle, `phone_e164` solo aparece para `preparing`, `ready` e `in_progress`; el objeto `contact` de
 `completed` y `cancelled` conserva el nombre pero omite esa clave.
 
@@ -678,8 +679,8 @@ estados. El rango explícito máximo es 366 días. Orden estable: `starts_at`, `
 | ----------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET operations/capabilities/`                              | `organization:access` | Sin cuerpo.                                                                                                                                                                        | `200` con las capacidades operativas efectivas.                                                                                                                            | `401`, `404`; seguro e idempotente. Permite que `finance` reciba lista vacía sin obtener datos operativos.                                                                                             |
 | `GET operations/assignees/`                                 | `operation:manage`    | Sin cuerpo.                                                                                                                                                                        | `200` con membresías activas elegibles: id, nombre y rol.                                                                                                                  | `401`, `403`, `404`; seguro e idempotente; nunca entrega correo.                                                                                                                                       |
-| `GET operations/events/`                                    | `operation:read`      | Filtros y cursor descritos.                                                                                                                                                        | `200` paginado; cada fila tiene preparación.                                                                                                                               | `400 invalid_filter`, `401`, `403`, `404`; seguro e idempotente.                                                                                                                                       |
-| `GET operations/events/{reservation_id}/`                   | `operation:read`      | Sin cuerpo.                                                                                                                                                                        | `200` con preparación y checklist; teléfono condicionado al estado.                                                                                                        | `401`, `403`, `404 resource_unavailable`; seguro e idempotente.                                                                                                                                        |
+| `GET operations/events/`                                    | `operation:read`      | Filtros y cursor descritos.                                                                                                                                                        | `200` paginado; cada fila tiene preparación.                                                                                                                               | `400 invalid_request`, `401`, `403`, `404`; seguro e idempotente.                                                                                                                                      |
+| `GET operations/events/{reservation_id}/`                   | `operation:read`      | Sin cuerpo.                                                                                                                                                                        | `200` con preparación y checklist; teléfono condicionado al estado.                                                                                                        | `401`, `403`, `404 resource_not_available`; seguro e idempotente.                                                                                                                                     |
 | `PATCH operations/events/{reservation_id}/preparation/`     | `operation:manage`    | `{revision, operational_notes}`; las notas pueden ser texto vacío para limpiar.                                                                                                    | `200` con detalle.                                                                                                                                                         | `400`, `404`, `409 stale_revision`, `409 invalid_transition`; mismo valor normalizado es idempotente.                                                                                                  |
 | `POST operations/events/{reservation_id}/assign/`           | `operation:manage`    | `{revision, responsible_membership_id}`.                                                                                                                                           | `200` con detalle.                                                                                                                                                         | `400`, `404` para membresía inexistente o ajena, `409 stale_revision`, `409 responsible_unavailable`, `409 invalid_transition`; repetir misma asignación no incrementa.                                |
 | `POST operations/events/{reservation_id}/items/`            | `operation:manage`    | `{client_request_id, title, section, is_required, due_on?, responsible_membership_id?, notes?, place_before_item_id?}`.                                                            | `201` con ítem y `preparation_revision`; replay idéntico `200`.                                                                                                            | `400`, `404`, `409 idempotency_conflict`, `409 invalid_transition`; token igual con payload distinto se rechaza.                                                                                       |
@@ -696,13 +697,28 @@ estados. El rango explícito máximo es 366 días. Orden estable: `starts_at`, `
 - capacidad ausente en una organización válida del actor: `403 forbidden`;
 - CSRF ausente o inválido: `403` sin ejecutar el servicio;
 - organización ajena, `reservation_id`, `item_id`, responsable o referencia relacionada ajenos o
-  inexistentes: mismo `404 resource_unavailable`, sin confirmar existencia;
-- JSON, enum, fecha o texto inválidos: `400 invalid_request` con errores de campo seguros;
+  inexistentes: mismo `404 resource_not_available`, sin confirmar existencia;
+- JSON, filtro, enum, fecha o texto inválidos: `400 invalid_request`. Cuando la validación identifica
+  campos concretos, `error.fields` contiene exclusivamente nombres públicos y listas de mensajes
+  sanitizados; no repite valores recibidos ni detalles internos. Errores de forma general pueden
+  omitir `fields` o usar `_schema`;
 - conflicto de estado o revisión: `409` con código funcional estable.
 
 Las respuestas de conflicto solo incluyen la representación actual cuando el actor sigue
 autorizado dentro del mismo tenant. OpenAPI debe enumerar bodies, enums, formatos, respuestas y
 códigos funcionales; no se documentan respuestas más amplias que la materialización real.
+
+Ejemplo de validación segura:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "La solicitud no es válida.",
+    "fields": { "revision": ["Este campo es obligatorio."] }
+  }
+}
+```
 
 ## 10. Frontend mínimo
 

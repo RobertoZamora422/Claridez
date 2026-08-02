@@ -314,6 +314,7 @@ def test_event_list_paginates_before_representation_with_bounded_queries() -> No
     assert represent.call_count == 7
     assert len(captured) <= 10
     assert all("items" not in result["preparation"] for result in first_page["results"])
+    assert all("operational_notes" not in result["preparation"] for result in first_page["results"])
     first_ids = [UUID(str(result["reservation_id"])) for result in first_page["results"]]
     assert first_ids == reservation_ids[:7]
 
@@ -376,9 +377,16 @@ def test_operations_openapi_is_concrete_minimal_and_client_generation_ready() ->
     }
     assert components["EventListResponse"]["properties"]["results"]["type"] == "array"
     assert "next_cursor" in components["EventListResponse"]["required"]
+    assert "operational_notes" not in components["PreparationSummary"]["properties"]
+    assert "operational_notes" in components["PreparationDetail"]["properties"]
     assert components["OperationsErrorResponse"]["properties"]["error"] == {
         "$ref": "#/components/schemas/OperationsErrorDetail"
     }
+    error_detail = components["OperationsErrorDetail"]
+    assert "fields" in error_detail["properties"]
+    error_code_ref = error_detail["properties"]["code"]["$ref"]
+    error_codes = components[error_code_ref.rsplit("/", maxsplit=1)[-1]]["enum"]
+    assert "invalid_request" in error_codes
 
 
 @pytest.mark.django_db
@@ -599,6 +607,7 @@ def test_operations_http_detail_csrf_and_cross_tenant_are_backend_enforced() -> 
         HTTP_X_CSRFTOKEN=login_csrf,
     )
     assert login.status_code == 200
+    mutation_csrf = client.get("/api/v1/auth/csrf/").json()["csrf_token"]
     base = f"/api/v1/organizations/{creation.organization.pk}/operations"
 
     capabilities = client.get(f"{base}/capabilities/")
@@ -611,6 +620,33 @@ def test_operations_http_detail_csrf_and_cross_tenant_are_backend_enforced() -> 
     detail = client.get(f"{base}/events/{reservation['id']}/")
     assert detail.status_code == 200
     assert detail.json()["contact"]["phone_e164"] == "+593991234567"
+    event_list = client.get(f"{base}/events/")
+    assert event_list.status_code == 200
+    assert "operational_notes" not in event_list.json()["results"][0]["preparation"]
+    invalid_request = client.get(f"{base}/events/?page_size=0")
+    assert invalid_request.status_code == 400
+    assert invalid_request.json() == {
+        "error": {
+            "code": "invalid_request",
+            "message": "La solicitud no es válida.",
+            "fields": {"page_size": ["El valor está por debajo del mínimo permitido."]},
+        }
+    }
+    invalid_body = client.patch(
+        f"{base}/events/{reservation['id']}/preparation/",
+        data=json.dumps({"revision": "incorrecta"}),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=mutation_csrf,
+    )
+    assert invalid_body.status_code == 400
+    assert invalid_body.json()["error"] == {
+        "code": "invalid_request",
+        "message": "La solicitud no es válida.",
+        "fields": {
+            "revision": ["El valor no es válido."],
+            "operational_notes": ["Este campo es obligatorio."],
+        },
+    }
     missing_csrf = client.patch(
         f"{base}/events/{reservation['id']}/preparation/",
         data=json.dumps({"revision": 1, "operational_notes": "Preparación prioritaria"}),

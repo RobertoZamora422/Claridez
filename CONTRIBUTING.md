@@ -3,18 +3,22 @@
 ## Estado actual
 
 Claridez es un proyecto privado y propietario. El repositorio contiene toolchains reproducibles,
-PostgreSQL local, identidad y organizaciones, aislamiento multiempresa y el flujo funcional
-`claridez.commercial` de consulta a reserva confirmada.
+PostgreSQL local, identidad y organizaciones, aislamiento multiempresa, el flujo
+`claridez.commercial` de consulta a reserva confirmada y `claridez.operations` hasta ejecución
+completada.
 
-Toda contribución debe respetar [AGENTS.md](AGENTS.md), la [línea base del producto](docs/product/PRODUCT_BASELINE.md), los [ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
+Toda contribución debe respetar [AGENTS.md](AGENTS.md), el
+[Blueprint](docs/product/PRODUCT_BLUEPRINT.md), el
+[Roadmap](docs/product/PRODUCT_DELIVERY_ROADMAP.md), el [Handoff](docs/PROJECT_HANDOFF.md), los
+[ADR](docs/adr/README.md) y la [política de seguridad](SECURITY.md).
 
 ## Antes de realizar un cambio
 
-1. Confirma el alcance de la iteración autorizada.
-2. Revisa las fuentes de verdad aplicables.
-3. Comprueba el estado de Git y preserva cambios ajenos.
-4. Identifica si la propuesta altera una decisión arquitectónica.
-5. No presupongas reglas de negocio todavía no especificadas.
+1. Lee Blueprint, Roadmap y Handoff.
+2. Comprueba el estado real de Git, código, migraciones y configuración.
+3. Identifica la siguiente etapa incompleta y confirma su aprobación.
+4. Presenta solo un plan breve y decisiones bloqueantes.
+5. Identifica si la propuesta altera una decisión arquitectónica y preserva cambios ajenos.
 
 ## Cambios arquitectónicos
 
@@ -57,6 +61,7 @@ La reconstrucción de la plataforma local se documenta en [docs/architecture/LOC
 Desde la raíz se deben ejecutar, según el alcance del cambio:
 
 ```text
+npm run clean
 npm run format:check
 npm run lint
 npm run typecheck
@@ -112,3 +117,4 @@ El resumen final debe incluir:
 - Resultado observable de cada comprobación ejecutada.
 - Diferencias entre lo solicitado y lo realizado.
 - Riesgos, supuestos o validaciones pendientes.
+- Roadmap y Handoff actualizados, con la siguiente etapa exacta.

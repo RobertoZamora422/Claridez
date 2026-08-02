@@ -59,12 +59,8 @@ def _actor(request: Request) -> User | None:
 def _respond(operation: Callable[[], Any], *, created: bool = False) -> Response:
     try:
         result = operation()
-    except TenantAccessDenied:
-        return _error("resource_not_available", "El recurso no está disponible.", status=404)
-    except AuthorizationDenied:
-        return _error("forbidden", "La operación no está autorizada.", status=403)
-    except OperationsError as error:
-        return _error(error.code, error.message, status=error.status)
+    except (TenantAccessDenied, AuthorizationDenied, OperationsError) as error:
+        return _exception_response(error)
     return Response(result, status=201 if created else 200)
 
 
@@ -81,7 +77,42 @@ def _exception_response(error: Exception) -> Response:
 def _validated(serializer: Any) -> Response | None:
     if serializer.is_valid():
         return None
-    return _error("invalid_request", "La solicitud no es válida.", status=400)
+    return Response(
+        {
+            "error": {
+                "code": "invalid_request",
+                "message": "La solicitud no es válida.",
+                "fields": _safe_field_errors(serializer.errors),
+            }
+        },
+        status=400,
+    )
+
+
+def _safe_field_errors(errors: Any) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for field, field_errors in errors.items():
+        safe_field = "_schema" if field == "non_field_errors" else str(field)
+        errors_list = field_errors if isinstance(field_errors, list) else [field_errors]
+        result[safe_field] = [
+            _safe_validation_message(str(getattr(error, "code", "invalid")))
+            for error in errors_list
+        ]
+    return result
+
+
+def _safe_validation_message(code: str) -> str:
+    messages = {
+        "required": "Este campo es obligatorio.",
+        "blank": "Este campo no puede estar vacío.",
+        "null": "Este campo no puede ser nulo.",
+        "invalid_choice": "El valor no pertenece al catálogo permitido.",
+        "min_value": "El valor está por debajo del mínimo permitido.",
+        "max_value": "El valor supera el máximo permitido.",
+        "min_length": "El texto es más corto de lo permitido.",
+        "max_length": "El texto supera la longitud permitida.",
+    }
+    return messages.get(code, "El valor no es válido.")
 
 
 @method_decorator(csrf_protect, name="dispatch")

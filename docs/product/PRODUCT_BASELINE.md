@@ -1,15 +1,21 @@
 # Claridez — Línea base del producto v0.1
 
 - **Versión:** 0.1
-- **Estado:** Línea base aprobada para iniciar el producto
+- **Estado:** antecedente histórico aprobado de la inicialización
 - **Mercado inicial:** Ecuador
 - **Fecha:** 31 de julio de 2026
 
 ## Naturaleza de este documento
 
-Este documento registra las decisiones de producto aprobadas hasta la Iteración 0. **No es una especificación funcional completa** y no define de forma definitiva procesos, entidades, estados, cálculos, permisos, pantallas ni reglas de negocio.
+Este documento registra las decisiones de producto aprobadas hasta la Iteración 0. **No es una
+especificación funcional completa ni la fuente maestra vigente del destino.** Ese papel corresponde
+al [Blueprint maestro](PRODUCT_BLUEPRINT.md), y la secuencia actual al
+[Roadmap de entrega](PRODUCT_DELIVERY_ROADMAP.md).
 
-Cada flujo funcional deberá contar con una especificación separada antes de implementarse. Si una futura especificación necesita cambiar esta línea base, el cambio deberá revisarse y versionarse explícitamente.
+Se conserva para explicar el punto de partida y no compite con decisiones posteriores aprobadas.
+Las especificaciones 5.1 y 5.2 continúan gobernando sus contratos exactos. Una etapa futura puede
+implementarse desde Blueprint y Roadmap con un plan breve; solo necesita documentación adicional o
+ADR cuando exista una decisión realmente bloqueante o difícil de revertir.
 
 ## Identidad y propósito
 
@@ -91,7 +97,7 @@ Las versiones exactas y librerías auxiliares requieren una matriz de compatibil
 
 El Modelo de Conversión, la página pública y los dominios propios pertenecen a la visión y a un plan superior, pero no serán el primer flujo funcional.
 
-## Asuntos deliberadamente abiertos
+## Asuntos abiertos en la línea base histórica
 
 - Procesos y estados de cada área.
 - Matriz definitiva de autorización.
@@ -102,7 +108,9 @@ El Modelo de Conversión, la página pública y los dominios propios pertenecen 
 - Planes comerciales y capacidades por plan.
 - Requisitos detallados del Modelo de Conversión.
 
-Ninguno de estos asuntos debe resolverse implícitamente dentro de código de infraestructura o componentes visuales.
+Esta lista describe lo que estaba abierto en I0; varios destinos ya quedaron definidos en el
+Blueprint. Su estado de entrega se consulta exclusivamente en el Roadmap y no debe inferirse de
+esta lista histórica.
 
 El primer flujo vertical dejó de estar abierto: la especificación aprobada e implementada se
 encuentra en [Iteración 5.1 — De consulta a reserva confirmada](ITERATION_5_1_COMMERCIAL_FLOW.md) y

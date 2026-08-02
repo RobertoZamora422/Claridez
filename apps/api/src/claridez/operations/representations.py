@@ -154,7 +154,6 @@ def preparation_representation(
             "status": preparation.status,
             "revision": preparation.revision,
             "responsible": responsible_membership_summary(preparation.responsible_membership),
-            "operational_notes": preparation.operational_notes if include_items else "",
             "baseline_version": preparation.baseline_version,
             "ready_at": preparation.ready_at,
             "ready_by": historical_actor_summary(preparation.ready_by_membership),
@@ -168,6 +167,7 @@ def preparation_representation(
         },
     }
     if include_items:
+        payload["preparation"]["operational_notes"] = preparation.operational_notes
         payload["preparation"]["items"] = [
             item_representation(item) for item in preparation.items.all()
         ]

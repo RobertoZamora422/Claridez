@@ -211,7 +211,7 @@ export interface OperationEvent {
     status: OperationStatus;
     revision: number;
     responsible: OperationMembership | null;
-    operational_notes: string;
+    operational_notes?: string;
     baseline_version: string;
     ready_at: string | null;
     ready_by: HistoricalOperationActor | null;

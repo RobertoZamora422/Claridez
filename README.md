@@ -4,83 +4,83 @@
 
 *Todo tu negocio, claro y bajo control.*
 
-Claridez es una plataforma SaaS B2B multiempresa para ayudar a propietarios y administradores de salones y espacios de eventos a organizar, controlar y comprender su operación comercial, operativa y financiera.
+Claridez es una plataforma SaaS B2B privada, propietaria y multiempresa para organizar la gestión
+comercial, la agenda, la operación y las finanzas de salones y espacios de eventos. Es un proyecto
+nuevo y completamente independiente de RFM Core.
 
-## Estado del proyecto
+## Estado actual
 
-El repositorio completó la **Iteración 0 — Gobierno documental**, la **Iteración 1 — Toolchains
-reproducibles**, la **Iteración 2 — Plataforma local y configuración**, el spike técnico de la
-**Iteración 3 — Aislamiento multiempresa** y las subiteraciones **4.0 — Gobierno y descarte**, **4.1
-— Usuario primero**, **4.2 — Organizaciones y membresías**, **4.3 — Autenticación HTTP y sesiones
-de servidor** y el cierre integrado de autorización y aislamiento tenant. Contiene PostgreSQL local
-reproducible, identidad y sesiones locales, organizaciones, membresías, contexto organizacional y
-la primera tabla privada protegida por RLS. La Iteración 4, el primer flujo vertical de la
-Iteración 5.1, su endurecimiento 5.1.1, la refactorización estructural y CI de 5.1.2 y la
-implementación local de 5.2 están completados. `claridez.commercial` permite registrar personas y
-solicitudes, cotizar, aceptar y confirmar o cancelar reservas con agenda concurrente y RLS;
-`claridez.operations` convierte cada confirmación en una preparación operativa con checklist,
-responsables, estados y defensas PostgreSQL. El cutover de 5.2 no se ha desplegado.
+Las Iteraciones 0–4, el flujo comercial 5.1, sus cierres 5.1.1/5.1.2 y la implementación local de
+5.2 están completadas. El backend contiene identidad, sesiones, organizaciones, membresías,
+autorización tenant-aware, RLS, personas, solicitudes, cotizaciones versionadas, agenda de espacio
+único, reservas y preparación/ejecución operativa. La web cubre esos flujos en escritorio y móvil.
 
-Todavía no existen:
+El cutover de 5.2 no se ha ejecutado sobre un entorno destino. No existen staging, producción,
+proveedor productivo de correo, contratos/archivos, módulos financieros, portal ni los módulos
+posteriores definidos en el Roadmap.
 
-- Módulos financieros.
-- Proveedor productivo de correo o proveedores de identidad externos.
-- Despliegues o ambientes remotos.
+El destino completo del producto ya está definido; su implementación no se presume terminada:
 
-## Decisiones aprobadas
+- [Blueprint maestro del producto funcional](docs/product/PRODUCT_BLUEPRINT.md)
+- [Roadmap completo de entrega](docs/product/PRODUCT_DELIVERY_ROADMAP.md)
+- [Handoff para continuidad](docs/PROJECT_HANDOFF.md)
 
-- Repositorio privado, propietario y organizado como monorepo.
-- Proyecto completamente independiente de RFM Core.
-- Monolito modular; no se utilizarán microservicios.
-- Backend con Django y Django REST Framework.
-- Frontend con React, TypeScript estricto y Vite.
-- PostgreSQL desde desarrollo hasta producción.
-- API REST JSON versionada mediante `/api/v1`.
-- Contrato OpenAPI y futuro cliente TypeScript generado.
-- Arquitectura multiempresa desde el inicio.
-- Todo dato privado deberá pertenecer a una organización.
-- Los usuarios podrán pertenecer a varias organizaciones mediante membresías.
-- Identidad local desacoplada con sesiones Django de servidor.
-- Aislamiento tenant-aware en la aplicación más PostgreSQL RLS como defensa en profundidad.
+La siguiente etapa es **P6 — Configuración del negocio, sedes y catálogo**. No hay una etapa
+funcional activa: se debe presentar un plan breve y recibir aprobación antes de implementarla.
 
-La matriz exacta y su evidencia se documentan en [docs/architecture/TOOLCHAIN_COMPATIBILITY.md](docs/architecture/TOOLCHAIN_COMPATIBILITY.md).
+## Fuentes de verdad
 
-## Alcance inicial
+Antes de trabajar:
 
-El mercado inicial es Ecuador. La zona horaria inicial es `America/Guayaquil` y la moneda inicial es USD, aunque ambas deberán configurarse por organización.
+1. leer [AGENTS.md](AGENTS.md);
+2. leer Blueprint, Roadmap y Handoff;
+3. revisar la especificación funcional y los ADR aplicables;
+4. comprobar Git, código, migraciones, configuración y pruebas reales.
 
-Claridez no ofrecerá contabilidad formal ni facturación electrónica en la V1. El Modelo de Conversión y los dominios propios forman parte de la visión futura, pero no serán el primer flujo funcional. Tampoco se construirá un editor web libre.
+Los ADR aceptados gobiernan decisiones arquitectónicas. El Blueprint gobierna el destino del
+producto; las especificaciones aprobadas gobiernan sus flujos exactos; el Roadmap gobierna orden y
+estado; el Handoff conserva el punto de continuidad. La
+[línea base v0.1](docs/product/PRODUCT_BASELINE.md) y el
+[roadmap de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md) permanecen como historia,
+no compiten con las fuentes maestras actuales.
 
-La línea base aprobada se encuentra en [docs/product/PRODUCT_BASELINE.md](docs/product/PRODUCT_BASELINE.md). No constituye una especificación funcional completa.
+## Arquitectura vigente
 
-## Documentación
+- Monorepo y monolito modular; no se utilizan microservicios.
+- Backend Django y Django REST Framework en `apps/api`.
+- Frontend React, TypeScript estricto y Vite en `apps/web`.
+- PostgreSQL en desarrollo, CI, staging y producción.
+- API REST JSON versionada bajo `/api/v1` y OpenAPI generado/validado.
+- Sesiones Django de servidor, CSRF y autorización backend-first por capacidades.
+- Todo dato privado pertenece a una organización y usa aplicación tenant-aware más RLS como
+  defensa en profundidad.
+- Django y React/Vite se ejecutan nativamente en Windows; solo PostgreSQL está contenerizado.
+
+Las decisiones exactas están en [docs/adr](docs/adr/README.md) y la plataforma local en
+[LOCAL_PLATFORM.md](docs/architecture/LOCAL_PLATFORM.md).
+
+## Documentación principal
 
 - [Índice documental](docs/README.md)
-- [Línea base del producto v0.1](docs/product/PRODUCT_BASELINE.md)
-- [Especificación funcional de la Iteración 5.1](docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md)
-- [Cierre de la Iteración 5.1.1](docs/product/ITERATION_5_1_1_HARDENING.md)
-- [Mantenibilidad y CI de la Iteración 5.1.2](docs/product/ITERATION_5_1_2_MAINTAINABILITY_CI.md)
-- [Especificación implementada de la Iteración 5.2](docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md)
-- [Cutover obligatorio de la Iteración 5.2](docs/architecture/ITERATION_5_2_CUTOVER.md)
-- [Roadmap técnico de inicialización](docs/architecture/INITIALIZATION_ROADMAP.md)
-- [Matriz de compatibilidad de toolchains](docs/architecture/TOOLCHAIN_COMPATIBILITY.md)
-- [Plataforma local y configuración](docs/architecture/LOCAL_PLATFORM.md)
-- [Protocolo del spike de tenancy](docs/architecture/TENANCY_SPIKE_PROTOCOL.md)
-- [Resultados del spike de tenancy](docs/architecture/TENANCY_SPIKE_RESULTS.md)
-- [Modelo de amenazas del spike](docs/security/TENANCY_SPIKE_THREAT_MODEL.md)
-- [Registro de decisiones arquitectónicas](docs/adr/README.md)
-- [Documentos oficiales de marca](docs/brand/README.md)
-- [Reglas para colaboradores y agentes](AGENTS.md)
-- [Guía de contribución](CONTRIBUTING.md)
-- [Política de seguridad](SECURITY.md)
+- [Blueprint maestro](docs/product/PRODUCT_BLUEPRINT.md)
+- [Roadmap de entrega](docs/product/PRODUCT_DELIVERY_ROADMAP.md)
+- [Handoff](docs/PROJECT_HANDOFF.md)
+- [Especificación comercial 5.1](docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md)
+- [Cierre 5.1.1](docs/product/ITERATION_5_1_1_HARDENING.md)
+- [Mantenibilidad y CI 5.1.2](docs/product/ITERATION_5_1_2_MAINTAINABILITY_CI.md)
+- [Especificación operativa 5.2](docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md)
+- [Cutover obligatorio 5.2](docs/architecture/ITERATION_5_2_CUTOVER.md)
+- [Registro de ADR](docs/adr/README.md)
+- [Marca](docs/brand/README.md)
+- [Contribución](CONTRIBUTING.md) y [seguridad](SECURITY.md)
 
-## Desarrollo
+## Desarrollo local
 
-Requisitos fijados:
+Versiones fijadas:
 
 - Python 3.13.14 y uv 0.12.0.
 - Node.js 24.18.1 y npm 11.16.0.
-- Docker Desktop con Docker Compose para ejecutar únicamente PostgreSQL 17.10 local.
+- Docker Desktop con Docker Compose para PostgreSQL 17.10.
 
 Instalación reproducible desde la raíz:
 
@@ -89,7 +89,7 @@ uv --directory apps/api sync --locked
 npm ci
 ```
 
-Preparación inicial de PostgreSQL, después de crear un `.env` local a partir de `.env.example`:
+Después de crear `.env` desde `.env.example`:
 
 ```text
 npm run db:start
@@ -99,11 +99,10 @@ npm run db:check
 npm run auth:bootstrap
 ```
 
-La guía completa, perfiles y protecciones se encuentran en [docs/architecture/LOCAL_PLATFORM.md](docs/architecture/LOCAL_PLATFORM.md).
-
 Comandos oficiales:
 
 ```text
+npm run clean
 npm run format
 npm run format:check
 npm run lint
@@ -113,17 +112,30 @@ npm run build
 npm run check
 npm run check:all
 npm run audit
-npm run auth:bootstrap
 ```
 
-`format` modifica archivos; `check` usa la variante de formato sin escritura. `check:all` añade PostgreSQL real, conexión y migraciones. Las auditorías permanecen separadas porque consultan servicios de vulnerabilidades.
+`clean` elimina únicamente cachés, cobertura, OpenAPI, builds y temporales regenerables dentro del
+repositorio; acepta `--dry-run` y preserva `.git`, entornos, dependencias, `.env`, bases, secretos y
+archivos del usuario. `format` modifica archivos. `check:all` añade PostgreSQL real, migraciones,
+RLS y concurrencia. `audit` consulta servicios externos.
 
-El protocolo, los resultados y el modelo de amenazas del spike se conservan como evidencia
-histórica. Su código y scripts experimentales fueron descartados en 4.0; la implementación
-productiva independiente comienza con `OrganizationSettings` y `authorized_tenant_scope`.
+## Modelo de trabajo
+
+1. Leer Blueprint, Roadmap y Handoff.
+2. Confirmar el estado real del repositorio.
+3. Identificar la siguiente etapa incompleta.
+4. Presentar únicamente un plan breve y decisiones bloqueantes.
+5. Recibir aprobación.
+6. Implementar la etapa completa.
+7. Ejecutar validaciones.
+8. Actualizar Roadmap y Handoff.
+9. Reportar el resultado visible.
+10. Indicar exactamente la siguiente etapa.
+
+No se exige una especificación extensa antes de cada módulo. Los ADR se reservan para decisiones
+transversales, irreversibles o relacionadas con datos, seguridad, infraestructura, concurrencia o
+límites arquitectónicos.
 
 ## Propiedad
 
-Software privado y propietario.
-
-Todos los derechos reservados.
+Software privado y propietario. Todos los derechos reservados.

@@ -1,9 +1,12 @@
-# Roadmap técnico de inicialización
+# Roadmap técnico de inicialización — histórico
 
 - **Estado de la Iteración 0:** completada documentalmente el 31 de julio de 2026
-- **Alcance:** preparación técnica hasta habilitar el primer flujo vertical
+- **Alcance:** evidencia de preparación técnica hasta el primer flujo vertical
+- **Vigencia:** no gobierna la secuencia posterior; consultar el
+  [Roadmap completo de entrega](../product/PRODUCT_DELIVERY_ROADMAP.md)
 
-Este roadmap ordena la inicialización del producto. No es un cronograma comercial ni una especificación funcional.
+Este roadmap conserva cómo se inicializó el producto. No es un cronograma comercial, una
+especificación funcional ni el roadmap general vigente.
 
 ## Principios de ejecución
 

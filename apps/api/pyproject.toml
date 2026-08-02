@@ -1,7 +1,7 @@
 [project]
 name = "claridez-api"
 version = "0.0.0"
-description = "Esqueleto técnico de la API privada de Claridez."
+description = "API privada multiempresa de Claridez."
 requires-python = "==3.13.*"
 dependencies = [
   "Django==5.2.16",
@@ -44,7 +44,7 @@ quote-style = "double"
 [tool.mypy]
 python_version = "3.13"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
-files = ["manage.py", "src", "tests"]
+files = ["manage.py", "src", "tests", "../../tools/clean_workspace.py"]
 mypy_path = ["src"]
 strict = true
 show_error_codes = true

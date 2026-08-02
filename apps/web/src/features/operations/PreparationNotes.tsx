@@ -12,7 +12,7 @@ export function PreparationNotes({
   base: string;
   onSaved: (updated: OperationEvent) => void;
 }) {
-  const [notes, setNotes] = useState(event.preparation.operational_notes);
+  const [notes, setNotes] = useState(event.preparation.operational_notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
