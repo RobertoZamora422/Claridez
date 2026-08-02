@@ -80,6 +80,12 @@ export function App() {
       onSwitch={() => {
         setOrganization(null);
       }}
+      onOrganizationUpdated={(name) => {
+        setOrganization((current) => (current ? { ...current, name } : current));
+        setOrganizations((current) =>
+          current.map((item) => (item.id === organization.id ? { ...item, name } : item)),
+        );
+      }}
       onSignedOut={() => {
         setUser(null);
         setOrganization(null);

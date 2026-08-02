@@ -2,7 +2,7 @@
 
 **Gestión integral para salones y espacios de eventos.**
 
-*Todo tu negocio, claro y bajo control.*
+*Gestiona con Claridez* - *Todo tu negocio, claro y bajo control.*
 
 Claridez es una plataforma SaaS B2B privada, propietaria y multiempresa para organizar la gestión
 comercial, la agenda, la operación y las finanzas de salones y espacios de eventos. Es un proyecto

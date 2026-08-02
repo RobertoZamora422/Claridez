@@ -6,10 +6,11 @@ from uuid import UUID
 
 from django.utils import timezone
 
+from claridez.catalog.models import EventType
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability, require_capability
 from claridez.organizations.exceptions import AuthorizationDenied
-from claridez.organizations.models import Membership, OrganizationSettings
+from claridez.organizations.models import Membership, OrganizationSettings, Space
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 
 from ..errors import conflict, invalid, unavailable
@@ -45,7 +46,9 @@ def _responsible_membership(
 def _get_request(
     organization_id: UUID, request_id: UUID | str, *, lock: bool = False
 ) -> EventRequest:
-    rows = EventRequest.objects.select_related("person")
+    rows = EventRequest.objects.select_related(
+        "person", "event_type_definition", "space", "space__venue"
+    )
     if lock:
         rows = rows.select_for_update()
     try:
@@ -54,12 +57,36 @@ def _get_request(
         raise unavailable("La solicitud") from None
 
 
+def _event_type(organization_id: UUID, reference: UUID | str) -> EventType:
+    try:
+        return EventType.objects.get(
+            organization_id=organization_id,
+            pk=_uuid(reference, "El tipo de evento"),
+            is_active=True,
+        )
+    except EventType.DoesNotExist:
+        raise unavailable("El tipo de evento") from None
+
+
+def _space(organization_id: UUID, reference: UUID | str) -> Space:
+    try:
+        return Space.objects.select_related("venue").get(
+            organization_id=organization_id,
+            pk=_uuid(reference, "El espacio"),
+            is_active=True,
+            venue__is_active=True,
+        )
+    except Space.DoesNotExist:
+        raise unavailable("El espacio") from None
+
+
 def create_event_request(
     actor: User,
     organization_reference: UUID | str,
     *,
     person_id: UUID | str,
-    event_type: str,
+    event_type_id: UUID | str,
+    space_id: UUID | str,
     starts_at: datetime,
     ends_at: datetime,
     estimated_guests: int,
@@ -73,13 +100,12 @@ def create_event_request(
         actor, organization_reference, Capability.SALES_MANAGE
     ) as authorization:
         person = _get_person(authorization.organization_id, person_id)
+        event_type = _event_type(authorization.organization_id, event_type_id)
+        space = _space(authorization.organization_id, space_id)
         responsible = _responsible_membership(authorization, responsible_membership_id)
         start, end = _validate_interval(starts_at, ends_at)
         settings = OrganizationSettings.objects.get(organization_id=authorization.organization_id)
         try:
-            canonical_event_type = canonical_text(
-                event_type, field="El tipo de evento", max_length=100
-            )
             canonical_need = canonical_text(
                 general_need, field="La necesidad general", max_length=500
             )
@@ -95,7 +121,9 @@ def create_event_request(
         row = EventRequest.objects.create(
             organization_id=authorization.organization_id,
             person=person,
-            event_type=canonical_event_type,
+            event_type_definition=event_type,
+            space=space,
+            event_type=event_type.name,
             starts_at=start,
             ends_at=end,
             event_timezone=settings.timezone,
@@ -116,9 +144,9 @@ def list_event_requests(
         actor, organization_reference, Capability.SALES_READ
     ) as authorization:
         _expire_overdue(authorization)
-        rows = EventRequest.objects.select_related("person").filter(
-            organization_id=authorization.organization_id
-        )
+        rows = EventRequest.objects.select_related(
+            "person", "event_type_definition", "space", "space__venue"
+        ).filter(organization_id=authorization.organization_id)
         if status:
             rows = rows.filter(status=status)
         return tuple(_request_data(row, authorization) for row in rows.order_by("starts_at", "id"))
@@ -152,6 +180,8 @@ def update_event_request(
         if row.status not in {EventRequest.Status.NEW, EventRequest.Status.QUOTED}:
             raise conflict("invalid_transition", "La solicitud ya no puede editarse.")
         original = (
+            row.event_type_definition_id,
+            row.space_id,
             row.event_type,
             row.starts_at,
             row.ends_at,
@@ -163,10 +193,12 @@ def update_event_request(
             row.responsible_membership_id,
         )
         try:
-            if "event_type" in changes:
-                row.event_type = canonical_text(
-                    str(changes["event_type"]), field="El tipo de evento", max_length=100
-                )
+            if "event_type_id" in changes:
+                event_type = _event_type(authorization.organization_id, changes["event_type_id"])
+                row.event_type_definition = event_type
+                row.event_type = event_type.name
+            if "space_id" in changes:
+                row.space = _space(authorization.organization_id, changes["space_id"])
             if "general_need" in changes:
                 row.general_need = canonical_text(
                     str(changes["general_need"]), field="La necesidad general", max_length=500
@@ -197,6 +229,8 @@ def update_event_request(
         except (TypeError, ValueError) as error:
             raise invalid(str(error)) from error
         current = (
+            row.event_type_definition_id,
+            row.space_id,
             row.event_type,
             row.starts_at,
             row.ends_at,

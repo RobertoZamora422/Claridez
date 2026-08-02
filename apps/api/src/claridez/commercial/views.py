@@ -248,7 +248,8 @@ class EventRequestListCreateView(CommercialAPIView):
                 actor,
                 organization_id,
                 person_id=data["person_id"],
-                event_type=str(data["event_type"]),
+                event_type_id=data["event_type_id"],
+                space_id=data["space_id"],
                 starts_at=data["starts_at"],
                 ends_at=data["ends_at"],
                 estimated_guests=int(data["estimated_guests"]),
@@ -327,6 +328,7 @@ class EventRequestCloseView(CommercialAPIView):
 class AvailabilityView(CommercialAPIView):
     @extend_schema(
         parameters=[
+            OpenApiParameter("space_id", str, required=True),
             OpenApiParameter("from", str, required=True),
             OpenApiParameter("to", str, required=True),
         ],
@@ -339,6 +341,7 @@ class AvailabilityView(CommercialAPIView):
             return actor
         serializer = AvailabilityQuerySerializer(
             data={
+                "space_id": request.query_params.get("space_id"),
                 "starts_at": request.query_params.get("from"),
                 "ends_at": request.query_params.get("to"),
             }
@@ -349,6 +352,7 @@ class AvailabilityView(CommercialAPIView):
             lambda: list_availability(
                 actor,
                 organization_id,
+                space_id=serializer.validated_data["space_id"],
                 starts_at=serializer.validated_data["starts_at"],
                 ends_at=serializer.validated_data["ends_at"],
             )

@@ -48,8 +48,16 @@ def _person_data(person: Person, *, include_contact: bool = True) -> dict[str, A
 
 
 def _line_data(line: QuotationLine) -> dict[str, Any]:
+    catalog_revision = (
+        line.catalog_item_revision if line.catalog_item_revision_id is not None else None
+    )
     return {
         "id": line.pk,
+        "source": line.source,
+        "catalog_item_id": catalog_revision.item_id if catalog_revision is not None else None,
+        "catalog_item_revision_id": line.catalog_item_revision_id,
+        "catalog_price_id": line.catalog_price_id,
+        "package_components": line.package_components_snapshot,
         "position": line.position,
         "description": line.description,
         "unit_label": line.unit_label or None,
@@ -64,6 +72,7 @@ def _line_data(line: QuotationLine) -> dict[str, Any]:
 def _reservation_summary(row: Reservation) -> dict[str, Any]:
     return {
         "id": row.pk,
+        "space_id": row.space_id,
         "status": row.status,
         "starts_at": row.event_interval.lower,
         "ends_at": row.event_interval.upper,
@@ -99,7 +108,13 @@ def _request_data(
     return {
         "id": event_request.pk,
         "person": person,
+        "event_type_id": event_request.event_type_definition_id,
         "event_type": event_request.event_type,
+        "venue": {
+            "id": event_request.space.venue_id,
+            "name": event_request.space.venue.name,
+        },
+        "space": {"id": event_request.space_id, "name": event_request.space.name},
         "starts_at": event_request.starts_at,
         "ends_at": event_request.ends_at,
         "event_timezone": event_request.event_timezone,
@@ -126,9 +141,11 @@ def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, 
         if row.status == QuotationVersion.Status.ISSUED and row.valid_until <= timezone.now()
         else row.status
     )
-    lines = QuotationLine.objects.filter(
-        organization_id=row.organization_id, quotation_version=row
-    ).order_by("position", "id")
+    lines = (
+        QuotationLine.objects.select_related("catalog_item_revision")
+        .filter(organization_id=row.organization_id, quotation_version=row)
+        .order_by("position", "id")
+    )
     reservation = Reservation.objects.filter(
         organization_id=row.organization_id, quotation_version=row
     ).first()
@@ -153,7 +170,10 @@ def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, 
         "organization_name": row.organization_name_snapshot,
         "person": person,
         "event": {
+            "event_type_id": row.event_type_definition_snapshot_id,
             "event_type": row.event_type_snapshot,
+            "venue": {"id": row.venue_snapshot_id, "name": row.venue_name_snapshot},
+            "space": {"id": row.space_snapshot_id, "name": row.space_name_snapshot},
             "starts_at": row.event_starts_at_snapshot,
             "ends_at": row.event_ends_at_snapshot,
             "timezone": row.event_timezone_snapshot,

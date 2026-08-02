@@ -9,8 +9,6 @@ Este archivo establece las reglas obligatorias para cualquier persona o agente a
 ## 2. Identidad e independencia
 
 - El producto se llama **Claridez**.
-- Claridez es un proyecto nuevo y completamente independiente de RFM Core.
-- Está prohibido copiar de RFM Core código, migraciones, estructura interna, historial Git, configuración, secretos, datos o decisiones no verificadas.
 - Una similitud de tecnología no autoriza reutilización de implementación.
 - El repositorio es privado y el software es propietario.
 - No se debe crear una licencia de código abierto ni inventar términos legales.
@@ -95,8 +93,8 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 
 ## 8. Alcance técnico establecido
 
-Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1 y la implementación local de la Iteración
-5.2 están completadas. 4.1 incorpora el usuario
+Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
+5.2 y P6 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -105,20 +103,23 @@ RLS. 5.1 incorpora `claridez.commercial`, su API y el frontend de consulta a res
 gobernados por `docs/product/ITERATION_5_1_COMMERCIAL_FLOW.md` y ADR 0012. 5.2 incorpora
 `claridez.operations`, su API y frontend, coordinación comercial atómica, RLS, integridad y cutover,
 gobernados por `docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md` y ADR 0013; su despliegue y
-cutover sobre un entorno destino no se presumen ejecutados. Django y React/Vite se ejecutan
+cutover sobre un entorno destino no se presumen ejecutados. P6 incorpora configuración funcional,
+sedes, espacios, catálogo versionado, precios/vigencias y su integración comercial y operativa,
+gobernados por ADR 0014. Su administración web no habilita membresías propietarias ni acciones
+sensibles sujetas a MFA. Django y React/Vite se ejecutan
 nativamente en Windows; únicamente PostgreSQL está contenerizado. El Blueprint define el destino,
 pero no autoriza por sí solo una etapa. Hasta que el propietario apruebe la siguiente etapa del
 Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P6 o etapas posteriores.
+- Módulos o pantallas de P7 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
 Los endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`, los nueve endpoints
 de autenticación de ADR 0010, las cinco operaciones organizacionales de solo lectura/contexto de
-ADR 0011, las operaciones comerciales de la especificación 5.1 y las operaciones de la
-especificación 5.2. PostgreSQL local se publica solo
+ADR 0011, las operaciones comerciales de la especificación 5.1, las operaciones de la
+especificación 5.2 y las operaciones funcionales P6 de ADR 0014. PostgreSQL local se publica solo
 sobre loopback. Django normal usa `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
 reservado al bootstrap local explícito.
@@ -127,7 +128,7 @@ reservado al bootstrap local explícito.
 servicios aprobados. No concede privilegios técnicos. `claridez_app` no tiene `DELETE` sobre
 organizaciones, membresías, `OrganizationSettings` ni las tablas comerciales salvo
 `QuotationLine`, cuyo reemplazo en borrador requiere borrado controlado. Tampoco tiene `DELETE`
-sobre las tablas operativas.
+sobre las tablas operativas, sedes, espacios ni tablas de catálogo.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.
@@ -189,8 +190,7 @@ El ciclo permanente es:
 10. Indicar exactamente la siguiente etapa.
 
 Se preserva trabajo existente no relacionado. No se realizan remotos, despliegues ni acciones
-externas sin autorización explícita. Los commits son ejecutados exclusivamente por el propietario;
-los agentes automatizados no crean commits.
+externas sin autorización explícita.
 
 ### Comandos oficiales
 

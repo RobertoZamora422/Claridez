@@ -24,7 +24,7 @@ from .exceptions import (
     OrganizationSlugConflict,
     UserNotActive,
 )
-from .models import Membership, Organization, OrganizationSettings
+from .models import Membership, Organization, OrganizationSettings, Space, Venue
 from .normalization import canonicalize_organization_name, canonicalize_organization_slug
 
 BOOTSTRAP_ADVISORY_LOCK_KEY = int.from_bytes(b"CLARIDEZ", byteorder="big", signed=False)
@@ -140,9 +140,23 @@ def create_organization(
             with authorized_tenant_scope(
                 owner,
                 organization.pk,
-                Capability.ORGANIZATION_SETTINGS_UPDATE,
+                Capability.BUSINESS_CONFIGURATION_MANAGE,
             ):
                 OrganizationSettings.objects.create(organization=organization)
+                venue = Venue.objects.create(
+                    organization=organization,
+                    name="Sede principal",
+                    location_reference="",
+                    is_primary=True,
+                    is_active=True,
+                )
+                Space.objects.create(
+                    organization=organization,
+                    venue=venue,
+                    name="Espacio principal",
+                    is_primary=True,
+                    is_active=True,
+                )
             return OrganizationCreation(organization, owner_membership)
     except IntegrityError as error:
         if _constraint_name(error) == "organizations_organization_slug_unique":

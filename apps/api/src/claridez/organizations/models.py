@@ -12,11 +12,15 @@ from django.db.models.functions import Trim
 from django.utils import timezone
 
 from .normalization import (
+    MAX_BUSINESS_LABEL_LENGTH,
+    MAX_LOCATION_REFERENCE_LENGTH,
     MAX_ORGANIZATION_NAME_LENGTH,
     MAX_ORGANIZATION_SLUG_LENGTH,
     MAX_TIMEZONE_LENGTH,
     PostgreSQLTimezoneIsValid,
+    canonicalize_business_label,
     canonicalize_currency,
+    canonicalize_location_reference,
     canonicalize_organization_name,
     canonicalize_organization_slug,
     canonicalize_timezone,
@@ -220,3 +224,112 @@ class OrganizationSettings(models.Model):
         self.currency = canonicalize_currency(self.currency)
         self.timezone = canonicalize_timezone(self.timezone)
         super().clean()
+
+
+class Venue(models.Model):
+    """Sede privada propiedad de la configuración organizacional."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.PROTECT, related_name="venues", db_index=False
+    )
+    name = models.CharField(max_length=MAX_BUSINESS_LABEL_LENGTH)
+    location_reference = models.CharField(max_length=MAX_LOCATION_REFERENCE_LENGTH, blank=True)
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="organizations_venue_org_id_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "name"], name="organizations_venue_org_name_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=models.Q(is_primary=True),
+                name="organizations_venue_one_primary_uq",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(name=Trim("name")) & ~models.Q(name=""),
+                name="organizations_venue_name_canonical",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(location_reference="")
+                | models.Q(location_reference=Trim("location_reference")),
+                name="organizations_venue_location_canonical",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(is_primary=False) | models.Q(is_active=True),
+                name="organizations_venue_primary_active",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="organizations_venue_revision_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.name = canonicalize_business_label(self.name, field="El nombre de la sede")
+        self.location_reference = canonicalize_location_reference(self.location_reference)
+        super().save(*args, **kwargs)
+
+
+class Space(models.Model):
+    """Espacio reservable privado dentro de una sede."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.PROTECT, related_name="spaces", db_index=False
+    )
+    venue = models.ForeignKey(
+        Venue, on_delete=models.PROTECT, related_name="spaces", db_index=False
+    )
+    name = models.CharField(max_length=MAX_BUSINESS_LABEL_LENGTH)
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["venue__name", "name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="organizations_space_org_id_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "venue", "name"],
+                name="organizations_space_org_venue_name_uq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=models.Q(is_primary=True),
+                name="organizations_space_one_primary_uq",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(name=Trim("name")) & ~models.Q(name=""),
+                name="organizations_space_name_canonical",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(is_primary=False) | models.Q(is_active=True),
+                name="organizations_space_primary_active",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="organizations_space_revision_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.venue.name} · {self.name}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.name = canonicalize_business_label(self.name, field="El nombre del espacio")
+        super().save(*args, **kwargs)

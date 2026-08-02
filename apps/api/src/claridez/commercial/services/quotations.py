@@ -12,6 +12,7 @@ from django.db.models import Max
 from django.utils import timezone
 from psycopg.types.range import Range
 
+from claridez.catalog.services import resolve_catalog_line
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.models import Organization, OrganizationSettings
@@ -80,7 +81,12 @@ def _new_version(
         person_name_snapshot=person.full_name,
         person_phone_snapshot=person.phone_e164,
         person_email_snapshot=person.email,
+        event_type_definition_snapshot=event_request.event_type_definition,
         event_type_snapshot=event_request.event_type,
+        venue_snapshot=event_request.space.venue,
+        venue_name_snapshot=event_request.space.venue.name,
+        space_snapshot=event_request.space,
+        space_name_snapshot=event_request.space.name,
         event_starts_at_snapshot=event_request.starts_at,
         event_ends_at_snapshot=event_request.ends_at,
         event_timezone_snapshot=event_request.event_timezone,
@@ -163,7 +169,12 @@ def create_quotation_version(
 def _get_quotation(
     organization_id: UUID, quotation_id: UUID | str, *, lock: bool = False
 ) -> Quotation:
-    rows = Quotation.objects.select_related("event_request__person")
+    rows = Quotation.objects.select_related(
+        "event_request__person",
+        "event_request__event_type_definition",
+        "event_request__space",
+        "event_request__space__venue",
+    )
     if lock:
         rows = rows.select_for_update()
     try:
@@ -234,17 +245,35 @@ def replace_quotation_draft(
         discounts = Decimal("0.00")
         for position, raw in enumerate(lines, start=1):
             try:
-                description = canonical_text(
-                    str(raw["description"]), field="La descripción", max_length=240
-                )
-                unit_label = canonical_optional_text(
-                    raw.get("unit_label"), field="La unidad", max_length=40
-                )
                 quantity = Decimal(str(raw["quantity"])).quantize(Decimal("0.001"))
-                unit_price = money(Decimal(str(raw["unit_price"])))
                 discount_amount = money(Decimal(str(raw.get("discount_amount", 0))))
             except (KeyError, ValueError, ArithmeticError) as error:
                 raise invalid("Una línea de cotización no es válida.") from error
+            catalog_item_id = raw.get("catalog_item_id")
+            if catalog_item_id is None:
+                try:
+                    description = canonical_text(
+                        str(raw["description"]), field="La descripción", max_length=240
+                    )
+                    unit_label = canonical_optional_text(
+                        raw.get("unit_label"), field="La unidad", max_length=40
+                    )
+                    unit_price = money(Decimal(str(raw["unit_price"])))
+                except (KeyError, ValueError, ArithmeticError) as error:
+                    raise invalid("Una línea ad hoc no es válida.") from error
+                source = QuotationLine.Source.AD_HOC
+                catalog_revision_id = None
+                catalog_price_id = None
+                package_components: list[dict[str, Any]] = []
+            else:
+                catalog = resolve_catalog_line(authorization, item_id=catalog_item_id)
+                description = str(catalog["description"])
+                unit_label = str(catalog["unit_label"])
+                unit_price = money(Decimal(str(catalog["unit_price"])))
+                source = QuotationLine.Source.CATALOG
+                catalog_revision_id = catalog["revision_id"]
+                catalog_price_id = catalog["price_id"]
+                package_components = list(catalog["package_components"])
             line_subtotal = money(quantity * unit_price)
             if (
                 quantity <= 0
@@ -258,6 +287,10 @@ def replace_quotation_draft(
                 QuotationLine(
                     organization_id=authorization.organization_id,
                     quotation_version=draft,
+                    source=source,
+                    catalog_item_revision_id=catalog_revision_id,
+                    catalog_price_id=catalog_price_id,
+                    package_components_snapshot=package_components,
                     position=position,
                     description=description,
                     unit_label=unit_label,
@@ -344,12 +377,12 @@ def accept_quotation_version(
     with authorized_tenant_scope(
         actor, organization_reference, Capability.SALES_MANAGE
     ) as authorization:
-        _lock_organization_schedule(authorization.organization_id)
         quotation = _get_quotation(authorization.organization_id, quotation_id, lock=True)
         event_request = _get_request(
             authorization.organization_id, quotation.event_request_id, lock=True
         )
         row = _get_version(authorization.organization_id, quotation, version, lock=True)
+        _lock_organization_schedule(authorization.organization_id, row.space_snapshot_id)
         existing = Reservation.objects.filter(
             organization_id=authorization.organization_id, quotation_version=row
         ).first()
@@ -398,6 +431,7 @@ def accept_quotation_version(
                     organization_id=authorization.organization_id,
                     event_request=event_request,
                     quotation_version=row,
+                    space_id=row.space_snapshot_id,
                     event_interval=Range(
                         row.event_starts_at_snapshot,
                         row.event_ends_at_snapshot,

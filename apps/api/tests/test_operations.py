@@ -24,6 +24,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 
+from claridez.catalog.services import create_event_type, list_event_types
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import Reservation
 from claridez.commercial.services import (
@@ -35,10 +36,6 @@ from claridez.commercial.services import (
     create_quotation,
     issue_quotation_version,
     replace_quotation_draft,
-)
-from claridez.commercial.services.reservations import (
-    _cancel_reservation_commercial,
-    _confirm_reservation_commercial,
 )
 from claridez.identity.models import User
 from claridez.operations.cutover import verify_operations_cutover
@@ -56,6 +53,7 @@ from claridez.operations.services import (
     update_item,
 )
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.configuration_services import list_venues
 from claridez.organizations.exceptions import AuthorizationDenied
 from claridez.organizations.models import Membership
 from claridez.organizations.services import add_membership, create_organization
@@ -102,11 +100,19 @@ def _accepted(
         origin_detail=None,
     )
     starts_at = timezone.now() + timedelta(days=days)
+    event_type = next(
+        (row for row in list_event_types(owner, organization_id) if row["name"] == "Boda"),
+        None,
+    )
+    if event_type is None:
+        event_type = create_event_type(owner, organization_id, name="Boda")
+    space_id = list_venues(owner, organization_id)[0]["spaces"][0]["id"]
     event_request = create_event_request(
         owner,
         organization_id,
         person_id=person["id"],
-        event_type="Boda",
+        event_type_id=event_type["id"],
+        space_id=space_id,
         starts_at=starts_at,
         ends_at=starts_at + timedelta(hours=5),
         estimated_guests=90,
@@ -971,38 +977,37 @@ def test_cutover_table_lock_orders_existing_and_new_reservation_writers() -> Non
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
 def test_operations_backfill_is_complete_deterministic_and_reversible() -> None:
-    executor = MigrationExecutor(connection)
-    executor.migrate([("operations", None)])
+    owner = _user("operations-backfill@example.com")
+    creation = create_organization(owner_user_id=owner.pk, name="Operaciones backfill")
+    first = _accepted(owner, creation.organization.pk, days=30)
+    confirmed = confirm_reservation(
+        owner,
+        creation.organization.pk,
+        reservation_id=first["id"],
+        kind="external_deposit",
+        recognized_amount=Decimal("100.00"),
+        reported_at=timezone.now(),
+        reference="Backfill confirmado",
+    )
+    second = _accepted(owner, creation.organization.pk, days=60, phone="0981111111")
+    second_confirmed = confirm_reservation(
+        owner,
+        creation.organization.pk,
+        reservation_id=second["id"],
+        kind="external_deposit",
+        recognized_amount=Decimal("100.00"),
+        reported_at=timezone.now(),
+        reference="Backfill cancelado",
+    )
+    cancelled = cancel_reservation(
+        owner,
+        creation.organization.pk,
+        reservation_id=second_confirmed["id"],
+        reason="Cancelada antes de 5.2",
+    )
     try:
-        owner = _user("operations-backfill@example.com")
-        creation = create_organization(owner_user_id=owner.pk, name="Operaciones backfill")
-        first = _accepted(owner, creation.organization.pk, days=30)
-        confirmed = _confirm_reservation_commercial(
-            owner,
-            creation.organization.pk,
-            reservation_id=first["id"],
-            kind="external_deposit",
-            recognized_amount=Decimal("100.00"),
-            reported_at=timezone.now(),
-            reference="Backfill confirmado",
-        )
-        second = _accepted(owner, creation.organization.pk, days=60, phone="0981111111")
-        cancelled = _confirm_reservation_commercial(
-            owner,
-            creation.organization.pk,
-            reservation_id=second["id"],
-            kind="external_deposit",
-            recognized_amount=Decimal("100.00"),
-            reported_at=timezone.now(),
-            reference="Backfill cancelado",
-        )
-        _cancel_reservation_commercial(
-            owner,
-            creation.organization.pk,
-            reservation_id=cancelled["id"],
-            reason="Cancelada antes de 5.2",
-        )
-
+        executor = MigrationExecutor(connection)
+        executor.migrate([("operations", None)])
         executor = MigrationExecutor(connection)
         executor.migrate([("operations", "0002_commercial_operations_guardian")])
 
@@ -1033,6 +1038,5 @@ def test_operations_backfill_is_complete_deterministic_and_reversible() -> None:
         )
         assert snapshot() == first_snapshot
     finally:
-        MigrationExecutor(connection).migrate(
-            [("operations", "0002_commercial_operations_guardian")]
-        )
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())

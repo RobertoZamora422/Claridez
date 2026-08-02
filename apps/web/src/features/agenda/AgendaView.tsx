@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-import { api, type Availability } from "../../api";
+import { api, type Availability, type Venue } from "../../api";
 import { Loading, Notice, StatusBadge } from "../../shared/components";
 import { useInitialLoad } from "../../shared/useInitialLoad";
 import { formatDate, localToInstant, message, toInputDate } from "../../shared/utilities";
@@ -14,6 +14,8 @@ export function AgendaView({
 }) {
   const [startDate, setStartDate] = useState(toInputDate(new Date()));
   const [availability, setAvailability] = useState<Availability | null>(null);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [spaceId, setSpaceId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -21,10 +23,25 @@ export function AgendaView({
     setLoading(true);
     setError("");
     try {
+      let effectiveSpaceId = spaceId;
+      if (!effectiveSpaceId) {
+        const venueBody = await api<{ venues: Venue[] }>(
+          `/api/v1/organizations/${organizationId}/venues/`,
+        );
+        setVenues(venueBody.venues);
+        const spaces = venueBody.venues.flatMap((venue) => venue.spaces);
+        effectiveSpaceId = spaces.find((space) => space.is_primary)?.id ?? spaces[0]?.id ?? "";
+        setSpaceId(effectiveSpaceId);
+      }
+      if (!effectiveSpaceId) throw new Error("Configura al menos un espacio activo.");
       const from = localToInstant(`${startDate}T00:00`, timeZone);
       const toDate = new Date(from);
       toDate.setUTCDate(toDate.getUTCDate() + 7);
-      const params = new URLSearchParams({ from, to: toDate.toISOString() });
+      const params = new URLSearchParams({
+        space_id: effectiveSpaceId,
+        from,
+        to: toDate.toISOString(),
+      });
       setAvailability(
         await api<Availability>(`/api/v1/organizations/${organizationId}/availability/?${params}`),
       );
@@ -33,7 +50,7 @@ export function AgendaView({
     } finally {
       setLoading(false);
     }
-  }, [organizationId, startDate, timeZone]);
+  }, [organizationId, spaceId, startDate, timeZone]);
 
   useInitialLoad(load);
 
@@ -45,16 +62,37 @@ export function AgendaView({
           <h1 id="agenda-title">Agenda y disponibilidad</h1>
           <p className="muted">Horarios bloqueados en {timeZone}.</p>
         </div>
-        <label className="date-control">
-          Semana desde
-          <input
-            type="date"
-            value={startDate}
-            onChange={(event) => {
-              setStartDate(event.target.value);
-            }}
-          />
-        </label>
+        <div className="agenda-controls">
+          <label className="date-control">
+            Espacio
+            <select
+              value={spaceId}
+              onChange={(event) => {
+                setSpaceId(event.target.value);
+              }}
+            >
+              {venues.flatMap((venue) =>
+                venue.spaces
+                  .filter((space) => space.is_active)
+                  .map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {venue.name} · {space.name}
+                    </option>
+                  )),
+              )}
+            </select>
+          </label>
+          <label className="date-control">
+            Semana desde
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+              }}
+            />
+          </label>
+        </div>
       </header>
       {error && <Notice>{error}</Notice>}
       {loading ? (
@@ -65,7 +103,7 @@ export function AgendaView({
             ✓
           </div>
           <h2>Semana disponible</h2>
-          <p>No hay reservas provisionales o confirmadas en este periodo.</p>
+          <p>No hay reservas provisionales o confirmadas para este espacio.</p>
         </div>
       ) : (
         <div className="agenda-grid">

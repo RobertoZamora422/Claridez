@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra del destino funcional
-- **Fecha:** 2 de agosto de 2026
+- **Fecha:** 1 de agosto de 2026
 - **Mercado inicial:** Ecuador
 
 ## 1. Función de este documento

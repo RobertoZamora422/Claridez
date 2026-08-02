@@ -9,7 +9,8 @@ from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Round, Trim
 
-from claridez.organizations.models import Membership, Organization
+from claridez.catalog.models import CatalogItemRevision, CatalogPrice, EventType
+from claridez.organizations.models import Membership, Organization, Space, Venue
 
 
 class ContactOrigin(models.TextChoices):
@@ -110,6 +111,12 @@ class EventRequest(TenantModel):
 
     person = models.ForeignKey(
         Person, on_delete=models.PROTECT, related_name="event_requests", db_index=False
+    )
+    event_type_definition = models.ForeignKey(
+        EventType, on_delete=models.PROTECT, related_name="event_requests", db_index=False
+    )
+    space = models.ForeignKey(
+        Space, on_delete=models.PROTECT, related_name="event_requests", db_index=False
     )
     event_type = models.CharField(max_length=100)
     starts_at = models.DateTimeField()
@@ -225,7 +232,18 @@ class QuotationVersion(TenantModel):
     person_name_snapshot = models.CharField(max_length=150)
     person_phone_snapshot = models.CharField(max_length=13)
     person_email_snapshot = models.EmailField(max_length=254, blank=True)
+    event_type_definition_snapshot = models.ForeignKey(
+        EventType, on_delete=models.PROTECT, related_name="quotation_snapshots", db_index=False
+    )
     event_type_snapshot = models.CharField(max_length=100)
+    venue_snapshot = models.ForeignKey(
+        Venue, on_delete=models.PROTECT, related_name="quotation_snapshots", db_index=False
+    )
+    venue_name_snapshot = models.CharField(max_length=150)
+    space_snapshot = models.ForeignKey(
+        Space, on_delete=models.PROTECT, related_name="quotation_snapshots", db_index=False
+    )
+    space_name_snapshot = models.CharField(max_length=150)
     event_starts_at_snapshot = models.DateTimeField()
     event_ends_at_snapshot = models.DateTimeField()
     event_timezone_snapshot = models.CharField(max_length=64)
@@ -291,9 +309,31 @@ class QuotationVersion(TenantModel):
 
 
 class QuotationLine(TenantModel):
+    class Source(models.TextChoices):
+        AD_HOC = "ad_hoc", "Línea ad hoc"
+        CATALOG = "catalog", "Catálogo"
+
     quotation_version = models.ForeignKey(
         QuotationVersion, on_delete=models.PROTECT, related_name="lines", db_index=False
     )
+    source = models.CharField(max_length=16, choices=Source.choices, default=Source.AD_HOC)
+    catalog_item_revision = models.ForeignKey(
+        CatalogItemRevision,
+        on_delete=models.PROTECT,
+        related_name="quotation_lines",
+        null=True,
+        blank=True,
+        db_index=False,
+    )
+    catalog_price = models.ForeignKey(
+        CatalogPrice,
+        on_delete=models.PROTECT,
+        related_name="quotation_lines",
+        null=True,
+        blank=True,
+        db_index=False,
+    )
+    package_components_snapshot = models.JSONField(default=list)
     position = models.PositiveIntegerField()
     description = models.CharField(max_length=240)
     unit_label = models.CharField(max_length=40, blank=True)
@@ -328,6 +368,22 @@ class QuotationLine(TenantModel):
                 condition=Q(line_subtotal=Round(F("quantity") * F("unit_price"), precision=2)),
                 name="commercial_quoteline_subtotal_product",
             ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        source="ad_hoc",
+                        catalog_item_revision__isnull=True,
+                        catalog_price__isnull=True,
+                        package_components_snapshot=[],
+                    )
+                    | Q(
+                        source="catalog",
+                        catalog_item_revision__isnull=False,
+                        catalog_price__isnull=False,
+                    )
+                ),
+                name="commercial_quoteline_source_coherent",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -350,6 +406,9 @@ class Reservation(TenantModel):
     )
     quotation_version = models.OneToOneField(
         QuotationVersion, on_delete=models.PROTECT, related_name="reservation", db_index=False
+    )
+    space = models.ForeignKey(
+        Space, on_delete=models.PROTECT, related_name="reservations", db_index=False
     )
     event_interval = DateTimeRangeField()
     event_timezone = models.CharField(max_length=64)
@@ -417,6 +476,7 @@ class Reservation(TenantModel):
                 name="commercial_reservation_no_overlap",
                 expressions=[
                     ("organization", RangeOperators.EQUAL),
+                    ("space", RangeOperators.EQUAL),
                     ("event_interval", RangeOperators.OVERLAPS),
                 ],
                 condition=Q(status__in=["provisional", "confirmed"]),

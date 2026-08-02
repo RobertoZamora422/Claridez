@@ -48,7 +48,10 @@ class AssigneeSerializer(serializers.Serializer[dict[str, object]]):
 
 
 class EventSnapshotSerializer(serializers.Serializer[dict[str, object]]):
+    event_type_id = serializers.UUIDField()
     event_type = serializers.CharField()
+    venue = serializers.DictField()
+    space = serializers.DictField()
     starts_at = serializers.DateTimeField()
     ends_at = serializers.DateTimeField()
     timezone = serializers.CharField()

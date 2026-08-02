@@ -94,6 +94,17 @@ def test_complete_commercial_http_flow_csrf_and_cross_tenant_errors() -> None:
     )
     assert person_response.status_code == 201
     person = person_response.json()
+    event_type_response = _post(
+        client,
+        f"{base}/event-types/",
+        {"name": "Graduación"},
+        token,
+    )
+    assert event_type_response.status_code == 201
+    event_type = event_type_response.json()
+    venues_response = client.get(f"{base}/venues/")
+    assert venues_response.status_code == 200
+    space_id = venues_response.json()["venues"][0]["spaces"][0]["id"]
 
     start = timezone.now() + timedelta(days=15)
     end = start + timedelta(hours=6)
@@ -102,7 +113,8 @@ def test_complete_commercial_http_flow_csrf_and_cross_tenant_errors() -> None:
         f"{base}/event-requests/",
         {
             "person_id": person["id"],
-            "event_type": "Graduación",
+            "event_type_id": event_type["id"],
+            "space_id": space_id,
             "starts_at": start.isoformat(),
             "ends_at": end.isoformat(),
             "estimated_guests": 80,
@@ -163,7 +175,7 @@ def test_complete_commercial_http_flow_csrf_and_cross_tenant_errors() -> None:
     reservation = accepted.json()
     assert reservation["status"] == "provisional"
 
-    query = urlencode({"from": start.isoformat(), "to": end.isoformat()})
+    query = urlencode({"from": start.isoformat(), "to": end.isoformat(), "space_id": space_id})
     agenda = client.get(f"{base}/availability/?{query}")
     assert agenda.status_code == 200
     assert agenda.json()["available"] is False

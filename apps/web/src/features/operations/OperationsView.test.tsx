@@ -13,7 +13,10 @@ function json(body: unknown, status = 200): Response {
 const summary = {
   reservation_id: "11111111-1111-4111-8111-111111111111",
   event: {
+    event_type_id: "44444444-4444-4444-8444-444444444444",
     event_type: "Boda",
+    venue: { id: "55555555-5555-4555-8555-555555555555", name: "Sede principal" },
+    space: { id: "66666666-6666-4666-8666-666666666666", name: "Salón central" },
     starts_at: "2026-09-12T20:00:00Z",
     ends_at: "2026-09-13T02:00:00Z",
     timezone: "America/Guayaquil",

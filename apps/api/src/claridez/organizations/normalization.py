@@ -10,6 +10,8 @@ from django.utils.text import slugify
 MAX_ORGANIZATION_NAME_LENGTH = 150
 MAX_ORGANIZATION_SLUG_LENGTH = 63
 MAX_TIMEZONE_LENGTH = 64
+MAX_BUSINESS_LABEL_LENGTH = 150
+MAX_LOCATION_REFERENCE_LENGTH = 300
 CURRENCY_PATTERN = re.compile(r"^[A-Z]{3}$")
 
 
@@ -31,6 +33,26 @@ def canonicalize_organization_name(name: str | None) -> str:
     if len(canonical_name) > MAX_ORGANIZATION_NAME_LENGTH:
         raise ValueError("El nombre de la organización excede la longitud máxima.")
     return canonical_name
+
+
+def canonicalize_business_label(value: str | None, *, field: str) -> str:
+    """Normalizar nombres visibles de sedes y espacios sin inventar identificadores."""
+    if value is None:
+        raise ValueError(f"{field} es obligatorio.")
+    canonical = " ".join(value.split())
+    if not canonical or len(canonical) > MAX_BUSINESS_LABEL_LENGTH:
+        raise ValueError(f"{field} no es válido.")
+    return canonical
+
+
+def canonicalize_location_reference(value: str | None) -> str:
+    """Conservar una referencia humana mínima de ubicación."""
+    if value is None or not value.strip():
+        return ""
+    canonical = " ".join(value.split())
+    if len(canonical) > MAX_LOCATION_REFERENCE_LENGTH:
+        raise ValueError("La referencia de ubicación no es válida.")
+    return canonical
 
 
 def canonicalize_organization_slug(value: str | None) -> str:

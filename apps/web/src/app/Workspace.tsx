@@ -3,24 +3,28 @@ import { useEffect, useState } from "react";
 import { api, logout, type Organization, type User } from "../api";
 import { BrandLogo } from "../Brand";
 import { AgendaView } from "../features/agenda/AgendaView";
+import { CatalogView } from "../features/catalog/CatalogView";
+import { ConfigurationView } from "../features/configuration/ConfigurationView";
 import { OperationsView } from "../features/operations/OperationsView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
 
-type Page = "agenda" | "requests" | "operations";
+type Page = "agenda" | "requests" | "operations" | "catalog" | "configuration";
 
 export function Workspace({
   user,
   organization,
   organizations,
   onSwitch,
+  onOrganizationUpdated,
   onSignedOut,
 }: {
   user: User;
   organization: Organization;
   organizations: Organization[];
   onSwitch: () => void;
+  onOrganizationUpdated: (name: string) => void;
   onSignedOut: () => void;
 }) {
   const [page, setPage] = useState<Page>("agenda");
@@ -37,9 +41,18 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/operations/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/configuration/capabilities/`,
+      ),
     ])
-      .then(([capabilityBody, settingsBody, operationsBody]) => {
-        setCapabilities(new Set([...capabilityBody.capabilities, ...operationsBody.capabilities]));
+      .then(([capabilityBody, settingsBody, operationsBody, configurationBody]) => {
+        setCapabilities(
+          new Set([
+            ...capabilityBody.capabilities,
+            ...operationsBody.capabilities,
+            ...configurationBody.capabilities,
+          ]),
+        );
         setTimeZone(settingsBody.settings.timezone);
       })
       .catch((caught: unknown) => {
@@ -84,6 +97,28 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">✓</span>Operación
+              </button>
+            ) : null}
+            {capabilities.has("catalog:read") ? (
+              <button
+                aria-current={page === "catalog" ? "page" : undefined}
+                onClick={() => {
+                  setPage("catalog");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">◇</span>Catálogo
+              </button>
+            ) : null}
+            {capabilities.has("business_configuration:manage") ? (
+              <button
+                aria-current={page === "configuration" ? "page" : undefined}
+                onClick={() => {
+                  setPage("configuration");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">⚙</span>Configuración
               </button>
             ) : null}
           </nav>
@@ -136,6 +171,28 @@ export function Workspace({
             Operación
           </button>
         ) : null}
+        {capabilities.has("catalog:read") ? (
+          <button
+            aria-current={page === "catalog" ? "page" : undefined}
+            onClick={() => {
+              setPage("catalog");
+              setSelectedRequest(null);
+            }}
+          >
+            Catálogo
+          </button>
+        ) : null}
+        {capabilities.has("business_configuration:manage") ? (
+          <button
+            aria-current={page === "configuration" ? "page" : undefined}
+            onClick={() => {
+              setPage("configuration");
+              setSelectedRequest(null);
+            }}
+          >
+            Configuración
+          </button>
+        ) : null}
       </nav>
       <main className="workspace">
         {error && <Notice>{error}</Notice>}
@@ -150,11 +207,25 @@ export function Workspace({
             onSelect={setSelectedRequest}
             capabilities={capabilities}
           />
-        ) : (
+        ) : page === "operations" ? (
           <OperationsView
             organizationId={organization.id}
             canManage={capabilities.has("operation:manage")}
             canExecute={capabilities.has("operation:execute")}
+          />
+        ) : page === "catalog" ? (
+          <CatalogView
+            organizationId={organization.id}
+            timeZone={timeZone}
+            canManage={capabilities.has("catalog:manage")}
+            canReadPrices={capabilities.has("catalog_price:read")}
+            canManagePrices={capabilities.has("catalog_price:manage")}
+          />
+        ) : (
+          <ConfigurationView
+            organizationId={organization.id}
+            canManage={capabilities.has("business_configuration:manage")}
+            onOrganizationRenamed={onOrganizationUpdated}
           />
         )}
       </main>

@@ -55,6 +55,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0011](0011-organizations-memberships-and-authorization.md)      | Aceptado                            | Organizaciones, membresías y autorización backend-first     |
 | [0012](0012-commercial-scheduling-and-monetary-integrity.md)     | Aceptado                            | Integridad de agenda y cotizaciones comerciales             |
 | [0013](0013-commercial-operations-coordination-and-integrity.md) | Aceptado                            | Coordinación e integridad entre comercial y operaciones     |
+| [0014](0014-multi-space-business-configuration-and-catalog-boundaries.md) | Aceptado | Multi-espacio y límites de configuración funcional P6 |
 
 ## Modificación y reemplazo
 

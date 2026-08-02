@@ -61,19 +61,19 @@ def _evaluate_expiration(
         return _expire_overdue(authorization)
 
 
-def _lock_organization_schedule(organization_id: UUID) -> None:
-    """Serializar aceptaciones del único espacio sin bloquear otros comandos comerciales."""
+def _lock_organization_schedule(organization_id: UUID, space_id: UUID) -> None:
+    """Serializar aceptaciones solo dentro del espacio tenant-aware afectado."""
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            (str(organization_id),),
+            (f"{organization_id}:{space_id}",),
         )
 
 
 def _get_reservation(
     organization_id: UUID, reservation_id: UUID | str, *, lock: bool = False
 ) -> Reservation:
-    rows = Reservation.objects.select_related("quotation_version", "event_request")
+    rows = Reservation.objects.select_related("quotation_version", "event_request", "space")
     if lock:
         rows = rows.select_for_update()
     try:

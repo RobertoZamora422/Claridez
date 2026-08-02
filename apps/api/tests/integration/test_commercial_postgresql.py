@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from threading import Barrier
 from typing import Any
-from uuid import uuid4
+from uuid import uuid4, uuid5
 
 import pytest
 from django.db import (
@@ -18,9 +18,17 @@ from django.db import (
     connections,
     transaction,
 )
+from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 from psycopg.types.range import Range
 
+from claridez.catalog.models import CatalogItem, EventType
+from claridez.catalog.services import (
+    create_catalog_item,
+    create_catalog_price,
+    create_event_type,
+    list_event_types,
+)
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import (
     EventRequest,
@@ -42,6 +50,8 @@ from claridez.commercial.services import (
 )
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.configuration_services import create_space, list_venues
+from claridez.organizations.models import Space, Venue
 from claridez.organizations.services import create_organization
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 
@@ -56,6 +66,16 @@ COMMERCIAL_TABLES = (
     "commercial_quotationversion",
     "commercial_quotationline",
     "commercial_reservation",
+)
+P6_PRIVATE_TABLES = (
+    "organizations_venue",
+    "organizations_space",
+    "catalog_eventtype",
+    "catalog_eventtyperevision",
+    "catalog_catalogitem",
+    "catalog_catalogitemrevision",
+    "catalog_packagecomponent",
+    "catalog_catalogprice",
 )
 
 
@@ -88,13 +108,24 @@ def _draft(
     *,
     phone: str,
     starts_at: datetime,
+    space_id: Any | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     person = _person(owner, organization_id, phone)
+    event_type = next(
+        (row for row in list_event_types(owner, organization_id) if row["name"] == "Boda"),
+        None,
+    )
+    if event_type is None:
+        event_type = create_event_type(owner, organization_id, name="Boda")
+    selected_space_id = (
+        list_venues(owner, organization_id)[0]["spaces"][0]["id"] if space_id is None else space_id
+    )
     event_request = create_event_request(
         owner,
         organization_id,
         person_id=person["id"],
-        event_type="Boda",
+        event_type_id=event_type["id"],
+        space_id=selected_space_id,
         starts_at=starts_at,
         ends_at=starts_at + timedelta(hours=5),
         estimated_guests=80,
@@ -137,8 +168,15 @@ def _issued(
     *,
     phone: str,
     starts_at: datetime,
+    space_id: Any | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    event_request, quotation = _draft(owner, organization_id, phone=phone, starts_at=starts_at)
+    event_request, quotation = _draft(
+        owner,
+        organization_id,
+        phone=phone,
+        starts_at=starts_at,
+        space_id=space_id,
+    )
     quotation = issue_quotation_version(
         owner,
         organization_id,
@@ -220,6 +258,77 @@ def test_rls_tenant_relations_bulk_and_privileges_are_fail_closed() -> None:
         name == f"{table}_tenant_policy" and command == "ALL" for table, name, command in policies
     )
     assert delete_privileges == (False, True)
+
+
+def test_p6_tables_enforce_rls_tenant_relations_and_minimal_privileges() -> None:
+    first_owner, first_creation = _owner("p6-rls-first")
+    second_owner, second_creation = _owner("p6-rls-second")
+    first_id = first_creation.organization.pk
+    second_id = second_creation.organization.pk
+    create_event_type(first_owner, first_id, name="Boda")
+    create_event_type(second_owner, second_id, name="Graduación")
+    item = create_catalog_item(
+        first_owner,
+        first_id,
+        kind="service",
+        name="Coordinación",
+        description="",
+        unit_label="evento",
+        components=[],
+    )
+    create_catalog_price(
+        first_owner,
+        first_id,
+        item_id=item["id"],
+        amount=Decimal("100.00"),
+        valid_from=timezone.now() - timedelta(days=1),
+        valid_until=None,
+    )
+
+    with authorized_tenant_scope(first_owner, first_id, Capability.CATALOG_READ):
+        assert EventType.objects.count() == 1
+        assert CatalogItem.objects.count() == 1
+        assert Venue.objects.count() == 1
+        assert Space.objects.count() == 1
+        assert not EventType.objects.filter(organization_id=second_id).exists()
+        with pytest.raises(DatabaseError), transaction.atomic():
+            EventType.objects.create(organization_id=second_id, name="Cruce")
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT relname, relrowsecurity, relforcerowsecurity
+            FROM pg_class
+            WHERE relname = ANY(%s)
+            ORDER BY relname
+            """,
+            (list(P6_PRIVATE_TABLES),),
+        )
+        metadata = cursor.fetchall()
+        cursor.execute(
+            """
+            SELECT tablename, cmd, roles, qual = with_check
+            FROM pg_policies
+            WHERE schemaname = 'public' AND tablename = ANY(%s)
+            ORDER BY tablename
+            """,
+            (list(P6_PRIVATE_TABLES),),
+        )
+        policies = cursor.fetchall()
+        cursor.execute(
+            """
+            SELECT
+                has_table_privilege('claridez_app', 'catalog_catalogprice', 'UPDATE'),
+                has_table_privilege('claridez_app', 'catalog_catalogprice', 'DELETE'),
+                has_table_privilege('claridez_app', 'organizations_space', 'DELETE')
+            """
+        )
+        privileges = cursor.fetchone()
+    assert len(metadata) == len(P6_PRIVATE_TABLES)
+    assert all(row[1:] == (True, True) for row in metadata)
+    assert len(policies) == len(P6_PRIVATE_TABLES)
+    assert all(row[1] == "ALL" and row[3] is True for row in policies)
+    assert privileges == (True, False, False)
 
 
 def test_sql_direct_bulk_totals_snapshots_and_lifecycle_are_guarded() -> None:
@@ -360,6 +469,66 @@ def test_two_concurrent_acceptances_leave_one_active_reservation() -> None:
                 pk__in=[first_quote["versions"][0]["id"], second_quote["versions"][0]["id"]]
             ).values_list("status", flat=True)
         ) == [QuotationVersion.Status.ACCEPTED, QuotationVersion.Status.ISSUED]
+
+
+def test_concurrent_acceptances_in_different_spaces_both_succeed() -> None:
+    owner, creation = _owner("commercial-parallel-spaces")
+    organization_id = creation.organization.pk
+    venue = list_venues(owner, organization_id)[0]
+    first_space_id = venue["spaces"][0]["id"]
+    second_space = create_space(
+        owner,
+        organization_id,
+        venue_id=venue["id"],
+        name="Salón paralelo",
+    )
+    starts_at = timezone.now() + timedelta(days=30)
+    _, first_quote = _issued(
+        owner,
+        organization_id,
+        phone="0994141414",
+        starts_at=starts_at,
+        space_id=first_space_id,
+    )
+    _, second_quote = _issued(
+        owner,
+        organization_id,
+        phone="0994242424",
+        starts_at=starts_at,
+        space_id=second_space["id"],
+    )
+    barrier = Barrier(2)
+
+    def worker(quotation_id: Any) -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            barrier.wait(timeout=5)
+            accept_quotation_version(
+                actor,
+                organization_id,
+                quotation_id=quotation_id,
+                version=1,
+                channel="whatsapp",
+                note="Aceptación en espacio independiente",
+            )
+            return "ok"
+        except CommercialError as error:
+            return error.code
+        finally:
+            connections["default"].close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(worker, (first_quote["id"], second_quote["id"]), timeout=15))
+
+    assert results == ["ok", "ok"]
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        assert (
+            Reservation.objects.filter(
+                status__in=[Reservation.Status.PROVISIONAL, Reservation.Status.CONFIRMED]
+            ).count()
+            == 2
+        )
 
 
 def test_two_concurrent_person_revisions_have_one_winner() -> None:
@@ -599,3 +768,100 @@ def test_postgresql_enforces_reservation_request_snapshot_and_acceptance_coheren
             assert cursor.fetchone() == (False, True)
 
         assert first_request["id"] == reservation.event_request_id
+
+
+def test_p6_migration_round_trip_backfills_deterministically_and_preserves_operations() -> None:
+    owner, creation = _owner("p6-migration-round-trip")
+    organization_id = creation.organization.pk
+    starts_at = timezone.now() + timedelta(days=80)
+    event_request, quotation = _issued(
+        owner,
+        organization_id,
+        phone="0981234567",
+        starts_at=starts_at,
+    )
+    accepted = accept_quotation_version(
+        owner,
+        organization_id,
+        quotation_id=quotation["id"],
+        version=1,
+        channel="email",
+        note="Aceptación histórica",
+    )
+    confirmed = confirm_reservation(
+        owner,
+        organization_id,
+        reservation_id=accepted["id"],
+        kind="external_deposit",
+        recognized_amount=Decimal("100.00"),
+        reported_at=timezone.now(),
+        reference="DEP-P6-MIGRATION",
+    )
+    assert confirmed["status"] == "confirmed"
+
+    expected_venue_id = uuid5(organization_id, "claridez:venue:primary")
+    expected_space_id = uuid5(organization_id, "claridez:space:primary")
+    expected_event_type_id = uuid5(organization_id, "claridez:event-type:Boda")
+    latest_targets: list[tuple[str, str | None]] = []
+
+    try:
+        executor = MigrationExecutor(connection)
+        latest_targets = list(executor.loader.graph.leaf_nodes())
+        old_targets = [
+            node
+            for node in latest_targets
+            if node[0] not in {"catalog", "commercial", "organizations"}
+        ]
+        old_targets.extend(
+            [
+                ("catalog", None),
+                ("commercial", "0003_hardening_5_1_1"),
+                (
+                    "organizations",
+                    "0003_membership_organizations_membership_org_id_unique",
+                ),
+            ]
+        )
+        executor.migrate(old_targets)
+
+        executor = MigrationExecutor(connection)
+        latest_targets = list(executor.loader.graph.leaf_nodes())
+        executor.migrate(latest_targets)
+    finally:
+        executor = MigrationExecutor(connection)
+        pending = executor.migration_plan(executor.loader.graph.leaf_nodes())
+        if pending:
+            executor.migrate(executor.loader.graph.leaf_nodes())
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        migrated_request = EventRequest.objects.get(pk=event_request["id"])
+        migrated_version = QuotationVersion.objects.get(quotation_id=quotation["id"], version=1)
+        migrated_reservation = Reservation.objects.get(pk=accepted["id"])
+        assert migrated_request.event_type_definition_id == expected_event_type_id
+        assert migrated_request.space_id == expected_space_id
+        assert migrated_version.event_type_definition_snapshot_id == expected_event_type_id
+        assert migrated_version.venue_snapshot_id == expected_venue_id
+        assert migrated_version.space_snapshot_id == expected_space_id
+        assert migrated_version.event_type_snapshot == "Boda"
+        assert migrated_version.venue_name_snapshot == "Sede principal"
+        assert migrated_version.space_name_snapshot == "Espacio principal"
+        assert migrated_reservation.space_id == expected_space_id
+
+    with (
+        authorized_tenant_scope(owner, organization_id, Capability.OPERATION_READ),
+        connection.cursor() as cursor,
+    ):
+        cursor.execute(
+            """
+            SELECT preparation.status, count(*) FILTER (WHERE baseline_key IS NOT NULL)
+            FROM public.operations_eventpreparation AS preparation
+            JOIN public.operations_preparationitem AS item
+              ON item.organization_id = preparation.organization_id
+             AND item.preparation_id = preparation.reservation_id
+            WHERE preparation.organization_id = %s
+              AND preparation.reservation_id = %s
+            GROUP BY preparation.status
+            """,
+            (organization_id, accepted["id"]),
+        )
+        assert cursor.fetchone() == ("preparing", 7)

@@ -63,6 +63,9 @@ export function OperationDetail({
             {detail.event.estimated_guests} invitados
           </p>
           <p>
+            {detail.event.venue.name} · {detail.event.space.name}
+          </p>
+          <p>
             {detail.contact.display_name}
             {detail.contact.phone_e164 ? ` · ${detail.contact.phone_e164}` : ""}
           </p>

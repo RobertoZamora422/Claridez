@@ -85,6 +85,7 @@ export function OperationsList({
                 <span>
                   <strong>{event.event.event_type}</strong>
                   <small>
+                    {event.event.venue.name} · {event.event.space.name} ·{" "}
                     {event.contact.display_name} ·{" "}
                     {localDate(event.event.starts_at, event.event.timezone)}
                   </small>

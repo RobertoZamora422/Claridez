@@ -36,6 +36,14 @@ EXPECTED_MATRIX = {
         Capability.OPERATION_READ,
         Capability.OPERATION_MANAGE,
         Capability.OPERATION_EXECUTE,
+        Capability.BUSINESS_CONFIGURATION_READ,
+        Capability.BUSINESS_CONFIGURATION_MANAGE,
+        Capability.VENUE_READ,
+        Capability.VENUE_MANAGE,
+        Capability.CATALOG_READ,
+        Capability.CATALOG_PRICE_READ,
+        Capability.CATALOG_MANAGE,
+        Capability.CATALOG_PRICE_MANAGE,
     },
     Membership.Role.COMMERCIAL: {
         Capability.ORGANIZATION_ACCESS,
@@ -47,6 +55,10 @@ EXPECTED_MATRIX = {
         Capability.AVAILABILITY_READ,
         Capability.RESERVATION_CONFIRM,
         Capability.OPERATION_READ,
+        Capability.BUSINESS_CONFIGURATION_READ,
+        Capability.VENUE_READ,
+        Capability.CATALOG_READ,
+        Capability.CATALOG_PRICE_READ,
     },
     Membership.Role.OPERATIONS: {
         Capability.ORGANIZATION_ACCESS,
@@ -56,6 +68,9 @@ EXPECTED_MATRIX = {
         Capability.OPERATION_READ,
         Capability.OPERATION_MANAGE,
         Capability.OPERATION_EXECUTE,
+        Capability.BUSINESS_CONFIGURATION_READ,
+        Capability.VENUE_READ,
+        Capability.CATALOG_READ,
     },
     Membership.Role.FINANCE: {
         Capability.ORGANIZATION_ACCESS,
@@ -63,6 +78,10 @@ EXPECTED_MATRIX = {
         Capability.SALES_READ,
         Capability.AVAILABILITY_READ,
         Capability.RESERVATION_CONFIRM,
+        Capability.BUSINESS_CONFIGURATION_READ,
+        Capability.VENUE_READ,
+        Capability.CATALOG_READ,
+        Capability.CATALOG_PRICE_READ,
     },
 }
 
@@ -87,6 +106,14 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "operation:read",
         "operation:manage",
         "operation:execute",
+        "business_configuration:read",
+        "business_configuration:manage",
+        "venue:read",
+        "venue:manage",
+        "catalog:read",
+        "catalog_price:read",
+        "catalog:manage",
+        "catalog_price:manage",
     }
 
 

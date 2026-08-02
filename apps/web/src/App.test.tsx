@@ -55,8 +55,34 @@ describe("flujo comercial de Claridez", () => {
         );
       if (url.endsWith("/operations/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/configuration/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
+      if (url.endsWith("/venues/"))
+        return Promise.resolve(
+          json({
+            venues: [
+              {
+                id: "venue-1",
+                name: "Sede principal",
+                is_active: true,
+                spaces: [
+                  {
+                    id: "space-1",
+                    name: "Espacio principal",
+                    is_active: true,
+                    is_primary: true,
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      if (url.endsWith("/event-types/"))
+        return Promise.resolve(
+          json({ event_types: [{ id: "event-type-1", name: "Boda", is_active: true }] }),
+        );
       if (url.includes("/availability/?"))
         return Promise.resolve(
           json({
@@ -111,7 +137,10 @@ describe("flujo comercial de Claridez", () => {
         commercial_type: reservationStatus === "provisional" ? "lead" : "client",
         revision: 1,
       },
+      event_type_id: "event-type-1",
       event_type: "Boda",
+      venue: { id: "venue-1", name: "Sede principal" },
+      space: { id: "space-1", name: "Espacio principal" },
       starts_at: "2026-09-12T20:00:00Z",
       ends_at: "2026-09-13T02:00:00Z",
       event_timezone: "America/Guayaquil",
@@ -126,6 +155,7 @@ describe("flujo comercial de Claridez", () => {
     });
     const reservation = () => ({
       id: "reservation-1",
+      space_id: "space-1",
       status: reservationStatus,
       starts_at: "2026-09-12T20:00:00Z",
       ends_at: "2026-09-13T02:00:00Z",
@@ -189,8 +219,31 @@ describe("flujo comercial de Claridez", () => {
         );
       if (url.endsWith("/operations/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/configuration/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
+      if (url.endsWith("/venues/"))
+        return Promise.resolve(
+          json({
+            venues: [
+              {
+                id: "venue-1",
+                name: "Sede principal",
+                is_active: true,
+                spaces: [
+                  {
+                    id: "space-1",
+                    name: "Espacio principal",
+                    is_active: true,
+                    is_primary: true,
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      if (url.endsWith("/catalog/items/")) return Promise.resolve(json({ items: [] }));
       if (url.includes("/availability/?"))
         return Promise.resolve(
           json({ from: "2026-07-31T05:00:00Z", to: "2026-08-07T05:00:00Z", blocks: [] }),

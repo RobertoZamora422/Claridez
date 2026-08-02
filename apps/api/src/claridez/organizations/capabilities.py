@@ -29,6 +29,14 @@ class Capability(StrEnum):
     OPERATION_READ = "operation:read"
     OPERATION_MANAGE = "operation:manage"
     OPERATION_EXECUTE = "operation:execute"
+    BUSINESS_CONFIGURATION_READ = "business_configuration:read"
+    BUSINESS_CONFIGURATION_MANAGE = "business_configuration:manage"
+    VENUE_READ = "venue:read"
+    VENUE_MANAGE = "venue:manage"
+    CATALOG_READ = "catalog:read"
+    CATALOG_PRICE_READ = "catalog_price:read"
+    CATALOG_MANAGE = "catalog:manage"
+    CATALOG_PRICE_MANAGE = "catalog_price:manage"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -53,6 +61,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
+                Capability.BUSINESS_CONFIGURATION_READ,
+                Capability.BUSINESS_CONFIGURATION_MANAGE,
+                Capability.VENUE_READ,
+                Capability.VENUE_MANAGE,
+                Capability.CATALOG_READ,
+                Capability.CATALOG_PRICE_READ,
+                Capability.CATALOG_MANAGE,
+                Capability.CATALOG_PRICE_MANAGE,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -66,6 +82,10 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
                 Capability.OPERATION_READ,
+                Capability.BUSINESS_CONFIGURATION_READ,
+                Capability.VENUE_READ,
+                Capability.CATALOG_READ,
+                Capability.CATALOG_PRICE_READ,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -77,6 +97,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
+                Capability.BUSINESS_CONFIGURATION_READ,
+                Capability.VENUE_READ,
+                Capability.CATALOG_READ,
             }
         ),
         Membership.Role.FINANCE: frozenset(
@@ -86,6 +109,10 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.SALES_READ,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
+                Capability.BUSINESS_CONFIGURATION_READ,
+                Capability.VENUE_READ,
+                Capability.CATALOG_READ,
+                Capability.CATALOG_PRICE_READ,
             }
         ),
     }

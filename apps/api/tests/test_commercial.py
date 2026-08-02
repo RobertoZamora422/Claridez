@@ -9,6 +9,7 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.utils import timezone
 
+from claridez.catalog.services import create_event_type, list_event_types
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import EventRequest, QuotationVersion, Reservation
 from claridez.commercial.normalization import canonical_phone, money
@@ -29,6 +30,7 @@ from claridez.commercial.services import (
 )
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.configuration_services import list_venues
 from claridez.organizations.models import Membership
 from claridez.organizations.services import (
     OrganizationCreation,
@@ -67,6 +69,16 @@ def _person(owner: User, organization_id: UUID, phone: str = "0991234567") -> di
     )
 
 
+def _p6_refs(owner: User, organization_id: UUID, name: str) -> tuple[Any, Any]:
+    event_type = next(
+        (row for row in list_event_types(owner, organization_id) if row["name"] == name),
+        None,
+    )
+    if event_type is None:
+        event_type = create_event_type(owner, organization_id, name=name)
+    return event_type["id"], list_venues(owner, organization_id)[0]["spaces"][0]["id"]
+
+
 def _request(
     owner: User,
     organization_id: UUID,
@@ -75,11 +87,13 @@ def _request(
     start_offset: timedelta = timedelta(days=10),
 ) -> dict[str, Any]:
     start = timezone.now() + start_offset
+    event_type_id, space_id = _p6_refs(owner, organization_id, "Boda")
     return create_event_request(
         owner,
         organization_id,
         person_id=person_id,
-        event_type="Boda",
+        event_type_id=event_type_id,
+        space_id=space_id,
         starts_at=start,
         ends_at=start + timedelta(hours=5),
         estimated_guests=120,
@@ -252,6 +266,7 @@ def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() 
     agenda = list_availability(
         owner,
         organization_id,
+        space_id=event_request["space"]["id"],
         starts_at=event_request["starts_at"],
         ends_at=event_request["ends_at"],
     )
@@ -332,11 +347,13 @@ def test_overlap_conflicts_but_adjacent_interval_is_allowed() -> None:
     end = first_request["ends_at"]
 
     second_person = _person(owner, organization_id, "0992222222")
+    birthday_type_id, space_id = _p6_refs(owner, organization_id, "Cumpleaños")
     overlap = create_event_request(
         owner,
         organization_id,
         person_id=second_person["id"],
-        event_type="Cumpleaños",
+        event_type_id=birthday_type_id,
+        space_id=space_id,
         starts_at=start + timedelta(hours=1),
         ends_at=end + timedelta(hours=1),
         estimated_guests=50,
@@ -349,11 +366,13 @@ def test_overlap_conflicts_but_adjacent_interval_is_allowed() -> None:
         _accepted(owner, organization_id, overlap["id"])
     assert schedule.value.code == "schedule_conflict"
 
+    reception_type_id, _ = _p6_refs(owner, organization_id, "Recepción")
     adjacent = create_event_request(
         owner,
         organization_id,
         person_id=second_person["id"],
-        event_type="Recepción",
+        event_type_id=reception_type_id,
+        space_id=space_id,
         starts_at=end,
         ends_at=end + timedelta(hours=2),
         estimated_guests=30,
@@ -366,6 +385,7 @@ def test_overlap_conflicts_but_adjacent_interval_is_allowed() -> None:
     agenda = list_availability(
         owner,
         organization_id,
+        space_id=space_id,
         starts_at=start,
         ends_at=end + timedelta(hours=2),
     )

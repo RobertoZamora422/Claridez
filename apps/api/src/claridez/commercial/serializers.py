@@ -34,7 +34,8 @@ class PersonUpdateSerializer(serializers.Serializer[dict[str, object]]):
 
 class EventRequestCreateSerializer(serializers.Serializer[dict[str, object]]):
     person_id = serializers.UUIDField()
-    event_type = serializers.CharField(max_length=100)
+    event_type_id = serializers.UUIDField()
+    space_id = serializers.UUIDField()
     starts_at = serializers.DateTimeField()
     ends_at = serializers.DateTimeField()
     estimated_guests = serializers.IntegerField(min_value=1)
@@ -49,7 +50,8 @@ class EventRequestCreateSerializer(serializers.Serializer[dict[str, object]]):
 
 class EventRequestUpdateSerializer(serializers.Serializer[dict[str, object]]):
     revision = serializers.IntegerField(min_value=1)
-    event_type = serializers.CharField(max_length=100, required=False)
+    event_type_id = serializers.UUIDField(required=False)
+    space_id = serializers.UUIDField(required=False)
     starts_at = serializers.DateTimeField(required=False)
     ends_at = serializers.DateTimeField(required=False)
     estimated_guests = serializers.IntegerField(min_value=1, required=False)
@@ -67,6 +69,7 @@ class ReasonSerializer(serializers.Serializer[dict[str, str]]):
 
 
 class AvailabilityQuerySerializer(serializers.Serializer[dict[str, object]]):
+    space_id = serializers.UUIDField()
     starts_at = serializers.DateTimeField()
     ends_at = serializers.DateTimeField()
 
@@ -76,12 +79,13 @@ class QuotationCreateSerializer(serializers.Serializer[dict[str, object]]):
 
 
 class QuotationLineInputSerializer(serializers.Serializer[dict[str, object]]):
-    description = serializers.CharField(max_length=240)
+    catalog_item_id = serializers.UUIDField(required=False, allow_null=True)
+    description = serializers.CharField(max_length=240, required=False)
     unit_label = serializers.CharField(
         max_length=40, required=False, allow_blank=True, allow_null=True
     )
     quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
-    unit_price = serializers.DecimalField(max_digits=18, decimal_places=2)
+    unit_price = serializers.DecimalField(max_digits=18, decimal_places=2, required=False)
     discount_amount = serializers.DecimalField(
         max_digits=18, decimal_places=2, required=False, default=Decimal("0.00")
     )

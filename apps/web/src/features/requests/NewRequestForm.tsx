@@ -1,6 +1,12 @@
 import { useEffect, useState, type SyntheticEvent } from "react";
 
-import { api, type EventRequest, type Person } from "../../api";
+import {
+  api,
+  type EventRequest,
+  type EventTypeDefinition,
+  type Person,
+  type Venue,
+} from "../../api";
 import { Notice } from "../../shared/components";
 import { formText, localToInstant, message } from "../../shared/utilities";
 
@@ -47,13 +53,23 @@ export function NewRequestForm({
   onCancel: () => void;
 }) {
   const [people, setPeople] = useState<Person[]>([]);
+  const [eventTypes, setEventTypes] = useState<EventTypeDefinition[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [newPerson, setNewPerson] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    void api<{ people: Person[] }>(`/api/v1/organizations/${organizationId}/people/`)
-      .then((body) => {
-        setPeople(body.people);
+    void Promise.all([
+      api<{ people: Person[] }>(`/api/v1/organizations/${organizationId}/people/`),
+      api<{ event_types: EventTypeDefinition[] }>(
+        `/api/v1/organizations/${organizationId}/event-types/`,
+      ),
+      api<{ venues: Venue[] }>(`/api/v1/organizations/${organizationId}/venues/`),
+    ])
+      .then(([peopleBody, eventTypeBody, venueBody]) => {
+        setPeople(peopleBody.people);
+        setEventTypes(eventTypeBody.event_types);
+        setVenues(venueBody.venues);
       })
       .catch((caught: unknown) => {
         setError(message(caught));
@@ -86,7 +102,8 @@ export function NewRequestForm({
           method: "POST",
           body: JSON.stringify({
             person_id: personId,
-            event_type: formText(form, "event_type"),
+            event_type_id: formText(form, "event_type_id"),
+            space_id: formText(form, "space_id"),
             starts_at: localToInstant(formText(form, "starts_at"), timeZone),
             ends_at: localToInstant(formText(form, "ends_at"), timeZone),
             estimated_guests: Number(formText(form, "estimated_guests")),
@@ -164,7 +181,35 @@ export function NewRequestForm({
           <div className="form-grid">
             <label>
               Tipo de evento
-              <input name="event_type" required />
+              <select name="event_type_id" required defaultValue="">
+                <option value="" disabled>
+                  Selecciona un tipo
+                </option>
+                {eventTypes.map((eventType) => (
+                  <option key={eventType.id} value={eventType.id}>
+                    {eventType.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Espacio
+              <select name="space_id" required defaultValue="">
+                <option value="" disabled>
+                  Selecciona un espacio
+                </option>
+                {venues
+                  .filter((venue) => venue.is_active)
+                  .flatMap((venue) =>
+                    venue.spaces
+                      .filter((space) => space.is_active)
+                      .map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {venue.name} · {space.name}
+                        </option>
+                      )),
+                  )}
+              </select>
             </label>
             <label>
               Invitados estimados

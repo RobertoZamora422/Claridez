@@ -23,7 +23,10 @@ function requestBody(init: RequestInit | undefined): unknown {
 const createdRequest = {
   id: "request-1",
   person: { id: "person-1", full_name: "María Torres", commercial_type: "lead", revision: 1 },
+  event_type_id: "event-type-1",
   event_type: "Boda",
+  venue: { id: "venue-1", name: "Sede principal" },
+  space: { id: "space-1", name: "Espacio principal" },
   starts_at: "2026-09-12T20:00:00Z",
   ends_at: "2026-09-13T02:00:00Z",
   event_timezone: "America/Guayaquil",
@@ -38,7 +41,10 @@ const createdRequest = {
 } satisfies EventRequest;
 
 function completeEventFields(): void {
-  fireEvent.change(screen.getByLabelText("Tipo de evento"), { target: { value: "Boda" } });
+  fireEvent.change(screen.getByLabelText("Tipo de evento"), {
+    target: { value: "event-type-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Espacio"), { target: { value: "space-1" } });
   fireEvent.change(screen.getByLabelText("Invitados estimados"), { target: { value: "120" } });
   fireEvent.change(screen.getByLabelText("Inicio"), { target: { value: "2026-09-12T15:00" } });
   fireEvent.change(screen.getByLabelText("Fin"), { target: { value: "2026-09-12T21:00" } });
@@ -72,6 +78,23 @@ describe("persona inline de una solicitud", () => {
             ],
           }),
         );
+      if (url.endsWith("/event-types/"))
+        return Promise.resolve(
+          json({ event_types: [{ id: "event-type-1", name: "Boda", is_active: true }] }),
+        );
+      if (url.endsWith("/venues/"))
+        return Promise.resolve(
+          json({
+            venues: [
+              {
+                id: "venue-1",
+                name: "Sede principal",
+                is_active: true,
+                spaces: [{ id: "space-1", name: "Espacio principal", is_active: true }],
+              },
+            ],
+          }),
+        );
       if (url === "/api/v1/auth/csrf/") return Promise.resolve(json({ csrf_token: "csrf" }));
       if (url.endsWith("/event-requests/")) return Promise.resolve(json(createdRequest));
       return Promise.resolve(json({ error: { code: "unexpected" } }, 500));
@@ -96,7 +119,11 @@ describe("persona inline de una solicitud", () => {
     const requestCall = fetchMock.mock.calls.find(([input]) =>
       requestUrl(input).endsWith("/event-requests/"),
     );
-    expect(requestBody(requestCall?.[1])).toMatchObject({ person_id: "person-1" });
+    expect(requestBody(requestCall?.[1])).toMatchObject({
+      person_id: "person-1",
+      event_type_id: "event-type-1",
+      space_id: "space-1",
+    });
   });
 
   it("registra una persona nueva antes de crear la solicitud", async () => {
@@ -115,6 +142,23 @@ describe("persona inline de una solicitud", () => {
           }),
         );
       if (url.endsWith("/people/")) return Promise.resolve(json({ people: [] }));
+      if (url.endsWith("/event-types/"))
+        return Promise.resolve(
+          json({ event_types: [{ id: "event-type-1", name: "Boda", is_active: true }] }),
+        );
+      if (url.endsWith("/venues/"))
+        return Promise.resolve(
+          json({
+            venues: [
+              {
+                id: "venue-1",
+                name: "Sede principal",
+                is_active: true,
+                spaces: [{ id: "space-1", name: "Espacio principal", is_active: true }],
+              },
+            ],
+          }),
+        );
       if (url.endsWith("/event-requests/")) return Promise.resolve(json(createdRequest));
       return Promise.resolve(json({ error: { code: "unexpected" } }, 500));
     });

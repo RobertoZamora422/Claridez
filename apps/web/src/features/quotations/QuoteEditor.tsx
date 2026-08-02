@@ -1,6 +1,12 @@
-import { useMemo, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
-import { api, type EventRequest, type Quotation, type QuotationLine } from "../../api";
+import {
+  api,
+  type CatalogItem,
+  type EventRequest,
+  type Quotation,
+  type QuotationLine,
+} from "../../api";
 import { Notice, StatusBadge } from "../../shared/components";
 import { formText, message } from "../../shared/utilities";
 
@@ -19,10 +25,12 @@ export function QuoteEditor({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const latest = quotation?.versions.at(-1) ?? null;
   const [lines, setLines] = useState<QuotationLine[]>(
     latest?.lines ?? [
       {
+        source: "ad_hoc",
         description: "",
         unit_label: "evento",
         quantity: "1.000",
@@ -31,6 +39,15 @@ export function QuoteEditor({
       },
     ],
   );
+  useEffect(() => {
+    void api<{ items: CatalogItem[] }>(`/api/v1/organizations/${organizationId}/catalog/items/`)
+      .then((body) => {
+        setCatalog(body.items.filter((item) => item.is_active));
+      })
+      .catch((caught: unknown) => {
+        setError(message(caught));
+      });
+  }, [organizationId]);
   const defaultValidity = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + 3);
@@ -144,6 +161,7 @@ export function QuoteEditor({
                   setLines((current) => [
                     ...current,
                     {
+                      source: "ad_hoc",
                       description: "",
                       unit_label: "unidad",
                       quantity: "1.000",
@@ -159,9 +177,52 @@ export function QuoteEditor({
             {lines.map((line, index) => (
               <div className="quote-line" key={line.id ?? index}>
                 <label>
+                  Origen
+                  <select
+                    value={line.catalog_item_id ?? ""}
+                    onChange={(event) => {
+                      const item = catalog.find((candidate) => candidate.id === event.target.value);
+                      setLines((current) =>
+                        current.map((candidate, position) =>
+                          position !== index
+                            ? candidate
+                            : item
+                              ? {
+                                  ...candidate,
+                                  source: "catalog",
+                                  catalog_item_id: item.id,
+                                  description: item.name,
+                                  unit_label: item.unit_label,
+                                  unit_price: item.current_price?.amount ?? "0.00",
+                                  package_components: item.components,
+                                }
+                              : {
+                                  ...candidate,
+                                  source: "ad_hoc",
+                                  catalog_item_id: null,
+                                  description: "",
+                                  unit_label: "unidad",
+                                  unit_price: "0.00",
+                                  package_components: [],
+                                },
+                        ),
+                      );
+                    }}
+                  >
+                    <option value="">Línea ad hoc</option>
+                    {catalog.map((item) => (
+                      <option key={item.id} value={item.id} disabled={item.current_price === null}>
+                        {item.name}
+                        {item.current_price ? ` · $${item.current_price.amount}` : " · sin precio"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   Descripción
                   <input
                     required
+                    disabled={line.source === "catalog"}
                     value={line.description}
                     onChange={(event) => {
                       updateLine(index, "description", event.target.value);
@@ -181,6 +242,11 @@ export function QuoteEditor({
                     }}
                   />
                 </label>
+                {line.source === "catalog" && (line.package_components?.length ?? 0) > 0 ? (
+                  <p className="quote-line__components">
+                    Incluye: {line.package_components?.map((item) => item.name).join(", ")}
+                  </p>
+                ) : null}
                 <label>
                   Precio USD
                   <input
@@ -188,6 +254,7 @@ export function QuoteEditor({
                     min="0"
                     step="0.01"
                     required
+                    disabled={line.source === "catalog"}
                     value={line.unit_price}
                     onChange={(event) => {
                       updateLine(index, "unit_price", event.target.value);

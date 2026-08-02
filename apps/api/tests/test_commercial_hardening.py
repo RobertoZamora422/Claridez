@@ -10,6 +10,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
+from claridez.catalog.services import create_event_type, list_event_types
 from claridez.commercial.models import QuotationVersion
 from claridez.commercial.services import (
     accept_quotation_version,
@@ -28,6 +29,7 @@ from claridez.commercial.services import (
 )
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.configuration_services import list_venues
 from claridez.organizations.models import Membership
 from claridez.organizations.services import add_membership, create_organization
 from claridez.organizations.tenant_scope import authorized_tenant_scope
@@ -53,6 +55,17 @@ def _actor_for_role(owner: User, organization_id: Any, role: Membership.Role) ->
     return actor
 
 
+def _p6_refs(owner: User, organization_id: Any, name: str = "Boda") -> tuple[Any, Any]:
+    event_type = next(
+        (row for row in list_event_types(owner, organization_id) if row["name"] == name),
+        None,
+    )
+    if event_type is None:
+        event_type = create_event_type(owner, organization_id, name=name)
+    space_id = list_venues(owner, organization_id)[0]["spaces"][0]["id"]
+    return event_type["id"], space_id
+
+
 def _commercial_flow() -> tuple[User, Any, dict[str, Any], dict[str, Any], dict[str, Any]]:
     owner = _user("hardening-owner@example.com")
     creation = create_organization(owner_user_id=owner.pk, name="Hardening comercial")
@@ -67,11 +80,13 @@ def _commercial_flow() -> tuple[User, Any, dict[str, Any], dict[str, Any], dict[
         origin_detail=None,
     )
     start = timezone.now() + timedelta(days=30)
+    event_type_id, space_id = _p6_refs(owner, organization_id)
     event_request = create_event_request(
         owner,
         organization_id,
         person_id=person["id"],
-        event_type="Boda",
+        event_type_id=event_type_id,
+        space_id=space_id,
         starts_at=start,
         ends_at=start + timedelta(hours=5),
         estimated_guests=90,
@@ -140,6 +155,7 @@ def test_service_representations_enforce_person_read(
     availability_payload = list_availability(
         actor,
         organization_id,
+        space_id=event_request["space"]["id"],
         starts_at=event_request["starts_at"] - timedelta(hours=1),
         ends_at=event_request["ends_at"] + timedelta(hours=1),
     )
@@ -215,6 +231,7 @@ def test_http_representations_enforce_person_read(
     base = f"/api/v1/organizations/{organization_id}"
     query = urlencode(
         {
+            "space_id": str(event_request["space"]["id"]),
             "from": (event_request["starts_at"] - timedelta(hours=1)).isoformat(),
             "to": (event_request["ends_at"] + timedelta(hours=1)).isoformat(),
         }
@@ -254,11 +271,13 @@ def test_service_patch_without_effective_changes_is_idempotent() -> None:
         origin_detail=None,
     )
     start = timezone.now() + timedelta(days=20)
+    event_type_id, space_id = _p6_refs(owner, organization_id)
     event_request = create_event_request(
         owner,
         organization_id,
         person_id=person["id"],
-        event_type="Boda",
+        event_type_id=event_type_id,
+        space_id=space_id,
         starts_at=start,
         ends_at=start + timedelta(hours=4),
         estimated_guests=50,
@@ -313,7 +332,8 @@ def test_service_patch_without_effective_changes_is_idempotent() -> None:
             request_id=event_request["id"],
             revision=1,
             changes={
-                "event_type": "  Boda ",
+                "event_type_id": event_type_id,
+                "space_id": space_id,
                 "starts_at": event_request["starts_at"],
                 "ends_at": event_request["ends_at"],
                 "estimated_guests": 50,
@@ -343,11 +363,13 @@ def test_http_patch_without_effective_changes_is_idempotent() -> None:
         origin_detail=None,
     )
     start = timezone.now() + timedelta(days=20)
+    event_type_id, space_id = _p6_refs(owner, organization_id)
     event_request = create_event_request(
         owner,
         organization_id,
         person_id=person["id"],
-        event_type="Boda",
+        event_type_id=event_type_id,
+        space_id=space_id,
         starts_at=start,
         ends_at=start + timedelta(hours=4),
         estimated_guests=50,
@@ -390,7 +412,8 @@ def test_http_patch_without_effective_changes_is_idempotent() -> None:
         data=json.dumps(
             {
                 "revision": 1,
-                "event_type": "Boda",
+                "event_type_id": str(event_type_id),
+                "space_id": str(space_id),
                 "general_need": "Salón   completo",
                 "notes": " ",
             }

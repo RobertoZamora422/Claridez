@@ -80,6 +80,7 @@ export interface Person {
 
 export interface Reservation {
   id: string;
+  space_id: string;
   status: "provisional" | "confirmed" | "expired" | "cancelled";
   starts_at: string;
   ends_at: string;
@@ -101,7 +102,10 @@ export interface Reservation {
 export interface EventRequest {
   id: string;
   person: Person;
+  event_type_id: string;
   event_type: string;
+  venue: { id: string; name: string };
+  space: { id: string; name: string };
   starts_at: string;
   ends_at: string;
   event_timezone: string;
@@ -117,6 +121,11 @@ export interface EventRequest {
 
 export interface QuotationLine {
   id?: string;
+  source?: "ad_hoc" | "catalog";
+  catalog_item_id?: string | null;
+  catalog_item_revision_id?: string | null;
+  catalog_price_id?: string | null;
+  package_components?: CatalogComponent[];
   position?: number;
   description: string;
   unit_label: string | null;
@@ -151,10 +160,70 @@ export interface Quotation {
 }
 
 export interface Availability {
+  space: { id: string; name: string; venue_id: string; venue_name: string };
   from: string;
   to: string;
   available: boolean;
   blocks: Reservation[];
+}
+
+export interface Space {
+  id: string;
+  venue_id: string;
+  name: string;
+  is_primary: boolean;
+  is_active: boolean;
+  revision: number;
+}
+
+export interface Venue {
+  id: string;
+  name: string;
+  location_reference: string | null;
+  is_primary: boolean;
+  is_active: boolean;
+  revision: number;
+  spaces: Space[];
+}
+
+export interface EventTypeDefinition {
+  id: string;
+  name: string;
+  is_active: boolean;
+  revision: number;
+}
+
+export interface CatalogComponent {
+  item_id: string;
+  revision_id: string;
+  revision: number;
+  kind: "service" | "product";
+  name: string;
+  unit_label: string;
+  quantity: string;
+}
+
+export interface CatalogPrice {
+  id: string;
+  amount: string;
+  currency: "USD";
+  valid_from: string;
+  valid_until: string | null;
+  revision: number;
+}
+
+export interface CatalogItem {
+  id: string;
+  kind: "service" | "product" | "package";
+  name: string;
+  description: string | null;
+  unit_label: string;
+  is_active: boolean;
+  revision: number;
+  revision_id: string;
+  components: CatalogComponent[];
+  current_price?: CatalogPrice | null;
+  prices?: CatalogPrice[];
 }
 
 export type OperationStatus = "preparing" | "ready" | "in_progress" | "completed" | "cancelled";
@@ -199,7 +268,10 @@ export interface PreparationItem {
 export interface OperationEvent {
   reservation_id: string;
   event: {
+    event_type_id: string;
     event_type: string;
+    venue: { id: string; name: string };
+    space: { id: string; name: string };
     starts_at: string;
     ends_at: string;
     timezone: string;

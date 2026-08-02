@@ -23,7 +23,10 @@ function requestBody(init: RequestInit | undefined): unknown {
 const request = {
   id: "request-1",
   person: { id: "person-1", commercial_type: "lead", revision: 1 },
+  event_type_id: "event-type-1",
   event_type: "Boda",
+  venue: { id: "venue-1", name: "Sede principal" },
+  space: { id: "space-1", name: "Espacio principal" },
   starts_at: "2026-09-12T20:00:00Z",
   ends_at: "2026-09-13T02:00:00Z",
   event_timezone: "America/Guayaquil",
@@ -87,6 +90,7 @@ describe("edición, emisión y aceptación de cotizaciones", () => {
       void init;
       const url = requestUrl(input);
       if (url === "/api/v1/auth/csrf/") return Promise.resolve(json({ csrf_token: "csrf" }));
+      if (url.endsWith("/catalog/items/")) return Promise.resolve(json({ items: [] }));
       return Promise.resolve(json({}));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -130,6 +134,7 @@ describe("edición, emisión y aceptación de cotizaciones", () => {
       void init;
       const url = requestUrl(input);
       if (url === "/api/v1/auth/csrf/") return Promise.resolve(json({ csrf_token: "csrf" }));
+      if (url.endsWith("/catalog/items/")) return Promise.resolve(json({ items: [] }));
       return Promise.resolve(json({}));
     });
     vi.stubGlobal("fetch", fetchMock);

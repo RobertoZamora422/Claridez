@@ -1,9 +1,8 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 2 de agosto de 2026
-- **Etapa funcional activa:** ninguna; I5.2 está completada localmente
-- **Siguiente etapa:** P6 — Configuración del negocio, sedes y catálogo
-- **Publicación:** no se presume commit, push, despliegue ni cutover remoto
+- **Fecha de corte:** 1 de agosto de 2026
+- **Etapa funcional activa:** ninguna; P6 está completada localmente
+- **Siguiente etapa:** P7 — CRM y seguimiento comercial
 
 ## Qué es Claridez
 
@@ -32,26 +31,34 @@ duplica: registra cómo continuar desde el checkout real.
 ## Módulos implementados
 
 - `claridez.identity`: usuario global, sesiones, contraseñas, correo local y Axes.
-- `claridez.organizations`: organizaciones, membresías, settings, capacidades y scope tenant.
-- `claridez.commercial`: personas, solicitudes, cotizaciones versionadas, disponibilidad y reservas.
+- `claridez.organizations`: organizaciones, membresías, settings, sedes, espacios, capacidades y
+  scope tenant.
+- `claridez.catalog`: tipos de evento, servicios, productos, paquetes, revisiones, precios y
+  vigencias.
+- `claridez.commercial`: personas, solicitudes, cotizaciones versionadas con catálogo/ad hoc,
+  disponibilidad por espacio y reservas.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
-- Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas y operación.
+- Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas,
+  operación y administración responsive de configuración funcional y catálogo.
 
-No existen aún los módulos de P6 en adelante. No hay módulos financieros, contratos/archivos,
+No existen aún los módulos de P7 en adelante. No hay módulos financieros, contratos/archivos,
 portal, proveedores productivos de correo/identidad, staging ni producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2 e implementación local de I5.2: completadas.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6: completadas y validadas localmente.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
   ejecutado.
-- La consolidación del 2 de agosto incorpora limpieza oficial, contrato operativo coherente y las
-  tres fuentes maestras. Los cambios quedan para revisión y commit exclusivo del propietario.
-- No hay etapa funcional autorizada en ejecución. Lo próximo es presentar un plan breve de P6 y
-  esperar aprobación.
+- La consolidación del 1 de agosto incorpora limpieza oficial, contrato operativo coherente y las
+  tres fuentes maestras.
+- P6 incorpora configuración funcional, sedes/espacios, catálogo versionado, paquetes explícitos,
+  precios con vigencias y su uso real en comercial, agenda y proyección operativa.
+- `npm run check:all` pasó con los toolchains fijados: 144 pruebas no integración, 37 integración
+  PostgreSQL y 16 frontend, además de OpenAPI y builds. No hay etapa funcional autorizada en
+  ejecución. `npm run audit` no encontró vulnerabilidades conocidas en Python ni npm.
 
 ## Decisiones cerradas
 
@@ -61,6 +68,7 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
 - Identidad local y sesiones de servidor: ADR 0010.
 - Organizaciones, membresías, último propietario y autorización: ADR 0011.
 - Agenda/dinero comercial y coordinación comercial-operaciones: ADR 0012–0013.
+- Multi-espacio, configuración funcional, catálogo, backfill y frontera MFA de P6: ADR 0014.
 - Comportamiento exacto implementado: especificaciones 5.1 y 5.2.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
@@ -94,7 +102,7 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificación de la etapa precedente y ADR aplicables; para P6, 5.1, 5.2, ADR 0009, 0011–0013.
+5. Especificaciones 5.1/5.2 y ADR aplicables; para P7, revisar además ADR 0014 y los contratos P6.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -152,17 +160,20 @@ falta.
 
 ## Próximo trabajo autorizado
 
-Está autorizado preparar, a partir del estado real, un plan breve de **P6 — Configuración del
-negocio, sedes y catálogo** y señalar solo decisiones bloqueantes. Su implementación requiere una
-nueva aprobación. El plan debe preservar cotizaciones/reservas históricas, proponer el ADR de
-multi-espacio y mantener RLS, capacidades, migraciones y concurrencia.
+Está autorizado preparar, a partir del estado real, un plan breve de **P7 — CRM y seguimiento
+comercial** y señalar solo decisiones bloqueantes. Su implementación requiere una nueva aprobación.
+El plan debe extender `Person` y `EventRequest` sin duplicarlos, preservar minimización y
+aislamiento, y resolver las reglas de privacidad/retención y capacidades CRM que realmente
+bloqueen la etapa.
 
 ## Riesgos actuales
 
 - Un despliegue futuro debe ejecutar el cutover 5.2 completo; no admite convivencia 5.1/5.2.
+- Ese despliegue debe respetar también el orden multi-espacio y las comprobaciones de ADR 0014.
 - Acciones privilegiadas de membresías continúan sin UI productiva y no deben abrirse sin MFA.
 - Correo es local; recuperación/verificación externas no están listas para clientes reales.
-- P6 altera el supuesto de espacio único y necesita decisión/migración explícitas.
+- P7 debe evitar duplicar personas/solicitudes y no almacenar seguimiento sensible sin reglas de
+  privacidad y retención aprobadas.
 - Proveedores, privacidad/retención y firma requieren investigación antes de sus etapas.
 - No se ha observado una ejecución remota de CI ni existe ambiente desplegado.
 
@@ -178,14 +189,13 @@ Cada etapa debe cerrar con:
    despliegue;
 6. seguridad, tenancy, concurrencia, privacidad y compatibilidad verificadas;
 7. limitaciones, riesgos y validaciones omitidas;
-8. estado Git sin commit de agente;
-9. Roadmap y Handoff actualizados;
-10. siguiente etapa exacta y si requiere aprobación o investigación.
+8. Roadmap y Handoff actualizados;
+9. siguiente etapa exacta y si requiere aprobación o investigación.
 
 ## Cómo actualizar este Handoff
 
 Al finalizar una etapa, cambiar fecha, etapa activa/siguiente, módulos, estado, decisiones y riesgos
 solo con evidencia del checkout y de las validaciones ejecutadas. Enlazar nuevas fuentes sin copiar
 su contenido completo. Mover la etapa completada en el Roadmap, registrar allí su resultado y dejar
-una sola siguiente etapa. No declarar commit, CI, cutover o despliegue no observados. Ejecutar
+una sola siguiente etapa. Ejecutar
 formato, enlaces, UTF-8/LF y puertas oficiales antes de entregar la actualización.

@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "axes",
     "claridez.identity.apps.IdentityConfig",
     "claridez.organizations.apps.OrganizationsConfig",
+    "claridez.catalog.apps.CatalogConfig",
     "claridez.commercial.apps.CommercialConfig",
     "claridez.operations.apps.OperationsConfig",
     "rest_framework",
