@@ -6,7 +6,7 @@ from uuid import UUID
 
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -15,6 +15,14 @@ from rest_framework.views import APIView
 from claridez.identity.models import User
 from claridez.organizations.exceptions import AuthorizationDenied, TenantAccessDenied
 
+from .api_schemas import (
+    AssigneeListResponseSerializer,
+    CapabilitiesResponseSerializer,
+    ErrorResponseSerializer,
+    EventListResponseSerializer,
+    ItemMutationResponseSerializer,
+    OperationEventDetailSerializer,
+)
 from .errors import OperationsError
 from .serializers import (
     AssignmentSerializer,
@@ -37,9 +45,6 @@ from .services import (
     update_item,
     update_preparation,
 )
-
-SUCCESS = OpenApiResponse(description="Respuesta operativa dentro del tenant autorizado.")
-ERROR = OpenApiResponse(description="Error JSON seguro.")
 
 
 def _error(code: str, message: str, *, status: int) -> Response:
@@ -92,7 +97,15 @@ class OperationsAPIView(APIView):
 
 
 class OperationsCapabilitiesView(OperationsAPIView):
-    @extend_schema(responses={200: SUCCESS, 401: ERROR, 404: ERROR}, tags=["Operaciones"])
+    @extend_schema(
+        operation_id="operations_capabilities_retrieve",
+        responses={
+            200: CapabilitiesResponseSerializer,
+            401: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+        },
+        tags=["Operaciones"],
+    )
     def get(self, request: Request, organization_id: UUID) -> Response:
         actor = self.actor_or_response(request)
         if isinstance(actor, Response):
@@ -103,7 +116,12 @@ class OperationsCapabilitiesView(OperationsAPIView):
 class AssigneeListView(OperationsAPIView):
     @extend_schema(
         operation_id="operations_assignees_list",
-        responses={200: SUCCESS, 401: ERROR, 403: ERROR, 404: ERROR},
+        responses={
+            200: AssigneeListResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def get(self, request: Request, organization_id: UUID) -> Response:
@@ -122,10 +140,16 @@ class EventListView(OperationsAPIView):
             OpenApiParameter("status", str, many=True, required=False),
             OpenApiParameter("attention", str, required=False),
             OpenApiParameter("responsible_membership_id", UUID, required=False),
-            OpenApiParameter("cursor", int, required=False),
+            OpenApiParameter("cursor", str, required=False),
             OpenApiParameter("page_size", int, required=False),
         ],
-        responses={200: SUCCESS, 400: ERROR, 401: ERROR, 403: ERROR, 404: ERROR},
+        responses={
+            200: EventListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def get(self, request: Request, organization_id: UUID) -> Response:
@@ -151,7 +175,7 @@ class EventListView(OperationsAPIView):
                 statuses=data.get("status"),
                 attention=data.get("attention"),
                 responsible_membership_id=data.get("responsible_membership_id"),
-                offset=data["cursor"],
+                cursor=data.get("cursor"),
                 page_size=data["page_size"],
             )
         )
@@ -160,7 +184,12 @@ class EventListView(OperationsAPIView):
 class EventDetailView(OperationsAPIView):
     @extend_schema(
         operation_id="operations_events_retrieve",
-        responses={200: SUCCESS, 401: ERROR, 403: ERROR, 404: ERROR},
+        responses={
+            200: OperationEventDetailSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def get(self, request: Request, organization_id: UUID, reservation_id: UUID) -> Response:
@@ -173,7 +202,14 @@ class EventDetailView(OperationsAPIView):
 class PreparationUpdateView(OperationsAPIView):
     @extend_schema(
         request=PreparationUpdateSerializer,
-        responses={200: SUCCESS, 409: ERROR},
+        responses={
+            200: OperationEventDetailSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            409: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def patch(self, request: Request, organization_id: UUID, reservation_id: UUID) -> Response:
@@ -197,7 +233,16 @@ class PreparationUpdateView(OperationsAPIView):
 
 class AssignmentView(OperationsAPIView):
     @extend_schema(
-        request=AssignmentSerializer, responses={200: SUCCESS, 409: ERROR}, tags=["Operaciones"]
+        request=AssignmentSerializer,
+        responses={
+            200: OperationEventDetailSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            409: ErrorResponseSerializer,
+        },
+        tags=["Operaciones"],
     )
     def post(self, request: Request, organization_id: UUID, reservation_id: UUID) -> Response:
         actor = self.actor_or_response(request)
@@ -221,7 +266,15 @@ class AssignmentView(OperationsAPIView):
 class ItemCreateView(OperationsAPIView):
     @extend_schema(
         request=ItemCreateSerializer,
-        responses={200: SUCCESS, 201: SUCCESS, 409: ERROR},
+        responses={
+            200: ItemMutationResponseSerializer,
+            201: ItemMutationResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            409: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def post(self, request: Request, organization_id: UUID, reservation_id: UUID) -> Response:
@@ -251,7 +304,14 @@ class ItemCreateView(OperationsAPIView):
 class ItemUpdateView(OperationsAPIView):
     @extend_schema(
         request=ItemUpdateSerializer,
-        responses={200: SUCCESS, 400: ERROR, 409: ERROR},
+        responses={
+            200: ItemMutationResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            409: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def patch(
@@ -294,7 +354,14 @@ class _TransitionView(OperationsAPIView):
 
     @extend_schema(
         request=RevisionSerializer,
-        responses={200: SUCCESS, 400: ERROR, 403: ERROR, 404: ERROR, 409: ERROR},
+        responses={
+            200: OperationEventDetailSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            409: ErrorResponseSerializer,
+        },
         tags=["Operaciones"],
     )
     def post(self, request: Request, organization_id: UUID, reservation_id: UUID) -> Response:

@@ -242,7 +242,8 @@ concurrencia y aislamiento coherentes con su especificación funcional.
 - `claridez.operations` incorpora una preparación uno a uno por reserva confirmada, siete ítems
   base, ítems libres y transiciones append-only.
 - La confirmación y cancelación comerciales se coordinan atómicamente sin señales Django; ADR 0013
-  limita el trigger transversal a guardián diferido del estado final.
+  limita el trigger transversal a guardián diferido del estado final y la migración implementada
+  `operations/0002_commercial_operations_guardian` lo instala como constraint trigger diferible.
 - Las cinco etapas operativas, revisión optimista, responsables, privacidad condicionada del
   teléfono, RLS, claves tenant-aware y reglas de readiness se aplican en backend y PostgreSQL.
 - La API de comandos y la vista React cubren bandeja, detalle, checklist, asignación, listo, inicio y

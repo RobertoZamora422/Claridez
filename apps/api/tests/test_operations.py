@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
 from threading import Event
-from typing import Any
+from typing import Any, cast
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -19,7 +20,9 @@ from django.db import (
 )
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from drf_spectacular.generators import SchemaGenerator
 
 from claridez.commercial.errors import CommercialError
 from claridez.commercial.models import Reservation
@@ -41,10 +44,12 @@ from claridez.identity.models import User
 from claridez.operations.cutover import verify_operations_cutover
 from claridez.operations.errors import OperationsError
 from claridez.operations.models import EventPreparation, PreparationItem, PreparationTransition
+from claridez.operations.representations import preparation_representation
 from claridez.operations.services import (
     assign_preparation,
     complete_event,
     create_item,
+    list_events,
     mark_ready,
     read_event,
     start_event,
@@ -57,6 +62,21 @@ from claridez.organizations.services import add_membership, create_organization
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 
 PASSWORD = "correct-horse-battery-staple-operations"
+HISTORICAL_ACTOR_FIELDS = {"membership_id", "display_name", "available"}
+FORBIDDEN_HISTORICAL_ACTOR_FIELDS = {
+    "role",
+    "email",
+    "user",
+    "user_id",
+    "phone",
+    "phone_e164",
+    "contact",
+}
+
+
+def _assert_minimal_historical_actor(actor: dict[str, Any]) -> None:
+    assert set(actor) == HISTORICAL_ACTOR_FIELDS
+    assert not (set(actor) & FORBIDDEN_HISTORICAL_ACTOR_FIELDS)
 
 
 def _user(email: str, display_name: str = "Equipo Claridez") -> User:
@@ -159,7 +179,9 @@ def _resolve_all(owner: User, organization_id: UUID, reservation_id: UUID) -> in
             values={"status": "completed"},
         )
         revision = changed["preparation_revision"]
-        assert changed["item"]["resolved_by"]["display_name"] == "Equipo Claridez"
+        resolved_by = changed["item"]["resolved_by"]
+        assert resolved_by["display_name"] == "Equipo Claridez"
+        _assert_minimal_historical_actor(resolved_by)
     return int(revision)
 
 
@@ -221,12 +243,15 @@ def test_ready_start_complete_flow_resolution_evidence_and_phone_minimization() 
         owner, creation.organization.pk, reservation_id=reservation_id, revision=revision
     )
     assert ready["preparation"]["status"] == "ready"
+    _assert_minimal_historical_actor(ready["preparation"]["ready_by"])
     started = start_event(
         owner,
         creation.organization.pk,
         reservation_id=reservation_id,
         revision=ready["preparation"]["revision"],
     )
+    _assert_minimal_historical_actor(started["preparation"]["ready_by"])
+    _assert_minimal_historical_actor(started["preparation"]["started_by"])
     completed = complete_event(
         owner,
         creation.organization.pk,
@@ -235,9 +260,125 @@ def test_ready_start_complete_flow_resolution_evidence_and_phone_minimization() 
     )
     assert completed["preparation"]["status"] == "completed"
     assert completed["contact"] == {"display_name": "Contacto Operativo"}
+    for field in ("ready_by", "started_by", "completed_by"):
+        _assert_minimal_historical_actor(completed["preparation"][field])
     serialized = str(completed).lower()
-    for forbidden in ("contacto@example.com", "subtotal", "discount", "deposit", "anticipo"):
+    for forbidden in (
+        "contacto@example.com",
+        "subtotal",
+        "discount",
+        "deposit",
+        "anticipo",
+        "operations-flow@example.com",
+    ):
         assert forbidden not in serialized
+
+
+@pytest.mark.django_db
+def test_event_list_paginates_before_representation_with_bounded_queries() -> None:
+    owner = _user("operations-list-volume@example.com")
+    creation = create_organization(owner_user_id=owner.pk, name="Operaciones volumen")
+    reservation_ids = [
+        UUID(
+            str(
+                _confirmed(
+                    owner,
+                    creation.organization.pk,
+                    days=day,
+                    phone=f"099000{day:04d}",
+                )["id"]
+            )
+        )
+        for day in range(10, 35)
+    ]
+    from_date = timezone.localdate() + timedelta(days=1)
+    to_date = timezone.localdate() + timedelta(days=60)
+
+    with (
+        CaptureQueriesContext(connection) as captured,
+        patch(
+            "claridez.operations.services.queries.preparation_representation",
+            wraps=preparation_representation,
+        ) as represent,
+    ):
+        first_page = list_events(
+            owner,
+            creation.organization.pk,
+            from_date=from_date,
+            to_date=to_date,
+            page_size=7,
+        )
+
+    assert len(first_page["results"]) == 7
+    assert first_page["next_cursor"]
+    assert represent.call_count == 7
+    assert len(captured) <= 10
+    assert all("items" not in result["preparation"] for result in first_page["results"])
+    first_ids = [UUID(str(result["reservation_id"])) for result in first_page["results"]]
+    assert first_ids == reservation_ids[:7]
+
+    with CaptureQueriesContext(connection) as second_captured:
+        second_page = list_events(
+            owner,
+            creation.organization.pk,
+            from_date=from_date,
+            to_date=to_date,
+            cursor=first_page["next_cursor"],
+            page_size=7,
+        )
+    second_ids = [UUID(str(result["reservation_id"])) for result in second_page["results"]]
+    assert second_ids == reservation_ids[7:14]
+    assert not set(first_ids) & set(second_ids)
+    assert len(second_captured) <= 10
+
+
+@pytest.mark.django_db
+def test_operations_openapi_is_concrete_minimal_and_client_generation_ready() -> None:
+    generator_class = cast(Any, SchemaGenerator)
+    schema = generator_class().get_schema(request=None, public=True)
+    assert schema is not None
+    components = schema["components"]["schemas"]
+    paths = schema["paths"]
+
+    list_schema = paths["/api/v1/organizations/{organization_id}/operations/events/"]["get"][
+        "responses"
+    ]["200"]["content"]["application/json"]["schema"]
+    detail_schema = paths[
+        "/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/"
+    ]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert list_schema == {"$ref": "#/components/schemas/EventListResponse"}
+    assert detail_schema == {"$ref": "#/components/schemas/OperationEventDetail"}
+
+    historical_actor = components["HistoricalActor"]
+    assert set(historical_actor["properties"]) == HISTORICAL_ACTOR_FIELDS
+    assert set(historical_actor["required"]) == HISTORICAL_ACTOR_FIELDS
+    assert not (set(historical_actor["properties"]) & FORBIDDEN_HISTORICAL_ACTOR_FIELDS)
+    assert "role" in components["ResponsibleMembership"]["properties"]
+
+    contact = components["OperationalContact"]
+    assert set(contact["properties"]) == {"display_name", "phone_e164"}
+    assert contact["required"] == ["display_name"]
+    assert "phone_e164" not in contact["required"]
+
+    assert set(components["OperationPreparationStatus"]["enum"]) == {
+        "preparing",
+        "ready",
+        "in_progress",
+        "completed",
+        "cancelled",
+    }
+    assert set(components["OperationItemStatus"]["enum"]) == {
+        "pending",
+        "in_progress",
+        "blocked",
+        "completed",
+        "not_applicable",
+    }
+    assert components["EventListResponse"]["properties"]["results"]["type"] == "array"
+    assert "next_cursor" in components["EventListResponse"]["required"]
+    assert components["OperationsErrorResponse"]["properties"]["error"] == {
+        "$ref": "#/components/schemas/OperationsErrorDetail"
+    }
 
 
 @pytest.mark.django_db

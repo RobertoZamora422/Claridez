@@ -15,7 +15,7 @@ class EventListQuerySerializer(serializers.Serializer[dict[str, object]]):
         choices=["overdue", "upcoming", "blocked", "ready", "unassigned"], required=False
     )
     responsible_membership_id = serializers.UUIDField(required=False)
-    cursor = serializers.IntegerField(min_value=0, required=False, default=0)
+    cursor = serializers.CharField(max_length=256, required=False)
     page_size = serializers.IntegerField(min_value=1, max_value=100, required=False, default=25)
 
     def validate(self, attrs: dict[str, object]) -> dict[str, object]:

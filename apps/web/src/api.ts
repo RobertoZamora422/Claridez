@@ -166,6 +166,18 @@ export interface OperationMembership {
   available: boolean;
 }
 
+export interface OperationAssignee {
+  membership_id: string;
+  display_name: string;
+  role: string;
+}
+
+export interface HistoricalOperationActor {
+  membership_id: string;
+  display_name: string;
+  available: boolean;
+}
+
 export interface PreparationItem {
   id: string;
   client_request_id: string;
@@ -181,7 +193,7 @@ export interface PreparationItem {
   status_note: string;
   revision: number;
   resolved_at?: string;
-  resolved_by?: OperationMembership;
+  resolved_by?: HistoricalOperationActor;
 }
 
 export interface OperationEvent {
@@ -202,8 +214,11 @@ export interface OperationEvent {
     operational_notes: string;
     baseline_version: string;
     ready_at: string | null;
+    ready_by: HistoricalOperationActor | null;
     started_at: string | null;
+    started_by: HistoricalOperationActor | null;
     completed_at: string | null;
+    completed_by: HistoricalOperationActor | null;
     attention: {
       pending_count: number;
       overdue_count: number;

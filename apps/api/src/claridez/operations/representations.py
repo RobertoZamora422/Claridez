@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol, cast
 from zoneinfo import ZoneInfo
 
 from claridez.commercial.services.operations_projection import operational_event_projection
@@ -18,7 +18,15 @@ ACTIVE_PHONE_STATES = {
 TERMINAL_STATES = {EventPreparation.Status.COMPLETED, EventPreparation.Status.CANCELLED}
 
 
-def membership_summary(
+class AnnotatedAttention(Protocol):
+    attention_overdue_count: int
+    attention_blocked_count: int
+    attention_is_overdue: bool
+    attention_is_upcoming: bool
+    attention_responsible_unavailable: bool
+
+
+def responsible_membership_summary(
     membership: Membership | None, *, require_manage: bool = True
 ) -> dict[str, Any] | None:
     if membership is None:
@@ -36,6 +44,16 @@ def membership_summary(
     }
 
 
+def historical_actor_summary(membership: Membership | None) -> dict[str, Any] | None:
+    if membership is None:
+        return None
+    return {
+        "membership_id": membership.pk,
+        "display_name": membership.user.display_name or "Miembro del equipo",
+        "available": membership.status == Membership.Status.ACTIVE,
+    }
+
+
 def item_representation(item: PreparationItem) -> dict[str, Any]:
     result: dict[str, Any] = {
         "id": item.pk,
@@ -45,7 +63,7 @@ def item_representation(item: PreparationItem) -> dict[str, Any]:
         "position": item.position,
         "title": item.title,
         "is_required": item.is_required,
-        "responsible": membership_summary(item.responsible_membership),
+        "responsible": responsible_membership_summary(item.responsible_membership),
         "due_on": item.due_on,
         "status": item.status,
         "notes": item.notes,
@@ -56,11 +74,26 @@ def item_representation(item: PreparationItem) -> dict[str, Any]:
     }
     if item.status in {PreparationItem.Status.COMPLETED, PreparationItem.Status.NOT_APPLICABLE}:
         result["resolved_at"] = item.resolved_at
-        result["resolved_by"] = membership_summary(item.resolved_by_membership)
+        result["resolved_by"] = historical_actor_summary(item.resolved_by_membership)
     return result
 
 
 def attention_summary(preparation: EventPreparation, *, now: datetime) -> dict[str, Any]:
+    annotated_pending = getattr(preparation, "attention_pending_count", None)
+    if annotated_pending is not None:
+        annotated = cast(AnnotatedAttention, preparation)
+        annotated_overdue = int(annotated.attention_overdue_count)
+        annotated_blocked = int(annotated.attention_blocked_count)
+        return {
+            "pending_count": annotated_pending,
+            "overdue_count": annotated_overdue,
+            "blocked_count": annotated_blocked,
+            "is_overdue": bool(annotated.attention_is_overdue),
+            "is_upcoming": bool(annotated.attention_is_upcoming),
+            "is_ready": preparation.status == EventPreparation.Status.READY,
+            "has_blockers": annotated_blocked > 0,
+            "responsible_unavailable": bool(annotated.attention_responsible_unavailable),
+        }
     timezone_name = preparation.reservation.event_timezone
     local_now = now.astimezone(ZoneInfo(timezone_name))
     today = local_now.date()
@@ -91,7 +124,7 @@ def attention_summary(preparation: EventPreparation, *, now: datetime) -> dict[s
     ).days in range(0, 8)
     responsible = preparation.responsible_membership
     responsible_unavailable = responsible is not None and not bool(
-        membership_summary(responsible)["available"]  # type: ignore[index]
+        responsible_membership_summary(responsible)["available"]  # type: ignore[index]
     )
     return {
         "pending_count": pending,
@@ -120,15 +153,15 @@ def preparation_representation(
         "preparation": {
             "status": preparation.status,
             "revision": preparation.revision,
-            "responsible": membership_summary(preparation.responsible_membership),
+            "responsible": responsible_membership_summary(preparation.responsible_membership),
             "operational_notes": preparation.operational_notes if include_items else "",
             "baseline_version": preparation.baseline_version,
             "ready_at": preparation.ready_at,
-            "ready_by": membership_summary(preparation.ready_by_membership),
+            "ready_by": historical_actor_summary(preparation.ready_by_membership),
             "started_at": preparation.started_at,
-            "started_by": membership_summary(preparation.started_by_membership),
+            "started_by": historical_actor_summary(preparation.started_by_membership),
             "completed_at": preparation.completed_at,
-            "completed_by": membership_summary(preparation.completed_by_membership),
+            "completed_by": historical_actor_summary(preparation.completed_by_membership),
             "created_at": preparation.created_at,
             "updated_at": preparation.updated_at,
             "attention": attention_summary(preparation, now=now),

@@ -106,6 +106,10 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API de Claridez con autenticación local mediante sesiones de servidor.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {
+        "OperationPreparationStatus": ("claridez.operations.models.EventPreparation.Status"),
+        "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
+    },
 }
 
 

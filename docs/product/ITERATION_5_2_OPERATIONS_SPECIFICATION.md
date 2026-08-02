@@ -112,7 +112,9 @@ transversal exigida: la orquestación explícita es la única ruta de dominio so
 trigger PostgreSQL diferido actúa solamente como guardián final ante SQL directo,
 `QuerySet.update` y operaciones bulk. El guardián no crea datos, no autoriza acciones y no sustituye
 los servicios. El ADR fija además la dirección de dependencias y el orden y reversión de
-migraciones.
+migraciones. La implementación vigente instala este guardián en
+`operations/0002_commercial_operations_guardian` como **constraint trigger diferible** sobre
+`commercial_reservation`; no es una defensa pendiente de implementación.
 
 ## 2. Modelo de dominio propuesto
 
@@ -842,9 +844,10 @@ El backfill reconstruible usa exclusivamente evidencia comercial existente:
 El orden técnico decidido dentro de la migración atómica es: bloquear y validar la fuente; crear
 tablas y restricciones estructurales; ejecutar el backfill; comprobar cardinalidad, siete claves y
 secuencias de revisión; y solo entonces instalar triggers internos, `ENABLE/FORCE RLS` y privilegios.
-El guardián transversal aceptado por ADR 0013 pertenece a una migración posterior y no se necesita
-para completar el backfill. Cualquier fallo revierte esquema y datos de operations de esa migración
-y deja intactas las filas comerciales.
+El guardián transversal aceptado por ADR 0013 se instala en la migración implementada
+`0002_commercial_operations_guardian`, posterior a `0001_initial`; por eso no participa en el
+backfill de `0001`, pero sí queda activo al alcanzar la cabeza de migraciones 5.2. Cualquier fallo
+revierte esquema y datos de operations de esa migración y deja intactas las filas comerciales.
 
 Después del corte, el invariante es: toda reserva con `confirmed_at` no nulo tiene exactamente una
 preparación; si su estado comercial es `cancelled`, la preparación también es `cancelled`; las
@@ -1085,7 +1088,8 @@ Con al menos dos organizaciones:
 ### 13.7 Migraciones y puerta completa
 
 - migración desde cero sobre PostgreSQL 17 sin reservas históricas crea tablas, FK, checks, triggers
-  internos, RLS y privilegios; una migración posterior instala el guardián transversal aceptado;
+  internos, RLS y privilegios; `0002_commercial_operations_guardian` instala el guardián
+  transversal aceptado como constraint trigger diferible;
 - backfill de `confirmed` futuro crea revisión 1, siete pendientes sin resolución y `initialized`
   con identidades UUIDv5 y evidencia comercial deterministas;
 - backfill de `cancelled` previamente confirmada y cancelada antes de `starts_at` crea revisión 2,
@@ -1107,8 +1111,8 @@ Con al menos dos organizaciones:
   cutover después de terminar esa sesión, sin permitir que escriba al liberarse el lock;
 - cardinalidad, baseline, resoluciones nulas, secuencia de revisiones y estados se validan antes de
   activar triggers internos, RLS y privilegios;
-- la migración posterior instala el guardián transversal después del backfill; su reversión en base
-  desechable lo elimina antes de las tablas operativas;
+- `0002_commercial_operations_guardian`, ya implementada, instala el guardián transversal después
+  del backfill; su reversión en base desechable lo elimina antes de las tablas operativas;
 - reversión en base desechable no altera commercial; reaplicación previa a actividad operativa real
   reconstruye las mismas identidades y evidencias. No se promete preservar trabajo operativo al
   revertir las tablas;
@@ -1121,10 +1125,12 @@ Con al menos dos organizaciones:
 
 - Backend: Ruff y mypy sin hallazgos; Django `check`, `compileall`, OpenAPI con
   `--validate --fail-on-warn` y `makemigrations --check --dry-run` correctos.
-- Pruebas Django: 137 pruebas no marcadas como integración y 34 pruebas de integración sobre
+- Pruebas Django: 139 pruebas no marcadas como integración y 34 pruebas de integración sobre
   PostgreSQL 17 aprobadas. Cubren servicios, API, CSRF, permisos, privacidad, concurrencia, RLS,
   FK tenant-aware, SQL directo, `QuerySet.update`, operaciones bulk, bloqueo de cutover y
-  migración desde cero, reversión y reaplicación.
+  migración desde cero, reversión y reaplicación. El cierre añade regresiones de volumen y
+  consultas para el listado paginado, minimización negativa de actores históricos y estructura
+  concreta del contrato OpenAPI.
 - Frontend: Prettier, ESLint, TypeScript estricto y build de Vite correctos; 6 archivos y 13 pruebas
   Vitest aprobados.
 - Revisión visual local: 1280 × 720, 768 × 1024, 390 × 844 y 320 × 720 sin desbordamiento
@@ -1133,10 +1139,9 @@ Con al menos dos organizaciones:
   estructural correctos. La base local no contenía organizaciones ni reservas reales; los casos
   de backfill se ejecutaron en bases de prueba desechables.
 - Auditoría: `pip-audit` y `npm audit --audit-level=high` no encontraron vulnerabilidades conocidas.
-- Las puertas paraguas `npm run check` y `npm run check:all` no pudieron ejecutarse con su wrapper
-  oficial porque el host no expone `uv` y tiene Node.js 22.23.1/npm 10.9.8 en lugar de las versiones
-  fijadas 24.18.1/11.16.0. Se ejecutaron directamente sus componentes disponibles; esta limitación
-  local no equivale a una ejecución de CI.
+- Las puertas oficiales `npm run check`, `npm run check:all` y `npm run audit` se ejecutaron
+  correctamente con Python 3.13.14, uv 0.12.0, Node.js 24.18.1 y npm 11.16.0. Esta evidencia es
+  local; no equivale a una ejecución del workflow remoto de CI.
 
 ## 14. Decisiones, alternativas y deuda
 

@@ -66,9 +66,10 @@ puede confiar en que `claridez.organization_id` conserve el valor del servicio c
    comercial.
 9. **El orden de migraciones es obligatorio.** Primero se crea el esquema operativo y se ejecutan
    preflight/backfill con el lock y cutover aprobados; después se instalan triggers internos, RLS y
-   privilegios. Una migración posterior instala el constraint trigger transversal únicamente tras
-   validar el backfill. Al revertir, se elimina primero el trigger sobre commercial y su función,
-   luego las defensas/tablas operativas. La reaplicación respeta el mismo orden.
+   privilegios. La migración implementada `operations/0002_commercial_operations_guardian`
+   instala el guardián como constraint trigger PostgreSQL diferible únicamente tras validar el
+   backfill; no es trabajo pendiente. Al revertir, se elimina primero el trigger sobre commercial
+   y su función, luego las defensas/tablas operativas. La reaplicación respeta el mismo orden.
    Durante la validación de la FK compuesta hacia `commercial_reservation`, 0001 desactiva
    temporalmente `FORCE ROW LEVEL SECURITY` en esa tabla y lo restaura de inmediato dentro de la
    misma transacción atómica. RLS permanece habilitado, `claridez_app` no es propietario, el lock de
