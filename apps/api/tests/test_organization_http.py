@@ -270,6 +270,11 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         "/api/v1/organizations/{organization_id}/people/": {"get", "post"},
         "/api/v1/organizations/{organization_id}/people/{person_id}/": {"get", "patch"},
         "/api/v1/organizations/{organization_id}/people/{person_id}/revisions/": {"get"},
+        "/api/v1/organizations/{organization_id}/people/merge/": {"post"},
+        "/api/v1/organizations/{organization_id}/people/{person_id}/consents/": {
+            "get",
+            "post",
+        },
         "/api/v1/organizations/{organization_id}/event-requests/": {"get", "post"},
         "/api/v1/organizations/{organization_id}/event-requests/{event_request_id}/": {
             "get",
@@ -298,6 +303,17 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/": {"get"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/confirm/": {"post"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/cancel/": {"post"},
+        "/api/v1/organizations/{organization_id}/crm/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/crm/opportunities/": {"get"},
+        "/api/v1/organizations/{organization_id}/crm/opportunities/{event_request_id}/": {"get"},
+        ("/api/v1/organizations/{organization_id}/crm/opportunities/{event_request_id}/history/"): {
+            "get"
+        },
+        "/api/v1/organizations/{organization_id}/crm/interactions/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/crm/tasks/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/crm/tasks/{task_id}/": {"patch"},
+        "/api/v1/organizations/{organization_id}/crm/indicators/": {"get"},
+        "/api/v1/organizations/{organization_id}/crm/people/{person_id}/": {"get"},
         "/api/v1/organizations/{organization_id}/operations/capabilities/": {"get"},
         "/api/v1/organizations/{organization_id}/operations/assignees/": {"get"},
         "/api/v1/organizations/{organization_id}/operations/events/": {"get"},

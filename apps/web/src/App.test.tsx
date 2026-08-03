@@ -57,6 +57,8 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/configuration/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/crm/capabilities/"))
+        return Promise.resolve(json({ capabilities: ["sales:read"] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -221,6 +223,21 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/configuration/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/crm/capabilities/"))
+        return Promise.resolve(
+          json({
+            capabilities: [
+              "person:read",
+              "sales:read",
+              "interaction:read",
+              "interaction:record",
+              "task:manage",
+              "consent:read",
+              "consent:manage",
+              "person:merge",
+            ],
+          }),
+        );
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))

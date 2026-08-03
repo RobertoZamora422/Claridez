@@ -12,11 +12,11 @@ from claridez.organizations.capabilities import Capability, require_capability
 from claridez.organizations.exceptions import AuthorizationDenied
 from claridez.organizations.models import Membership, OrganizationSettings, Space
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
+from claridez.people.public import PeopleError, require_canonical_person
 
-from ..errors import conflict, invalid, unavailable
+from ..errors import CommercialError, conflict, invalid, unavailable
 from ..models import EventRequest, Reservation
 from ..normalization import canonical_optional_text, canonical_text
-from .people import _get_person
 from .representations import _request_data
 from .reservations import _expire_overdue
 from .shared import _origin, _uuid, _validate_interval
@@ -99,7 +99,10 @@ def create_event_request(
     with authorized_tenant_scope(
         actor, organization_reference, Capability.SALES_MANAGE
     ) as authorization:
-        person = _get_person(authorization.organization_id, person_id)
+        try:
+            person = require_canonical_person(authorization.organization_id, person_id, lock=True)
+        except PeopleError as error:
+            raise CommercialError(error.code, error.message, status=error.status) from error
         event_type = _event_type(authorization.organization_id, event_type_id)
         space = _space(authorization.organization_id, space_id)
         responsible = _responsible_membership(authorization, responsible_membership_id)

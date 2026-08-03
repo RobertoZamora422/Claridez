@@ -1,6 +1,6 @@
 # ADR 0015 — Límites de people/CRM y autoridad comercial P7
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado
 - **Fecha:** 2026-08-02
 - **Reemplaza a:** No aplica
 - **Reemplazado por:** No aplica
@@ -26,11 +26,10 @@ y permitir una migración de estado Django sin copiar ni renombrar inicialmente 
 También debe definir cómo fusionar personas sin reescribir solicitudes, cotizaciones, snapshots,
 reservas ni evidencia de auditoría.
 
-El propietario aprobó el plan breve y las aclaraciones funcionales que dan origen a este registro.
-Este ADR permanece **Propuesto** para revisión y no autoriza la implementación de P7 hasta que su
-estado cambie explícitamente a **Aceptado**.
+El propietario aprobó el plan breve, sus aclaraciones funcionales y este registro como autorización
+arquitectónica para implementar P7 dentro de los límites aquí descritos.
 
-## Decisiones propuestas
+## Decisiones aceptadas
 
 1. **Dos módulos técnicos implementan Personas y CRM.** `claridez.people` será propietario de
    `Person`, `PersonRevision`, fusiones, alias de contacto y eventos de consentimiento.
@@ -164,8 +163,9 @@ estado cambie explícitamente a **Aceptado**.
     Administrar tareas exigirá `task:manage` y `person:read`, más `sales:read` cuando exista ese
     vínculo. Leer consentimiento exigirá `consent:read` y `person:read`; modificarlo o revocarlo,
     `consent:manage` y `person:read`. Fusionar exigirá conjuntamente `person:merge` y
-    `person:manage`. Ninguna capacidad implicará otra y la visibilidad del frontend nunca será una
-    decisión de autorización.
+    `person:manage`, además de sesión válida, CSRF, membresía activa, razón obligatoria, revisiones
+    vigentes, idempotencia, bloqueo concurrente y auditoría append-only. Ninguna capacidad implicará
+    otra y la visibilidad del frontend nunca será una decisión de autorización.
 
 15. **La matriz CRM inicial será explícita y backend-first.** Se propone:
 
@@ -187,11 +187,11 @@ estado cambie explícitamente a **Aceptado**.
     forma explícita en el perfil. Añadir una capacidad futura no la concederá automáticamente al
     propietario ni a ningún otro rol.
 
-16. **Anonimización y eliminación serán operaciones sensibles distintas y no ejecutables en P7.**
-    P7 no creará endpoints ni concederá capacidades para anonimizar o eliminar. La fusión no podrá
-    usarse como sustituto de esas operaciones. La exposición productiva de la fusión deberá
-    respetar la frontera de autenticación reforzada aplicable de ADR 0010 y 0011; este ADR no acepta
-    un riesgo temporal ni autoriza un bypass.
+16. **Fusión ejecutable; anonimización y eliminación diferidas.** `person:merge` será ejecutable en
+    P7 exclusivamente por `propietario` y `administrador` mediante el contrato conjuntivo de la
+    decisión 14. No estará condicionada a una implementación futura de MFA. P7 no creará endpoints
+    ni concederá capacidades para anonimizar o eliminar, y la fusión no podrá usarse como sustituto
+    de esas operaciones.
 
 17. **Toda la frontera seguirá siendo tenant-aware y deny-by-default.** Las tablas privadas nuevas
     incluirán `organization_id`, FK y unicidades compuestas, RLS simétrica con `ENABLE` y `FORCE`, y
@@ -224,30 +224,36 @@ estado cambie explícitamente a **Aceptado**.
 - Correo, WhatsApp, campañas, automatización avanzada, IA, adjuntos y omnicanalidad completa.
 - Capacidades personalizadas, roles adicionales y administración completa de privacidad.
 
-## Validación pendiente
+## Validación observada
 
-La implementación, todavía no autorizada, deberá demostrar:
+La implementación local de P7 demostró:
 
-- migración desde cero y desde el esquema actual, reversión/reaplicación en PostgreSQL desechable,
-  conservación exacta de UUID, filas, constraints, triggers, políticas y privilegios, y ausencia de
-  migraciones circulares;
-- pruebas de arquitectura que impidan imports `people → commercial`, `people → crm` y
-  `commercial → crm`;
-- regresión completa de 5.1, 5.2 y P6, incluidas cotizaciones, snapshots, reservas y sus guardianes;
-- backfill que reconstruya solo evidencia demostrable y produzca exclusivamente `estado existente
-  al corte` cuando no pueda demostrar una transición;
-- dos tenants, RLS, FK compuestas, IDs directos, búsqueda, alias, ORM, SQL y operaciones bulk;
-- fusiones concurrentes, rutas largas, prevención de ciclos, reintentos idempotentes, carreras con
-  nuevas relaciones y agregación sin doble conteo;
-- interacciones y correcciones append-only, inmutabilidad por ORM y SQL y ausencia de contenido no
-  minimizado;
-- consentimiento contradictorio, revocación dominante, rectificación, ausencia de borrado y
-  denegación ante ambigüedad;
-- la matriz completa de cinco perfiles, todas las conjunciones de capacidades y pruebas negativas
-  que demuestren que Operaciones y Finanzas no acceden a bandeja, oportunidad integral, historial,
-  personas, interacciones, tareas ni consentimiento mediante `sales:read`;
-- contrato API/OpenAPI, errores genéricos para recursos invisibles, frontend responsive y ausencia
-  de autorización basada únicamente en React.
+- migración desde cero mediante la creación de la base de prueba y migración dirigida desde
+  `commercial.0004` sin copiar filas ni renombrar `commercial_person` o
+  `commercial_personrevision`; UUID, relaciones y estado actual se conservaron, y el backfill sin
+  evidencia creó solo `cutover_state` sin actor, fecha efectiva, motivo ni transición inventados;
+- grafo Django sin migraciones pendientes y prueba arquitectónica que impide imports
+  `people → commercial`, `people → crm`, `commercial → crm` y el acceso de consumidores al módulo
+  interno `people.services` fuera de `people.public`;
+- regresión completa de 5.1, 5.2 y P6, incluidas cotizaciones, snapshots, reservas, operación,
+  multi-espacio y catálogo;
+- dos tenants, `ENABLE` + `FORCE RLS`, FK compuestas, denegación sin scope y con IDs cruzados,
+  privilegios mínimos, ORM, SQL directo y operaciones bulk;
+- fusión lógica concurrente e idempotente, resolución canónica, aliases, prevención de nuevas
+  relaciones con la fuente, auditoría append-only, consentimiento conservador y agregación sin
+  doble conteo;
+- interacciones inmutables con correcciones enlazadas, tareas con historial append-only y
+  consentimiento append-only protegido también en PostgreSQL;
+- matriz explícita de cinco perfiles y autorización conjuntiva; `sales:read` no concede por sí sola
+  acceso CRM a Operaciones o Finanzas, y propietario ya no recibe `frozenset(Capability)`;
+- contrato API/OpenAPI validado sin advertencias, 149 pruebas backend no integración, 43 integración
+  PostgreSQL y 17 frontend, más build de producción y auditoría de dependencias sin vulnerabilidades
+  conocidas;
+- validación visual real a 1440×900 y 390×844 sin desbordamiento horizontal, con navegación móvil
+  de dos filas y objetivos de 44 px. No se observaron errores de consola.
+
+No se ejecutaron CI remoto, despliegue ni cutover sobre un entorno destino; no forman parte de esta
+evidencia local.
 
 ## Alternativas consideradas
 

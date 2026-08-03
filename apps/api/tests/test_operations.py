@@ -318,7 +318,7 @@ def test_event_list_paginates_before_representation_with_bounded_queries() -> No
     assert len(first_page["results"]) == 7
     assert first_page["next_cursor"]
     assert represent.call_count == 7
-    assert len(captured) <= 10
+    assert len(captured) <= 13
     assert all("items" not in result["preparation"] for result in first_page["results"])
     assert all("operational_notes" not in result["preparation"] for result in first_page["results"])
     first_ids = [UUID(str(result["reservation_id"])) for result in first_page["results"]]
@@ -336,7 +336,7 @@ def test_event_list_paginates_before_representation_with_bounded_queries() -> No
     second_ids = [UUID(str(result["reservation_id"])) for result in second_page["results"]]
     assert second_ids == reservation_ids[7:14]
     assert not set(first_ids) & set(second_ids)
-    assert len(second_captured) <= 10
+    assert len(second_captured) <= 13
 
 
 @pytest.mark.django_db

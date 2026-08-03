@@ -2,25 +2,17 @@ from __future__ import annotations
 
 import uuid
 
-from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import F, Q
-from django.db.models.functions import Round, Trim
+from django.db.models.functions import Round
 
 from claridez.catalog.models import CatalogItemRevision, CatalogPrice, EventType
 from claridez.organizations.models import Membership, Organization, Space, Venue
-
-
-class ContactOrigin(models.TextChoices):
-    WHATSAPP = "whatsapp", "WhatsApp"
-    PHONE_CALL = "phone_call", "Llamada"
-    SOCIAL_NETWORK = "social_network", "Red social"
-    REFERRAL = "referral", "Referido"
-    WALK_IN = "walk_in", "Visita"
-    WEBSITE = "website", "Sitio web"
-    OTHER = "other", "Otro"
+from claridez.people.models import ContactOrigin as ContactOrigin
+from claridez.people.models import Person as Person
+from claridez.people.models import PersonRevision as PersonRevision
 
 
 class TenantModel(models.Model):
@@ -31,73 +23,6 @@ class TenantModel(models.Model):
 
     class Meta:
         abstract = True
-
-
-class Person(TenantModel):
-    full_name = models.CharField(max_length=150)
-    phone_e164 = models.CharField(max_length=13)
-    email = models.EmailField(max_length=254, blank=True)
-    origin = models.CharField(max_length=24, choices=ContactOrigin.choices)
-    origin_detail = models.CharField(max_length=160, blank=True)
-    revision = models.PositiveIntegerField(default=1)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["organization", "id"], name="commercial_person_org_id_uq"
-            ),
-            models.UniqueConstraint(
-                fields=["organization", "phone_e164"], name="commercial_person_org_phone_uq"
-            ),
-            models.CheckConstraint(
-                condition=Q(full_name=Trim("full_name")) & ~Q(full_name=""),
-                name="commercial_person_name_canonical",
-            ),
-            models.CheckConstraint(
-                condition=Q(phone_e164__regex=r"^\+593(?:[2-7][0-9]{7}|9[0-9]{8})$"),
-                name="commercial_person_phone_ec",
-            ),
-            models.CheckConstraint(
-                condition=Q(origin__in=[value for value, _ in ContactOrigin.choices]),
-                name="commercial_person_origin_valid",
-            ),
-            models.CheckConstraint(
-                condition=Q(revision__gte=1), name="commercial_person_revision_positive"
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return self.full_name
-
-
-class PersonRevision(TenantModel):
-    person = models.ForeignKey(
-        Person, on_delete=models.PROTECT, related_name="revisions", db_index=False
-    )
-    revision = models.PositiveIntegerField()
-    full_name = models.CharField(max_length=150)
-    phone_e164 = models.CharField(max_length=13)
-    email = models.EmailField(max_length=254, blank=True)
-    origin = models.CharField(max_length=24, choices=ContactOrigin.choices)
-    origin_detail = models.CharField(max_length=160, blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["organization", "id"], name="commercial_personrevision_org_id_uq"
-            ),
-            models.UniqueConstraint(
-                fields=["organization", "person", "revision"],
-                name="commercial_personrevision_org_person_rev_uq",
-            ),
-            models.CheckConstraint(
-                condition=Q(revision__gte=1), name="commercial_personrevision_revision_positive"
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.person_id}@{self.revision}"
 
 
 class EventRequest(TenantModel):
@@ -165,6 +90,74 @@ class EventRequest(TenantModel):
 
     def __str__(self) -> str:
         return f"{self.event_type}@{self.starts_at.isoformat()}"
+
+
+class EventRequestHistory(models.Model):
+    class Kind(models.TextChoices):
+        CUTOVER_STATE = "cutover_state", "Estado existente al corte"
+        CREATED = "created", "Creación"
+        UPDATED = "updated", "Actualización"
+        STATUS_CHANGED = "status_changed", "Cambio de estado"
+
+    class Provenance(models.TextChoices):
+        CUTOVER_SNAPSHOT = "cutover_snapshot", "Snapshot de corte"
+        DATABASE = "database", "Registro de base de datos"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
+    event_request = models.ForeignKey(
+        EventRequest, on_delete=models.PROTECT, related_name="history", db_index=False
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    status = models.CharField(max_length=20, choices=EventRequest.Status.choices)
+    request_revision = models.PositiveIntegerField()
+    origin = models.CharField(max_length=24, choices=ContactOrigin.choices)
+    origin_detail = models.CharField(max_length=160, blank=True)
+    responsible_membership = models.ForeignKey(
+        Membership,
+        on_delete=models.PROTECT,
+        related_name="request_history_responsibilities",
+        db_index=False,
+    )
+    actor_membership = models.ForeignKey(
+        Membership,
+        on_delete=models.PROTECT,
+        related_name="event_request_history_actions",
+        null=True,
+        blank=True,
+        db_index=False,
+    )
+    occurred_at = models.DateTimeField(null=True, blank=True)
+    provenance = models.CharField(max_length=24, choices=Provenance.choices)
+    reason = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="commercial_requesthistory_org_id_uq"
+            ),
+            models.CheckConstraint(
+                condition=Q(request_revision__gte=1),
+                name="commercial_requesthistory_revision_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(kind__in=["cutover_state", "created", "updated", "status_changed"]),
+                name="commercial_requesthistory_kind_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=[value for value, _ in EventRequest.Status.choices]),
+                name="commercial_requesthistory_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(provenance__in=["cutover_snapshot", "database"]),
+                name="commercial_requesthistory_provenance_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_request_id}@{self.kind}"
 
 
 class QuotationSequence(TenantModel):

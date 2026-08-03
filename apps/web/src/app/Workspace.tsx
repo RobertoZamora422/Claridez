@@ -5,12 +5,13 @@ import { BrandLogo } from "../Brand";
 import { AgendaView } from "../features/agenda/AgendaView";
 import { CatalogView } from "../features/catalog/CatalogView";
 import { ConfigurationView } from "../features/configuration/ConfigurationView";
+import { CRMView } from "../features/crm/CRMView";
 import { OperationsView } from "../features/operations/OperationsView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
 
-type Page = "agenda" | "requests" | "operations" | "catalog" | "configuration";
+type Page = "agenda" | "crm" | "requests" | "operations" | "catalog" | "configuration";
 
 export function Workspace({
   user,
@@ -44,13 +45,15 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/configuration/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(`/api/v1/organizations/${organization.id}/crm/capabilities/`),
     ])
-      .then(([capabilityBody, settingsBody, operationsBody, configurationBody]) => {
+      .then(([capabilityBody, settingsBody, operationsBody, configurationBody, crmBody]) => {
         setCapabilities(
           new Set([
             ...capabilityBody.capabilities,
             ...operationsBody.capabilities,
             ...configurationBody.capabilities,
+            ...crmBody.capabilities,
           ]),
         );
         setTimeZone(settingsBody.settings.timezone);
@@ -88,6 +91,17 @@ export function Workspace({
             >
               <span aria-hidden="true">◎</span>Solicitudes
             </button>
+            {capabilities.has("sales:read") && capabilities.has("person:read") ? (
+              <button
+                aria-current={page === "crm" ? "page" : undefined}
+                onClick={() => {
+                  setPage("crm");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">◉</span>CRM
+              </button>
+            ) : null}
             {capabilities.has("operation:read") ? (
               <button
                 aria-current={page === "operations" ? "page" : undefined}
@@ -160,6 +174,17 @@ export function Workspace({
         >
           Solicitudes
         </button>
+        {capabilities.has("sales:read") && capabilities.has("person:read") ? (
+          <button
+            aria-current={page === "crm" ? "page" : undefined}
+            onClick={() => {
+              setPage("crm");
+              setSelectedRequest(null);
+            }}
+          >
+            CRM
+          </button>
+        ) : null}
         {capabilities.has("operation:read") ? (
           <button
             aria-current={page === "operations" ? "page" : undefined}
@@ -205,6 +230,12 @@ export function Workspace({
             canManage={capabilities.has("sales:manage")}
             selectedId={selectedRequest}
             onSelect={setSelectedRequest}
+            capabilities={capabilities}
+          />
+        ) : page === "crm" ? (
+          <CRMView
+            organizationId={organization.id}
+            timeZone={timeZone}
             capabilities={capabilities}
           />
         ) : page === "operations" ? (

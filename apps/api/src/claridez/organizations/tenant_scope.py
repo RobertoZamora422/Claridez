@@ -55,6 +55,19 @@ def _actor_id(actor: User) -> UUID:
         raise TenantAccessDenied("La organización no está disponible.") from None
 
 
+def _set_local_membership_context(value: str) -> str:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('claridez.membership_id', true)")
+        previous = cursor.fetchone()[0] or ""
+        cursor.execute("SELECT set_config('claridez.membership_id', %s, true)", [value])
+    return str(previous)
+
+
+def _restore_local_membership_context(value: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('claridez.membership_id', %s, true)", [value])
+
+
 @contextmanager
 def authorized_tenant_scope(
     actor: User,
@@ -70,6 +83,7 @@ def authorized_tenant_scope(
         raise ConflictingTenantScope("No se permite cambiar de organización dentro del scope.")
 
     with transaction.atomic():
+        previous_membership_context: str | None = None
         try:
             current_actor = User.objects.get(pk=actor_id)
         except User.DoesNotExist:
@@ -95,6 +109,7 @@ def authorized_tenant_scope(
 
             require_capability(membership.role, capability)
             canonical_role = Membership.Role(membership.role)
+            previous_membership_context = _set_local_membership_context(str(membership.pk))
             yield TenantAuthorization(
                 actor_id=current_actor.pk,
                 organization_id=organization.pk,
@@ -105,4 +120,6 @@ def authorized_tenant_scope(
         finally:
             _current_organization.reset(token)
             if not connection.needs_rollback:
+                if previous_membership_context is not None:
+                    _restore_local_membership_context(previous_membership_context)
                 _restore_local_organization_context(previous_context)

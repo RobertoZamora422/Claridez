@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization
+from claridez.people.public import canonical_cluster_ids
 
 from ..models import (
     EventRequest,
@@ -19,9 +20,10 @@ from .shared import _can
 
 
 def _is_client(person: Person) -> bool:
+    cluster = canonical_cluster_ids(person.organization_id, person.pk)
     return Reservation.objects.filter(
         organization_id=person.organization_id,
-        event_request__person_id=person.pk,
+        event_request__person_id__in=cluster,
         confirmed_at__isnull=False,
     ).exists()
 

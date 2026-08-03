@@ -269,7 +269,7 @@ productos o convertir sedes en configuración sin uso real.
 
 **Identificador y nombre:** P7 — Personas, interesados, clientes y seguimiento.
 
-**Estado:** Pendiente.
+**Estado:** Completada y validada localmente; no desplegada.
 
 **Objetivo:** Gestionar de forma completa la relación comercial desde captación hasta resultado y
 recompra.
@@ -281,16 +281,26 @@ vistas de interesado y cliente; indicadores de seguimiento.
 **Exclusiones:** Automatización avanzada con IA, campañas masivas, soporte omnicanal completo y
 facturación.
 
-**Dependencias:** P6, reglas de privacidad/retención y ampliación explícita de capacidades CRM.
+**Dependencias:** P6 y ADR 0015 aceptado; el contrato técnico provisional de privacidad,
+consentimiento y retención queda delimitado sin inventar una política legal.
 
-**Resultado visible:** Comercial sabe a quién contactar, por qué, cuándo y con qué historial.
+**Resultado visible:** Comercial dispone de bandeja CRM, búsqueda y deduplicación, oportunidad real
+basada en `EventRequest`, vista integral de persona, timeline, interacciones minimizadas, tareas,
+próximos contactos, consentimiento e indicadores. Propietario y administrador pueden ejecutar la
+fusión lógica autorizada sin reescribir la evidencia histórica.
 
 **Criterio verificable de finalización:** Ninguna oportunidad activa carece de estado visible;
-interacciones y tareas son trazables; deduplicación es segura; permisos, búsqueda y dos tenants
-están probados.
+interacciones y tareas son trazables; deduplicación y fusión son seguras; permisos conjuntivos,
+búsqueda, dos tenants y backfill honesto están probados. La puerta local observada cerró con 149
+pruebas no integración, 43 integración PostgreSQL y 17 frontend; cubrió migraciones desde cero y
+desde P6, FORCE RLS, ORM, SQL directo, bulk, concurrencia, idempotencia, historial, privacidad,
+regresión 5.1/5.2/P6, OpenAPI y build. La validación visual real cubrió 1440×900 y 390×844 sin
+desbordamiento horizontal; la navegación móvil mantiene objetivos de 44 px. `npm run audit` no
+encontró vulnerabilidades conocidas.
 
-**Riesgos principales:** Duplicar `Person`/`EventRequest`, almacenar conversaciones sensibles sin
-minimización o confundir cliente con una etiqueta manual.
+**Riesgos principales:** La política legal definitiva de retención, anonimización y eliminación
+sigue diferida; no debe confundirse el registro técnico de consentimiento con una conclusión
+jurídica. Renombrar físicamente las tablas históricas de persona requiere un corte futuro explícito.
 
 **Siguiente etapa:** P8 — Agenda y reservas avanzadas.
 

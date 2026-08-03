@@ -70,12 +70,123 @@ export interface Organization {
 
 export interface Person {
   id: string;
+  canonical_id?: string;
+  requested_id?: string;
   full_name?: string;
   phone_e164?: string;
   email?: string | null;
   origin?: string;
   commercial_type: "lead" | "client";
   revision: number;
+  aliases?: { id: string; kind: "phone" | "email"; value: string; source_person_id: string }[];
+}
+
+export interface CrmPerson {
+  id: string;
+  full_name: string;
+  phone_e164: string;
+  email: string | null;
+  revision: number;
+  has_interest_history: boolean;
+  is_client: boolean;
+  aliases?: { kind: "phone" | "email"; value: string; source_person_id: string }[];
+}
+
+export interface CrmTask {
+  id: string;
+  person_id: string;
+  event_request_id: string | null;
+  title: string;
+  due_at: string;
+  next_contact_at: string | null;
+  status: "open" | "completed" | "cancelled";
+  responsible_membership_id: string;
+  completed_at: string | null;
+  revision: number;
+  overdue: boolean;
+  history?: { id: string; kind: string; revision: number; status: string; created_at: string }[];
+}
+
+export interface CrmInteraction {
+  id: string;
+  person_id: string;
+  event_request_id: string | null;
+  channel: string;
+  direction: "inbound" | "outbound";
+  occurred_at: string;
+  responsible_membership_id: string;
+  summary: string;
+  correction_of_id: string | null;
+  created_at: string;
+}
+
+export interface CrmHistoryEntry {
+  id: string;
+  kind: string;
+  status: string;
+  request_revision: number;
+  occurred_at: string | null;
+  provenance: "cutover_snapshot" | "database";
+  reason: string | null;
+  recorded_at: string;
+}
+
+export interface CrmOpportunity {
+  id: string;
+  person: CrmPerson;
+  event_type: string;
+  starts_at: string;
+  ends_at: string;
+  status: EventRequest["status"];
+  result: "open" | "won" | "lost";
+  origin: string;
+  origin_detail: string | null;
+  responsible_membership_id: string;
+  closed_reason: string | null;
+  revision: number;
+  next_action: CrmTask | null;
+  updated_at: string;
+  general_need?: string;
+  notes?: string;
+  estimated_guests?: number;
+  venue?: { id: string; name: string };
+  space?: { id: string; name: string };
+  history?: CrmHistoryEntry[];
+}
+
+export interface CrmIndicators {
+  opportunities: number;
+  open: number;
+  won: number;
+  lost: number;
+  without_next_action: number;
+  overdue_tasks: number;
+}
+
+export interface ConsentEvent {
+  id: string;
+  person_id: string;
+  purpose: string;
+  channel: string;
+  event_type: string;
+  decision: "granted" | "revoked";
+  source: string;
+  occurred_at: string;
+  evidence_reference: string;
+  corrects_id: string | null;
+  created_at: string;
+}
+
+export interface CrmPersonOverview {
+  person: CrmPerson;
+  opportunities: CrmOpportunity[];
+  interactions: CrmInteraction[];
+  tasks: CrmTask[];
+  consent: {
+    effective: { purpose: string; channel: string; decision: string; event_id: string }[];
+    events: ConsentEvent[];
+  };
+  timeline: { type: "opportunity" | "interaction" | "task"; at: string; data: unknown }[];
 }
 
 export interface Reservation {

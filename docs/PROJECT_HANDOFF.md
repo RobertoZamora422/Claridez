@@ -1,8 +1,8 @@
 # Claridez — Handoff del proyecto
 
 - **Fecha de corte:** 2 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P6 está completada localmente
-- **Siguiente etapa:** P7 — CRM y seguimiento comercial
+- **Etapa funcional activa:** ninguna; P7 está completada localmente
+- **Siguiente etapa:** P8 — Agenda y reservas avanzadas
 
 ## Qué es Claridez
 
@@ -35,19 +35,24 @@ duplica: registra cómo continuar desde el checkout real.
   scope tenant.
 - `claridez.catalog`: tipos de evento, servicios, productos, paquetes, revisiones, precios y
   vigencias.
-- `claridez.commercial`: personas, solicitudes, cotizaciones versionadas con catálogo/ad hoc,
-  disponibilidad por espacio y reservas.
+- `claridez.people`: identidad maestra de persona, revisiones, búsqueda, aliases, fusión lógica y
+  consentimiento append-only; conserva las tablas físicas históricas de persona.
+- `claridez.commercial`: solicitudes como única oportunidad, historial comercial append-only,
+  cotizaciones versionadas con catálogo/ad hoc, disponibilidad por espacio y reservas.
+- `claridez.crm`: composición de oportunidades y vistas integrales, interacciones inmutables,
+  correcciones enlazadas, tareas, próximos contactos e indicadores.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
 - Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas,
-  operación y administración responsive de configuración funcional y catálogo.
+  operación, configuración/catálogo y CRM responsive con bandeja, persona integral, timeline,
+  interacciones, tareas, consentimiento y fusión.
 
-No existen aún los módulos de P7 en adelante. No hay módulos financieros, contratos/archivos,
+No existen aún los módulos de P8 en adelante. No hay módulos financieros, contratos/archivos,
 portal, proveedores productivos de correo/identidad, staging ni producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6: completadas y validadas localmente.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2, P6 y P7: completadas y validadas localmente.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -60,9 +65,19 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   directo cabezales sin historia coherente, revisiones arbitrarias y composición divergente.
 - `CatalogItemRevision.package_components` es el snapshot histórico canónico; las filas
   `PackageComponent` son su proyección relacional obligatoriamente equivalente al commit.
-- `npm run check:all` pasó con los toolchains fijados: 144 pruebas no integración, 40 integración
-  PostgreSQL y 16 frontend, además de OpenAPI y builds. No hay etapa funcional autorizada en
-  ejecución. `npm run audit` no encontró vulnerabilidades conocidas en Python ni npm.
+- P7 separa propiedad de estado entre `claridez.people` y `claridez.crm` sin ciclos; adopta
+  `Person`/`PersonRevision` sin copiar filas ni renombrar `commercial_person*`, y conserva
+  `EventRequest` como única oportunidad bajo autoridad `sales:*`.
+- Interesado y cliente son condiciones derivadas; cliente exige evidencia de una primera reserva
+  confirmada y no elimina el historial previo. Interacciones, consentimiento e historial comercial
+  son append-only; las correcciones enlazan nueva evidencia y el backfill no inventa transiciones.
+- La fusión lógica autorizada para propietario y administrador conserva FKs históricas, aliases,
+  auditoría, resolución canónica, idempotencia y agregación sin doble conteo. Anonimización y
+  eliminación siguen sin capacidades ni endpoints.
+- `npm run check:all` pasó con los toolchains fijados: 149 pruebas no integración, 43 integración
+  PostgreSQL y 17 frontend, además de OpenAPI y builds. La validación visual real cubrió 1440×900 y
+  390×844 sin desbordamiento horizontal. No hay etapa funcional autorizada en ejecución.
+  `npm run audit` no encontró vulnerabilidades conocidas en Python ni npm.
 
 ## Decisiones cerradas
 
@@ -73,6 +88,8 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
 - Organizaciones, membresías, último propietario y autorización: ADR 0011.
 - Agenda/dinero comercial y coordinación comercial-operaciones: ADR 0012–0013.
 - Multi-espacio, configuración funcional, catálogo, backfill y frontera MFA de P6: ADR 0014.
+- Propiedad `people`/CRM, autoridad comercial, historial, fusión, consentimiento y capacidades P7:
+  ADR 0015.
 - Comportamiento exacto implementado: especificaciones 5.1 y 5.2.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
@@ -106,7 +123,8 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2 y ADR aplicables; para P7, revisar además ADR 0014 y los contratos P6.
+5. Especificaciones 5.1/5.2 y ADR aplicables; para P8, revisar además ADR 0012–0015 y los contratos
+   de agenda, reservas, operación, multi-espacio y CRM ya implementados.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -164,20 +182,21 @@ falta.
 
 ## Próximo trabajo autorizado
 
-Está autorizado preparar, a partir del estado real, un plan breve de **P7 — CRM y seguimiento
-comercial** y señalar solo decisiones bloqueantes. Su implementación requiere una nueva aprobación.
-El plan debe extender `Person` y `EventRequest` sin duplicarlos, preservar minimización y
-aislamiento, y resolver las reglas de privacidad/retención y capacidades CRM que realmente
-bloqueen la etapa.
+Está autorizado preparar, a partir del estado real, un plan breve de **P8 — Agenda y reservas
+avanzadas** y señalar solo decisiones bloqueantes. Su implementación requiere una nueva aprobación.
+El plan debe conservar las exclusiones concurrentes, snapshots, reservas, coordinación 5.2,
+multi-espacio y evidencia CRM existentes sin adelantar documentos, cobros ni integraciones
+externas.
 
 ## Riesgos actuales
 
 - Un despliegue futuro debe ejecutar el cutover 5.2 completo; no admite convivencia 5.1/5.2.
-- Ese despliegue debe respetar también el orden multi-espacio y las comprobaciones de ADR 0014.
+- Ese despliegue debe respetar también el orden multi-espacio, la adopción de estado P7 y las
+  comprobaciones de ADR 0014–0015.
 - Acciones privilegiadas de membresías continúan sin UI productiva y no deben abrirse sin MFA.
 - Correo es local; recuperación/verificación externas no están listas para clientes reales.
-- P7 debe evitar duplicar personas/solicitudes y no almacenar seguimiento sensible sin reglas de
-  privacidad y retención aprobadas.
+- La política legal definitiva de retención, anonimización y eliminación de personas sigue
+  diferida; P7 no concede capacidades ni endpoints para ejecutarlas.
 - Proveedores, privacidad/retención y firma requieren investigación antes de sus etapas.
 - No se ha observado una ejecución remota de CI ni existe ambiente desplegado.
 

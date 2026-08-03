@@ -20,8 +20,14 @@ class Capability(StrEnum):
     MEMBERSHIP_REVOKE_SESSIONS = "membership:revoke_sessions"
     PERSON_READ = "person:read"
     PERSON_MANAGE = "person:manage"
+    PERSON_MERGE = "person:merge"
     SALES_READ = "sales:read"
     SALES_MANAGE = "sales:manage"
+    INTERACTION_READ = "interaction:read"
+    INTERACTION_RECORD = "interaction:record"
+    TASK_MANAGE = "task:manage"
+    CONSENT_READ = "consent:read"
+    CONSENT_MANAGE = "consent:manage"
     AVAILABILITY_READ = "availability:read"
     RESERVATION_CONFIRM = "reservation:confirm"
     RESERVATION_CANCEL = "reservation:cancel"
@@ -41,7 +47,42 @@ class Capability(StrEnum):
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
     {
-        Membership.Role.OWNER: frozenset(Capability),
+        Membership.Role.OWNER: frozenset(
+            {
+                Capability.ORGANIZATION_ACCESS,
+                Capability.ORGANIZATION_SETTINGS_READ,
+                Capability.ORGANIZATION_SETTINGS_UPDATE,
+                Capability.MEMBERSHIP_READ,
+                Capability.MEMBERSHIP_MANAGE_NON_OWNER,
+                Capability.MEMBERSHIP_MANAGE_OWNER,
+                Capability.MEMBERSHIP_REVOKE_SESSIONS,
+                Capability.PERSON_READ,
+                Capability.PERSON_MANAGE,
+                Capability.PERSON_MERGE,
+                Capability.SALES_READ,
+                Capability.SALES_MANAGE,
+                Capability.INTERACTION_READ,
+                Capability.INTERACTION_RECORD,
+                Capability.TASK_MANAGE,
+                Capability.CONSENT_READ,
+                Capability.CONSENT_MANAGE,
+                Capability.AVAILABILITY_READ,
+                Capability.RESERVATION_CONFIRM,
+                Capability.RESERVATION_CANCEL,
+                Capability.RESERVATION_WAIVE_DEPOSIT,
+                Capability.OPERATION_READ,
+                Capability.OPERATION_MANAGE,
+                Capability.OPERATION_EXECUTE,
+                Capability.BUSINESS_CONFIGURATION_READ,
+                Capability.BUSINESS_CONFIGURATION_MANAGE,
+                Capability.VENUE_READ,
+                Capability.VENUE_MANAGE,
+                Capability.CATALOG_READ,
+                Capability.CATALOG_PRICE_READ,
+                Capability.CATALOG_MANAGE,
+                Capability.CATALOG_PRICE_MANAGE,
+            }
+        ),
         Membership.Role.ADMINISTRATOR: frozenset(
             {
                 Capability.ORGANIZATION_ACCESS,
@@ -52,8 +93,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.MEMBERSHIP_REVOKE_SESSIONS,
                 Capability.PERSON_READ,
                 Capability.PERSON_MANAGE,
+                Capability.PERSON_MERGE,
                 Capability.SALES_READ,
                 Capability.SALES_MANAGE,
+                Capability.INTERACTION_READ,
+                Capability.INTERACTION_RECORD,
+                Capability.TASK_MANAGE,
+                Capability.CONSENT_READ,
+                Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
                 Capability.RESERVATION_CANCEL,
@@ -79,6 +126,11 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PERSON_MANAGE,
                 Capability.SALES_READ,
                 Capability.SALES_MANAGE,
+                Capability.INTERACTION_READ,
+                Capability.INTERACTION_RECORD,
+                Capability.TASK_MANAGE,
+                Capability.CONSENT_READ,
+                Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
                 Capability.OPERATION_READ,

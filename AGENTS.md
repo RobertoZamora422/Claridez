@@ -94,7 +94,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2 y P6 están completadas. 4.1 incorpora el usuario
+5.2, P6 y P7 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -106,21 +106,24 @@ gobernados por `docs/product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md` y ADR 00
 cutover sobre un entorno destino no se presumen ejecutados. P6 incorpora configuración funcional,
 sedes, espacios, catálogo versionado, precios/vigencias y su integración comercial y operativa,
 gobernados por ADR 0014. Su administración web no habilita membresías propietarias ni acciones
-sensibles sujetas a MFA. Django y React/Vite se ejecutan
-nativamente en Windows; únicamente PostgreSQL está contenerizado. El Blueprint define el destino,
-pero no autoriza por sí solo una etapa. Hasta que el propietario apruebe la siguiente etapa del
-Roadmap, no se deben crear:
+sensibles sujetas a MFA. P7 incorpora `claridez.people` como propietario de identidad de persona,
+fusión, alias y consentimiento, y `claridez.crm` para interacciones, tareas y composición de vistas;
+`EventRequest` continúa como única oportunidad bajo autoridad `sales:*`, conforme a ADR 0015.
+Django y React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado.
+El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
+apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P7 o etapas posteriores.
+- Módulos o pantallas de P8 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
 Los endpoints aprobados actualmente son `GET` y `HEAD` en `/health` y `/ready`, los nueve endpoints
 de autenticación de ADR 0010, las cinco operaciones organizacionales de solo lectura/contexto de
 ADR 0011, las operaciones comerciales de la especificación 5.1, las operaciones de la
-especificación 5.2 y las operaciones funcionales P6 de ADR 0014. PostgreSQL local se publica solo
-sobre loopback. Django normal usa `claridez_app`; las
+especificación 5.2, las operaciones funcionales P6 de ADR 0014 y las operaciones P7 de personas y
+CRM aprobadas por ADR 0015. PostgreSQL local se publica solo sobre loopback. Django normal usa
+`claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
 reservado al bootstrap local explícito.
 
@@ -128,7 +131,9 @@ reservado al bootstrap local explícito.
 servicios aprobados. No concede privilegios técnicos. `claridez_app` no tiene `DELETE` sobre
 organizaciones, membresías, `OrganizationSettings` ni las tablas comerciales salvo
 `QuotationLine`, cuyo reemplazo en borrador requiere borrado controlado. Tampoco tiene `DELETE`
-sobre las tablas operativas, sedes, espacios ni tablas de catálogo.
+sobre las tablas operativas, sedes, espacios, catálogo, people ni CRM. Interacciones, fusiones,
+aliases, consentimiento e historiales son append-only; las tareas solo admiten actualización
+controlada.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.

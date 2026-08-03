@@ -59,5 +59,7 @@ urlpatterns = [
         name="space-detail",
     ),
     path("<uuid:organization_id>/", include("claridez.catalog.urls")),
+    path("<uuid:organization_id>/", include("claridez.people.urls")),
     path("<uuid:organization_id>/", include("claridez.commercial.urls")),
+    path("<uuid:organization_id>/", include("claridez.crm.urls")),
 ]
