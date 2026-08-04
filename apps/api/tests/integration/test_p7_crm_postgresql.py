@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from threading import Barrier
+from threading import Barrier, Event
+from time import monotonic, sleep
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -92,6 +93,40 @@ def _request(
         origin="website",
         origin_detail="Formulario sintético",
     )
+
+
+def _wait_until_backend_is_locking(backend_pid: int) -> None:
+    deadline = monotonic() + 10
+    while monotonic() < deadline:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT wait_event_type FROM pg_stat_activity WHERE pid = %s",
+                [backend_pid],
+            )
+            row = cursor.fetchone()
+        if row == ("Lock",):
+            return
+        sleep(0.02)
+    pytest.fail(f"La conexión {backend_pid} no esperó el bloqueo de contacto esperado.")
+
+
+def _contact_owner_ids(owner: User, organization_id: UUID, *, kind: str, value: str) -> set[UUID]:
+    with authorized_tenant_scope(owner, organization_id, Capability.PERSON_READ):
+        if kind == "phone":
+            current_ids = Person.objects.filter(
+                organization_id=organization_id, phone_e164=value
+            ).values_list("id", flat=True)
+        else:
+            current_ids = Person.objects.filter(
+                organization_id=organization_id, email=value
+            ).values_list("id", flat=True)
+        alias_ids = PersonContactAlias.objects.filter(
+            organization_id=organization_id, kind=kind, normalized_value=value
+        ).values_list("person_id", flat=True)
+        return {
+            people_services.canonical_person_id(organization_id, person_id)
+            for person_id in (*current_ids, *alias_ids)
+        }
 
 
 def test_p7_force_rls_sql_bulk_privileges_and_append_only_evidence() -> None:
@@ -219,12 +254,22 @@ def test_p7_force_rls_sql_bulk_privileges_and_append_only_evidence() -> None:
                 has_table_privilege('claridez_app', 'people_consentevent', 'UPDATE'),
                 has_table_privilege('claridez_app', 'crm_interaction', 'UPDATE'),
                 has_table_privilege('claridez_app', 'crm_followuptask', 'UPDATE'),
-                has_table_privilege('claridez_app', 'crm_followuptask', 'DELETE')
+                has_table_privilege('claridez_app', 'crm_followuptask', 'DELETE'),
+                has_function_privilege(
+                    'claridez_app',
+                    'claridez_people_lock_contact_organizations(uuid[])',
+                    'EXECUTE'
+                ),
+                has_function_privilege(
+                    'claridez_app',
+                    'claridez_people_canonical_id(uuid, uuid)',
+                    'EXECUTE'
+                )
             """
         )
         privileges = cursor.fetchone()
     assert metadata == sorted((table, True, True) for table in P7_PRIVATE_TABLES)
-    assert privileges == (False, False, False, False, True, False)
+    assert privileges == (False, False, False, False, True, False, True, True)
     assert task["id"]
 
 
@@ -396,6 +441,159 @@ def test_concurrent_current_email_assignment_has_one_winner() -> None:
     assert sorted(results) == ["created", "duplicate_person"]
     with authorized_tenant_scope(owner, organization_id, Capability.PERSON_READ):
         assert Person.objects.filter(email="correo-concurrente@example.com").count() == 1
+
+
+def test_concurrent_phone_release_to_history_blocks_direct_sql_claim() -> None:
+    owner, creation = _owner("p7-concurrent-phone-history")
+    organization_id = creation.organization.pk
+    historical_owner = _person(
+        owner, organization_id, phone="0992000041", name="Propietaria del teléfono"
+    )
+    contender = _person(owner, organization_id, phone="0992000042", name="Pretendiente teléfono")
+    historical_phone = "+593992000041"
+    release_ready = Event()
+    allow_release_commit = Event()
+    contender_pid_ready = Event()
+    contender_pid: list[int] = []
+
+    def release_with_queryset_update() -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            with authorized_tenant_scope(actor, organization_id, Capability.PERSON_MANAGE):
+                changed = Person.objects.filter(pk=historical_owner["id"]).update(
+                    phone_e164="+593992000043", revision=F("revision") + 1
+                )
+                assert changed == 1
+                release_ready.set()
+                if not allow_release_commit.wait(timeout=10):
+                    raise TimeoutError("No se autorizó el commit del teléfono liberado.")
+            return "released"
+        finally:
+            close_old_connections()
+
+    def claim_with_direct_sql() -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            assert release_ready.wait(timeout=10)
+            with authorized_tenant_scope(actor, organization_id, Capability.PERSON_MANAGE):
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_backend_pid()")
+                    contender_pid.append(cursor.fetchone()[0])
+                contender_pid_ready.set()
+                try:
+                    with transaction.atomic(), connection.cursor() as cursor:
+                        cursor.execute(
+                            """
+                            UPDATE public.commercial_person
+                            SET phone_e164 = %s, revision = revision + 1
+                            WHERE id = %s
+                            """,
+                            [historical_phone, contender["id"]],
+                        )
+                except DatabaseError as error:
+                    return str(getattr(error.__cause__, "sqlstate", "database_error"))
+            return "acquired"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        release_future = pool.submit(release_with_queryset_update)
+        assert release_ready.wait(timeout=10)
+        claim_future = pool.submit(claim_with_direct_sql)
+        assert contender_pid_ready.wait(timeout=10)
+        try:
+            _wait_until_backend_is_locking(contender_pid[0])
+        finally:
+            allow_release_commit.set()
+        results = (release_future.result(timeout=10), claim_future.result(timeout=10))
+
+    assert results == ("released", "23505")
+    assert _contact_owner_ids(owner, organization_id, kind="phone", value=historical_phone) == {
+        historical_owner["id"]
+    }
+
+
+def test_concurrent_email_release_to_history_blocks_orm_claim() -> None:
+    owner, creation = _owner("p7-concurrent-email-history")
+    organization_id = creation.organization.pk
+    historical_owner = people_services.create_person(
+        owner,
+        organization_id,
+        full_name="Propietaria del correo",
+        phone="0992000044",
+        email="historico-concurrente@example.com",
+        origin="website",
+        origin_detail="Prueba concurrente",
+    )
+    contender = people_services.create_person(
+        owner,
+        organization_id,
+        full_name="Pretendiente correo",
+        phone="0992000045",
+        email="pretendiente-concurrente@example.com",
+        origin="website",
+        origin_detail="Prueba concurrente",
+    )
+    historical_email = "historico-concurrente@example.com"
+    release_ready = Event()
+    allow_release_commit = Event()
+    contender_pid_ready = Event()
+    contender_pid: list[int] = []
+
+    def release_with_bulk_update() -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            with authorized_tenant_scope(actor, organization_id, Capability.PERSON_MANAGE):
+                row = Person.objects.get(pk=historical_owner["id"])
+                row.email = "nuevo-concurrente@example.com"
+                row.revision += 1
+                Person.objects.bulk_update([row], ["email", "revision"])
+                release_ready.set()
+                if not allow_release_commit.wait(timeout=10):
+                    raise TimeoutError("No se autorizó el commit del correo liberado.")
+            return "released"
+        finally:
+            close_old_connections()
+
+    def claim_with_orm_save() -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            assert release_ready.wait(timeout=10)
+            try:
+                with authorized_tenant_scope(actor, organization_id, Capability.PERSON_MANAGE):
+                    row = Person.objects.get(pk=contender["id"])
+                    row.email = historical_email
+                    row.revision += 1
+                    with connection.cursor() as cursor:
+                        cursor.execute("SELECT pg_backend_pid()")
+                        contender_pid.append(cursor.fetchone()[0])
+                    contender_pid_ready.set()
+                    row.save(update_fields=["email", "revision", "updated_at"])
+            except DatabaseError as error:
+                return str(getattr(error.__cause__, "sqlstate", "database_error"))
+            return "acquired"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        release_future = pool.submit(release_with_bulk_update)
+        assert release_ready.wait(timeout=10)
+        claim_future = pool.submit(claim_with_orm_save)
+        assert contender_pid_ready.wait(timeout=10)
+        try:
+            _wait_until_backend_is_locking(contender_pid[0])
+        finally:
+            allow_release_commit.set()
+        results = (release_future.result(timeout=10), claim_future.result(timeout=10))
+
+    assert results == ("released", "23505")
+    assert _contact_owner_ids(owner, organization_id, kind="email", value=historical_email) == {
+        historical_owner["id"]
+    }
 
 
 def test_concurrent_task_revision_allows_only_one_update() -> None:

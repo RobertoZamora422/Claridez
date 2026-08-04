@@ -36,13 +36,16 @@ duplica: registra cómo continuar desde el checkout real.
 - `claridez.catalog`: tipos de evento, servicios, productos, paquetes, revisiones, precios y
   vigencias.
 - `claridez.people`: identidad maestra de persona, revisiones, búsqueda, aliases, fusión lógica y
-  consentimiento append-only; contactos actuales e históricos únicos por tenant; conserva las
-  tablas físicas históricas de persona.
+  consentimiento append-only; contactos actuales e históricos con propiedad canónica única por
+  tenant bajo un advisory lock transaccional común; conserva las tablas físicas históricas de
+  persona.
 - `claridez.commercial`: solicitudes como única oportunidad, historial comercial append-only,
   cotizaciones versionadas con catálogo/ad hoc, disponibilidad por espacio y reservas.
-- `claridez.crm`: composición mediante puertos públicos inmutables, vistas integrales,
-  interacciones inmutables, correcciones enlazadas por conjunto canónico, tareas con historial,
-  próxima acción determinista e indicadores.
+- `claridez.crm`: composición mediante puertos públicos estrechos; identidad y oportunidades usan
+  proyecciones inmutables, y consentimiento usa valores serializados sin exponer ORM ni
+  `QuerySet`; vistas integrales, interacciones inmutables, correcciones enlazadas por conjunto
+  canónico que conservan su oportunidad, tareas con historial, próxima acción determinista e
+  indicadores.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
 - Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas,
@@ -82,11 +85,21 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   corrige interacciones y consentimientos dentro de fusiones encadenadas; aplica la revocación
   efectiva de ADR 0015; persiste razones de cancelación; evita revisiones vacías; y ordena toda
   próxima acción por `next_contact_at` o, en su ausencia, `due_at`.
-- `npm run check:all` pasó con los toolchains fijados: 154 pruebas no integración, 48 integración
-  PostgreSQL y 18 frontend, además de OpenAPI y builds. Incluye dos tenants, SQL directo, bulk,
-  concurrencia, revisiones, migraciones correctivas y RLS. La validación visual real previa cubrió
-  1440×900 y 390×844 sin desbordamiento horizontal. Este cierre no planificó ni implementó P8 y no
-  hay etapa funcional autorizada en ejecución. `npm run audit` no encontró vulnerabilidades
+- El cierre focalizado final serializa con un advisory lock transaccional común por organización
+  toda escritura de teléfono o correo en `commercial_person` y
+  `people_personcontactalias`; los UUID de organización se bloquean en orden estable y luego se
+  comprueban de nuevo valores actuales e históricos. Los casos concurrentes cubren
+  `QuerySet.update` contra SQL directo para teléfono y `bulk_update` contra `save()` ORM para
+  correo; la operación rival recibe `23505` y se conserva un solo propietario canónico.
+- La corrección de una interacción vinculada, aunque la evidencia original pertenezca a una persona
+  fuente ya fusionada, conserva el `event_request_id` original y registra la nueva evidencia sobre
+  la persona canónica. El navegador real validó 1440×900 y 390×844 con búsqueda, selección,
+  inversión de dirección, resumen, conflicto por revisión obsoleta, nueva confirmación, mensajes,
+  scroll y ausencia de overflow horizontal; no fue necesario cambiar CSS.
+- `npm run check:all` pasó con los toolchains fijados: 154 pruebas no integración, 50 integración
+  PostgreSQL y 19 frontend, además de OpenAPI y builds. Incluye dos tenants, SQL directo, bulk,
+  concurrencia, revisiones, migraciones correctivas y RLS. Este cierre no planificó ni implementó
+  P8 y no hay etapa funcional autorizada en ejecución. `npm run audit` no encontró vulnerabilidades
   conocidas en Python ni npm.
 
 ## Decisiones cerradas

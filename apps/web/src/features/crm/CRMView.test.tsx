@@ -205,4 +205,101 @@ describe("bandeja CRM", () => {
     });
     expect(await screen.findByRole("heading", { name: targetPerson.full_name })).toBeVisible();
   });
+
+  it("conserva la oportunidad al corregir una interacción histórica postfusión", async () => {
+    let interactionPayload: Record<string, unknown> | null = null;
+    const canonicalPerson = {
+      id: "44444444-4444-4444-8444-444444444444",
+      full_name: "Persona canónica",
+      phone_e164: "+593994444444",
+      email: "canonica-interaccion@example.com",
+      revision: 5,
+      has_interest_history: true,
+      is_client: false,
+    };
+    const historicalInteraction = {
+      id: "55555555-5555-4555-8555-555555555555",
+      person_id: "66666666-6666-4666-8666-666666666666",
+      event_request_id: "77777777-7777-4777-8777-777777777777",
+      channel: "email",
+      direction: "inbound" as const,
+      occurred_at: "2026-08-01T15:00:00Z",
+      responsible_membership_id: "88888888-8888-4888-8888-888888888888",
+      summary: "Interacción de la persona fuente ya fusionada.",
+      correction_of_id: null,
+      created_at: "2026-08-01T15:01:00Z",
+    };
+    const overview = {
+      person: canonicalPerson,
+      opportunities: [],
+      interactions: [historicalInteraction],
+      tasks: [],
+      consent: { person_id: canonicalPerson.id, effective: [], events: [] },
+      timeline: [],
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith("/crm/indicators/")) {
+          return Promise.resolve(
+            json({
+              indicators: {
+                opportunities: 1,
+                open: 1,
+                won: 0,
+                lost: 0,
+                without_next_action: 1,
+                overdue_tasks: 0,
+              },
+            }),
+          );
+        }
+        if (url.includes("/crm/tasks/")) return Promise.resolve(json({ tasks: [] }));
+        if (url.includes("/people/?q=Persona%20can%C3%B3nica")) {
+          return Promise.resolve(json({ people: [canonicalPerson] }));
+        }
+        if (url.endsWith(`/crm/people/${canonicalPerson.id}/`)) {
+          return Promise.resolve(json(overview));
+        }
+        if (url.endsWith("/crm/interactions/") && init?.method === "POST") {
+          if (typeof init.body !== "string") throw new TypeError("Se esperaba JSON serializado.");
+          interactionPayload = JSON.parse(init.body) as Record<string, unknown>;
+          return Promise.resolve(json({ id: "correction-1" }));
+        }
+        return Promise.resolve(json({ opportunities: [] }));
+      }),
+    );
+
+    render(
+      <CRMView
+        organizationId="org-interaction"
+        timeZone="America/Guayaquil"
+        capabilities={new Set(["interaction:record"])}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Buscar o deduplicar persona"), {
+      target: { value: "Persona canónica" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Persona canónica/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Corregir con nueva entrada" }));
+    fireEvent.change(screen.getByLabelText("Resumen minimizado"), {
+      target: { value: "Corrección enlazada sin cambiar la oportunidad." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar evidencia" }));
+
+    await waitFor(() => {
+      expect(interactionPayload).not.toBeNull();
+    });
+    expect(interactionPayload).toMatchObject({
+      person_id: canonicalPerson.id,
+      event_request_id: historicalInteraction.event_request_id,
+      correction_of_id: historicalInteraction.id,
+      summary: "Corrección enlazada sin cambiar la oportunidad.",
+    });
+  });
 });

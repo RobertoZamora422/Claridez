@@ -157,7 +157,7 @@ export function CRMView({
         method: "POST",
         body: JSON.stringify({
           person_id: personId,
-          event_request_id: selectedOpportunity?.id ?? null,
+          event_request_id: correctionOf?.event_request_id ?? selectedOpportunity?.id ?? null,
           channel: formText(data, "channel"),
           direction: formText(data, "direction"),
           occurred_at: new Date().toISOString(),
