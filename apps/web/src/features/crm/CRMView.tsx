@@ -14,6 +14,8 @@ import { useInitialLoad } from "../../shared/useInitialLoad";
 import { formatDate, formText, localToInstant, message } from "../../shared/utilities";
 
 type FormSubmitEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
+type MergeRole = "source" | "target";
+type MergeCandidate = Pick<Person, "id" | "full_name" | "phone_e164" | "email" | "revision">;
 
 const RESULT_LABELS = { open: "En curso", won: "Ganada", lost: "Perdida" } as const;
 const HISTORY_KIND_LABELS: Record<string, string> = {
@@ -55,6 +57,10 @@ export function CRMView({
   const [selectedOpportunity, setSelectedOpportunity] = useState<CrmOpportunity | null>(null);
   const [overview, setOverview] = useState<CrmPersonOverview | null>(null);
   const [matches, setMatches] = useState<Person[]>([]);
+  const [mergeQuery, setMergeQuery] = useState("");
+  const [mergeMatches, setMergeMatches] = useState<Person[]>([]);
+  const [mergeCandidate, setMergeCandidate] = useState<MergeCandidate | null>(null);
+  const [viewedPersonRole, setViewedPersonRole] = useState<MergeRole>("source");
   const [correctionOf, setCorrectionOf] = useState<CrmInteraction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -105,6 +111,24 @@ export function CRMView({
         await api<CrmPersonOverview>(`/api/v1/organizations/${organizationId}/crm/people/${id}/`),
       );
       setSelectedOpportunity(null);
+      setMergeQuery("");
+      setMergeMatches([]);
+      setMergeCandidate(null);
+      setViewedPersonRole("source");
+    } catch (caught) {
+      setError(message(caught));
+    }
+  };
+
+  const searchMergePeople = async () => {
+    if (!overview || !mergeQuery.trim()) return;
+    setError("");
+    try {
+      const body = await api<{ people: Person[] }>(
+        `/api/v1/organizations/${organizationId}/people/?q=${encodeURIComponent(mergeQuery.trim())}`,
+      );
+      setMergeMatches(body.people.filter((person) => person.id !== overview.person.id));
+      setMergeCandidate(null);
     } catch (caught) {
       setError(message(caught));
     }
@@ -216,23 +240,26 @@ export function CRMView({
 
   const mergePerson = async (event: FormSubmitEvent) => {
     event.preventDefault();
-    if (!overview) return;
+    if (!overview || !mergeCandidate) return;
     const data = new FormData(event.currentTarget);
+    const viewedPerson: MergeCandidate = overview.person;
+    const source = viewedPersonRole === "source" ? viewedPerson : mergeCandidate;
+    const target = viewedPersonRole === "target" ? viewedPerson : mergeCandidate;
     try {
       await api(`/api/v1/organizations/${organizationId}/people/merge/`, {
         method: "POST",
         body: JSON.stringify({
-          source_person_id: overview.person.id,
-          target_person_id: formText(data, "target_id"),
-          source_revision: overview.person.revision,
-          target_revision: Number(formText(data, "target_revision")),
+          source_person_id: source.id,
+          target_person_id: target.id,
+          source_revision: source.revision,
+          target_revision: target.revision,
           reason: formText(data, "reason"),
           idempotency_key: crypto.randomUUID(),
         }),
       });
       setNotice("Personas fusionadas; la historia permanece íntegra.");
-      setOverview(null);
       await load();
+      await openPerson(target.id);
     } catch (caught) {
       setError(message(caught));
     }
@@ -323,7 +350,7 @@ export function CRMView({
                     <span>
                       <small>
                         {opportunity.next_action
-                          ? formatDate(opportunity.next_action.due_at, timeZone)
+                          ? formatDate(opportunity.next_action.action_at, timeZone)
                           : "Sin próxima acción"}
                       </small>
                     </span>
@@ -343,7 +370,7 @@ export function CRMView({
                     className={task.overdue ? "crm-task crm-task--overdue" : "crm-task"}
                   >
                     <strong>{task.title}</strong>
-                    <small>{formatDate(task.due_at, timeZone)}</small>
+                    <small>{formatDate(task.action_at, timeZone)}</small>
                     <button
                       className="button button--ghost"
                       onClick={() => void completeTask(task)}
@@ -530,26 +557,97 @@ export function CRMView({
             )}
             {overview && capabilities.has("person:merge") && (
               <form
-                className="panel form-stack danger-zone"
+                className="panel form-stack danger-zone crm-merge-flow"
                 onSubmit={(event) => void mergePerson(event)}
               >
                 <div>
                   <h2>Fusionar duplicado</h2>
-                  <p>Conserva solicitudes, reservas y auditoría.</p>
+                  <p>Busca y compara ambas personas. La historia original no se reescribe.</p>
                 </div>
                 <label>
-                  ID canónico destino
-                  <input name="target_id" required />
+                  Buscar coincidencias
+                  <input
+                    name="merge_query"
+                    value={mergeQuery}
+                    onChange={(event) => {
+                      setMergeQuery(event.currentTarget.value);
+                    }}
+                    placeholder="Nombre, teléfono, correo o alias"
+                  />
                 </label>
-                <label>
-                  Revisión destino
-                  <input name="target_revision" type="number" min="1" required />
-                </label>
-                <label>
-                  Razón obligatoria
-                  <textarea name="reason" required maxLength={500} />
-                </label>
-                <button className="button button--danger">Fusionar</button>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => void searchMergePeople()}
+                >
+                  Buscar coincidencias
+                </button>
+                {mergeMatches.length > 0 && (
+                  <div className="crm-search-results crm-merge-matches" aria-label="Coincidencias">
+                    <h3>Coincidencias encontradas</h3>
+                    {mergeMatches.map((person) => (
+                      <button
+                        type="button"
+                        key={person.id}
+                        aria-pressed={mergeCandidate?.id === person.id}
+                        onClick={() => {
+                          setMergeCandidate(person);
+                        }}
+                      >
+                        <strong>{person.full_name}</strong>
+                        <small>{person.phone_e164}</small>
+                        <small>{person.email ?? "Sin correo"}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {mergeCandidate && (
+                  <>
+                    <label>
+                      Dirección de la fusión
+                      <select
+                        value={viewedPersonRole}
+                        onChange={(event) => {
+                          setViewedPersonRole(event.currentTarget.value as MergeRole);
+                        }}
+                      >
+                        <option value="source">
+                          Fusionar {overview.person.full_name} en la coincidencia
+                        </option>
+                        <option value="target">
+                          Conservar {overview.person.full_name} como persona canónica
+                        </option>
+                      </select>
+                    </label>
+                    <dl className="crm-merge-summary">
+                      <div>
+                        <dt>Origen</dt>
+                        <dd>
+                          {viewedPersonRole === "source"
+                            ? overview.person.full_name
+                            : mergeCandidate.full_name}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Destino canónico</dt>
+                        <dd>
+                          {viewedPersonRole === "target"
+                            ? overview.person.full_name
+                            : mergeCandidate.full_name}
+                        </dd>
+                      </div>
+                    </dl>
+                    <label>
+                      Razón obligatoria
+                      <textarea name="reason" required maxLength={500} />
+                    </label>
+                    <label className="check-row">
+                      <input type="checkbox" name="confirmed" required />
+                      Confirmo que revisé las coincidencias y la razón de la fusión.
+                    </label>
+                    <button className="button button--danger">Confirmar fusión</button>
+                  </>
+                )}
               </form>
             )}
           </aside>

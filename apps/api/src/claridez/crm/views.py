@@ -12,10 +12,10 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from claridez.commercial.errors import CommercialError
+from claridez.commercial.public import CommercialError
 from claridez.identity.models import User
 from claridez.organizations.exceptions import AuthorizationDenied, TenantAccessDenied
-from claridez.people.errors import PeopleError
+from claridez.people.public import PeopleError
 
 from .errors import CrmError
 from .serializers import InteractionCreateSerializer, TaskCreateSerializer, TaskUpdateSerializer

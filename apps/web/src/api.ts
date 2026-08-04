@@ -99,12 +99,23 @@ export interface CrmTask {
   title: string;
   due_at: string;
   next_contact_at: string | null;
+  action_at: string;
   status: "open" | "completed" | "cancelled";
   responsible_membership_id: string;
   completed_at: string | null;
+  cancellation_reason: string | null;
+  cancellation_reason_unavailable: boolean;
   revision: number;
   overdue: boolean;
-  history?: { id: string; kind: string; revision: number; status: string; created_at: string }[];
+  history?: {
+    id: string;
+    kind: string;
+    revision: number;
+    status: string;
+    reason: string | null;
+    reason_unavailable: boolean;
+    created_at: string;
+  }[];
 }
 
 export interface CrmInteraction {

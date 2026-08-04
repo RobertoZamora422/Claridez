@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 2 de agosto de 2026
+- **Fecha de corte:** 3 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -269,7 +269,7 @@ productos o convertir sedes en configuración sin uso real.
 
 **Identificador y nombre:** P7 — Personas, interesados, clientes y seguimiento.
 
-**Estado:** Completada y validada localmente; no desplegada.
+**Estado:** Completada y validada localmente tras el cierre correctivo; no desplegada.
 
 **Objetivo:** Gestionar de forma completa la relación comercial desde captación hasta resultado y
 recompra.
@@ -292,15 +292,25 @@ fusión lógica autorizada sin reescribir la evidencia histórica.
 **Criterio verificable de finalización:** Ninguna oportunidad activa carece de estado visible;
 interacciones y tareas son trazables; deduplicación y fusión son seguras; permisos conjuntivos,
 búsqueda, dos tenants y backfill honesto están probados. La puerta local observada cerró con 149
-pruebas no integración, 43 integración PostgreSQL y 17 frontend; cubrió migraciones desde cero y
-desde P6, FORCE RLS, ORM, SQL directo, bulk, concurrencia, idempotencia, historial, privacidad,
-regresión 5.1/5.2/P6, OpenAPI y build. La validación visual real cubrió 1440×900 y 390×844 sin
-desbordamiento horizontal; la navegación móvil mantiene objetivos de 44 px. `npm run audit` no
-encontró vulnerabilidades conocidas.
+pruebas no integración, 43 integración PostgreSQL y 17 frontend en su primer cierre. El cierre
+correctivo del 3 de agosto sustituyó los accesos ORM de CRM a `people` y `commercial` por puertos
+inmutables; cerró unicidad y búsqueda de contactos actuales e históricos; habilitó correcciones de
+evidencia dentro del conjunto canónico; aplicó la precedencia de revocación de ADR 0015; persistió
+la razón de cancelación sin revisiones vacías; ordenó tareas por una única fecha operativa; y
+reemplazó UUID/revisiones manuales en la fusión web por búsqueda y selección. La puerta final pasó
+con 154 pruebas no integración, 48 integración PostgreSQL y 18 frontend; cubrió migraciones desde
+cero, desde P6 y desde P7 previo al cierre correctivo, FORCE RLS, ORM, SQL directo, bulk,
+concurrencia, idempotencia, historial, privacidad, regresión 5.1/5.2/P6, OpenAPI y build. La
+validación visual real previa cubrió 1440×900 y 390×844 sin desbordamiento horizontal; la navegación
+móvil mantiene objetivos de 44 px. `npm run audit` no encontró vulnerabilidades conocidas en
+Python ni npm.
 
 **Riesgos principales:** La política legal definitiva de retención, anonimización y eliminación
 sigue diferida; no debe confundirse el registro técnico de consentimiento con una conclusión
 jurídica. Renombrar físicamente las tablas históricas de persona requiere un corte futuro explícito.
+Un entorno que ya contenga correos actuales duplicados o no canónicos debe auditarlos antes de
+aplicar la migración correctiva; la migración falla cerrada y no elige arbitrariamente una persona
+propietaria del contacto.
 
 **Siguiente etapa:** P8 — Agenda y reservas avanzadas.
 

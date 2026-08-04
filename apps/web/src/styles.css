@@ -1106,6 +1106,45 @@ dd {
   gap: 4px;
   padding: 14px;
 }
+.crm-merge-flow {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+.crm-merge-matches {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.crm-merge-matches button[aria-pressed="true"] {
+  border-color: #0f766e;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 2px rgb(15 118 110 / 18%);
+}
+.crm-merge-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.crm-merge-summary > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: white;
+}
+.crm-merge-summary dt {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.crm-merge-summary dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 750;
+}
 .crm-layout,
 .crm-detail-grid {
   display: grid;
@@ -1370,6 +1409,9 @@ dd {
   }
   .crm-search {
     display: grid;
+  }
+  .crm-merge-summary {
+    grid-template-columns: 1fr;
   }
   .operation-event-list > li > button,
   .operation-item__heading {

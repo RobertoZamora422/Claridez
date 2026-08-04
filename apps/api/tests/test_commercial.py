@@ -63,7 +63,7 @@ def _person(owner: User, organization_id: UUID, phone: str = "0991234567") -> di
         organization_id,
         full_name="María Pérez",
         phone=phone,
-        email="MARIA@example.com",
+        email=f"maria-{phone}@example.com",
         origin="whatsapp",
         origin_detail=None,
     )

@@ -1,7 +1,7 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 2 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P7 está completada localmente
+- **Fecha de corte:** 3 de agosto de 2026
+- **Etapa funcional activa:** ninguna; P7 cerró su corrección y está completada localmente
 - **Siguiente etapa:** P8 — Agenda y reservas avanzadas
 
 ## Qué es Claridez
@@ -36,16 +36,19 @@ duplica: registra cómo continuar desde el checkout real.
 - `claridez.catalog`: tipos de evento, servicios, productos, paquetes, revisiones, precios y
   vigencias.
 - `claridez.people`: identidad maestra de persona, revisiones, búsqueda, aliases, fusión lógica y
-  consentimiento append-only; conserva las tablas físicas históricas de persona.
+  consentimiento append-only; contactos actuales e históricos únicos por tenant; conserva las
+  tablas físicas históricas de persona.
 - `claridez.commercial`: solicitudes como única oportunidad, historial comercial append-only,
   cotizaciones versionadas con catálogo/ad hoc, disponibilidad por espacio y reservas.
-- `claridez.crm`: composición de oportunidades y vistas integrales, interacciones inmutables,
-  correcciones enlazadas, tareas, próximos contactos e indicadores.
+- `claridez.crm`: composición mediante puertos públicos inmutables, vistas integrales,
+  interacciones inmutables, correcciones enlazadas por conjunto canónico, tareas con historial,
+  próxima acción determinista e indicadores.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
 - Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas,
   operación, configuración/catálogo y CRM responsive con bandeja, persona integral, timeline,
-  interacciones, tareas, consentimiento y fusión.
+  interacciones, tareas, consentimiento y fusión mediante búsqueda y selección, sin UUID ni
+  revisiones manuales.
 
 No existen aún los módulos de P8 en adelante. No hay módulos financieros, contratos/archivos,
 portal, proveedores productivos de correo/identidad, staging ni producción.
@@ -74,10 +77,17 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
 - La fusión lógica autorizada para propietario y administrador conserva FKs históricas, aliases,
   auditoría, resolución canónica, idempotencia y agregación sin doble conteo. Anonimización y
   eliminación siguen sin capacidades ni endpoints.
-- `npm run check:all` pasó con los toolchains fijados: 149 pruebas no integración, 43 integración
-  PostgreSQL y 17 frontend, además de OpenAPI y builds. La validación visual real cubrió 1440×900 y
-  390×844 sin desbordamiento horizontal. No hay etapa funcional autorizada en ejecución.
-  `npm run audit` no encontró vulnerabilidades conocidas en Python ni npm.
+- El cierre correctivo P7 elimina consultas/importaciones ORM directas desde CRM hacia `people` y
+  `commercial`; conserva aliases al cambiar contactos; impide reutilización actual o histórica;
+  corrige interacciones y consentimientos dentro de fusiones encadenadas; aplica la revocación
+  efectiva de ADR 0015; persiste razones de cancelación; evita revisiones vacías; y ordena toda
+  próxima acción por `next_contact_at` o, en su ausencia, `due_at`.
+- `npm run check:all` pasó con los toolchains fijados: 154 pruebas no integración, 48 integración
+  PostgreSQL y 18 frontend, además de OpenAPI y builds. Incluye dos tenants, SQL directo, bulk,
+  concurrencia, revisiones, migraciones correctivas y RLS. La validación visual real previa cubrió
+  1440×900 y 390×844 sin desbordamiento horizontal. Este cierre no planificó ni implementó P8 y no
+  hay etapa funcional autorizada en ejecución. `npm run audit` no encontró vulnerabilidades
+  conocidas en Python ni npm.
 
 ## Decisiones cerradas
 
@@ -193,6 +203,9 @@ externas.
 - Un despliegue futuro debe ejecutar el cutover 5.2 completo; no admite convivencia 5.1/5.2.
 - Ese despliegue debe respetar también el orden multi-espacio, la adopción de estado P7 y las
   comprobaciones de ADR 0014–0015.
+- Antes de desplegar la migración correctiva P7 se deben auditar correos actuales duplicados o no
+  canónicos del entorno destino. La migración falla cerrada en esos casos y no reasigna evidencia
+  de contacto de manera automática.
 - Acciones privilegiadas de membresías continúan sin UI productiva y no deben abrirse sin MFA.
 - Correo es local; recuperación/verificación externas no están listas para clientes reales.
 - La política legal definitiva de retención, anonimización y eliminación de personas sigue

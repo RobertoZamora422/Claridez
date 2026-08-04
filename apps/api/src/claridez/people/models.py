@@ -5,7 +5,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
-from django.db.models.functions import Trim
+from django.db.models.functions import Lower, Trim
 
 from claridez.organizations.models import Membership, Organization
 
@@ -41,6 +41,11 @@ class Person(models.Model):
             models.UniqueConstraint(
                 fields=["organization", "phone_e164"], name="commercial_person_org_phone_uq"
             ),
+            models.UniqueConstraint(
+                fields=["organization", "email"],
+                condition=~Q(email=""),
+                name="commercial_person_org_email_uq",
+            ),
             models.CheckConstraint(
                 condition=Q(full_name=Trim("full_name")) & ~Q(full_name=""),
                 name="commercial_person_name_canonical",
@@ -48,6 +53,10 @@ class Person(models.Model):
             models.CheckConstraint(
                 condition=Q(phone_e164__regex=r"^\+593(?:[2-7][0-9]{7}|9[0-9]{8})$"),
                 name="commercial_person_phone_ec",
+            ),
+            models.CheckConstraint(
+                condition=Q(email=Lower(Trim("email"))),
+                name="commercial_person_email_canonical",
             ),
             models.CheckConstraint(
                 condition=Q(origin__in=[value for value, _ in ContactOrigin.choices]),
@@ -180,6 +189,19 @@ class PersonContactAlias(models.Model):
             models.CheckConstraint(
                 condition=Q(kind__in=["phone", "email"]),
                 name="people_contactalias_kind_valid",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        kind="phone",
+                        normalized_value__regex=r"^\+593(?:[2-7][0-9]{7}|9[0-9]{8})$",
+                    )
+                    | (
+                        Q(kind="email", normalized_value=Lower(Trim("normalized_value")))
+                        & ~Q(normalized_value="")
+                    )
+                ),
+                name="people_contactalias_value_canonical",
             ),
         ]
 

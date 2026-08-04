@@ -6,9 +6,7 @@ from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Trim
 
-from claridez.commercial.models import EventRequest
 from claridez.organizations.models import Membership, Organization
-from claridez.people.models import Person
 
 
 class Interaction(models.Model):
@@ -27,10 +25,10 @@ class Interaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
     person = models.ForeignKey(
-        Person, on_delete=models.PROTECT, related_name="crm_interactions", db_index=False
+        "people.Person", on_delete=models.PROTECT, related_name="crm_interactions", db_index=False
     )
     event_request = models.ForeignKey(
-        EventRequest,
+        "commercial.EventRequest",
         on_delete=models.PROTECT,
         related_name="crm_interactions",
         null=True,
@@ -109,10 +107,10 @@ class FollowUpTask(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
     person = models.ForeignKey(
-        Person, on_delete=models.PROTECT, related_name="crm_tasks", db_index=False
+        "people.Person", on_delete=models.PROTECT, related_name="crm_tasks", db_index=False
     )
     event_request = models.ForeignKey(
-        EventRequest,
+        "commercial.EventRequest",
         on_delete=models.PROTECT,
         related_name="crm_tasks",
         null=True,
@@ -135,6 +133,8 @@ class FollowUpTask(models.Model):
         blank=True,
         db_index=False,
     )
+    cancellation_reason = models.CharField(max_length=500, blank=True)
+    cancellation_reason_unavailable = models.BooleanField(default=False, editable=False)
     revision = models.PositiveIntegerField(default=1)
     created_by_membership = models.ForeignKey(
         Membership, on_delete=models.PROTECT, related_name="created_crm_tasks", db_index=False
@@ -169,6 +169,27 @@ class FollowUpTask(models.Model):
                 ),
                 name="crm_task_completed_evidence",
             ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="cancelled",
+                        cancellation_reason=Trim("cancellation_reason"),
+                        cancellation_reason_unavailable=False,
+                    )
+                    & ~Q(cancellation_reason="")
+                    | Q(
+                        status="cancelled",
+                        cancellation_reason="",
+                        cancellation_reason_unavailable=True,
+                    )
+                    | Q(
+                        status__in=["open", "completed"],
+                        cancellation_reason="",
+                        cancellation_reason_unavailable=False,
+                    )
+                ),
+                name="crm_task_cancellation_reason",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -200,6 +221,7 @@ class FollowUpTaskHistory(models.Model):
         Membership, on_delete=models.PROTECT, related_name="crm_task_history_actions"
     )
     reason = models.CharField(max_length=500, blank=True)
+    reason_unavailable = models.BooleanField(default=False, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -214,6 +236,23 @@ class FollowUpTaskHistory(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(revision__gte=1), name="crm_taskhistory_revision_positive"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        kind="cancelled",
+                        reason=Trim("reason"),
+                        reason_unavailable=False,
+                    )
+                    & ~Q(reason="")
+                    | Q(kind="cancelled", reason="", reason_unavailable=True)
+                    | Q(
+                        kind__in=["created", "updated", "completed"],
+                        reason="",
+                        reason_unavailable=False,
+                    )
+                ),
+                name="crm_taskhistory_reason_matches_kind",
             ),
         ]
 

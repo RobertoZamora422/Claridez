@@ -95,7 +95,7 @@ def _accepted(
         organization_id,
         full_name="Contacto Operativo",
         phone=phone,
-        email="contacto@example.com",
+        email=f"contacto-{phone}@example.com",
         origin="whatsapp",
         origin_detail=None,
     )
@@ -270,7 +270,7 @@ def test_ready_start_complete_flow_resolution_evidence_and_phone_minimization() 
         _assert_minimal_historical_actor(completed["preparation"][field])
     serialized = str(completed).lower()
     for forbidden in (
-        "contacto@example.com",
+        "contacto-0991234567@example.com",
         "subtotal",
         "discount",
         "deposit",

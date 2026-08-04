@@ -151,6 +151,8 @@ def _snapshot(person: Person, actor_id: UUID) -> PersonRevision:
 
 def _alias_conflict(organization_id: UUID, *, phone: str, email: str, exclude: UUID | None) -> bool:
     current_values = Q(phone_e164=phone)
+    if email:
+        current_values |= Q(email=email)
     people = Person.objects.filter(organization_id=organization_id).filter(current_values)
     values = Q(kind=PersonContactAlias.Kind.PHONE, normalized_value=phone)
     if email:
@@ -320,9 +322,34 @@ def update_person(
             exclude=person.pk,
         ):
             raise conflict("duplicate_person", "Ese contacto pertenece a una persona existente.")
+        previous_phone = original[1]
+        previous_email = original[2]
+        previous_revision = person.revision
         person.revision += 1
         try:
             with transaction.atomic():
+                if person.phone_e164 != previous_phone:
+                    PersonContactAlias.objects.get_or_create(
+                        organization_id=authorization.organization_id,
+                        kind=PersonContactAlias.Kind.PHONE,
+                        normalized_value=previous_phone,
+                        defaults={
+                            "person": person,
+                            "source_person": person,
+                            "source_revision": previous_revision,
+                        },
+                    )
+                if previous_email and person.email != previous_email:
+                    PersonContactAlias.objects.get_or_create(
+                        organization_id=authorization.organization_id,
+                        kind=PersonContactAlias.Kind.EMAIL,
+                        normalized_value=previous_email,
+                        defaults={
+                            "person": person,
+                            "source_person": person,
+                            "source_revision": previous_revision,
+                        },
+                    )
                 person.save()
                 _snapshot(person, authorization.actor_id)
         except IntegrityError as error:
@@ -488,20 +515,31 @@ def merge_people(
         return _merge_data(merge)
 
 
-def _effective_consents(rows: tuple[ConsentEvent, ...]) -> tuple[dict[str, Any], ...]:
+def _effective_consents(
+    rows: tuple[ConsentEvent, ...], *, canonical_id: UUID
+) -> tuple[dict[str, Any], ...]:
+    def order(event: ConsentEvent) -> tuple[datetime, datetime, str]:
+        return (event.occurred_at, event.created_at, str(event.pk))
+
     grouped: dict[tuple[str, str], list[ConsentEvent]] = defaultdict(list)
     for row in rows:
         grouped[(row.purpose, row.channel)].append(row)
     result = []
     for (purpose, channel), events in sorted(grouped.items()):
-        latest = max(
-            events,
-            key=lambda event: (
-                event.occurred_at,
-                event.created_at,
-                event.decision == ConsentEvent.Decision.REVOKED,
-            ),
-        )
+        revocations = [event for event in events if event.decision == ConsentEvent.Decision.REVOKED]
+        if not revocations:
+            latest = max(events, key=order)
+        else:
+            latest_revocation = max(revocations, key=order)
+            restorations = [
+                event
+                for event in events
+                if event.person_id == canonical_id
+                and event.event_type == ConsentEvent.EventType.GRANT
+                and event.decision == ConsentEvent.Decision.GRANTED
+                and event.occurred_at > latest_revocation.occurred_at
+            ]
+            latest = max(restorations, key=order) if restorations else latest_revocation
         result.append(
             {
                 "purpose": purpose,
@@ -531,7 +569,7 @@ def list_consents(
         )
         return {
             "person_id": canonical_id,
-            "effective": _effective_consents(rows),
+            "effective": _effective_consents(rows, canonical_id=canonical_id),
             "events": tuple(
                 {
                     "id": row.pk,

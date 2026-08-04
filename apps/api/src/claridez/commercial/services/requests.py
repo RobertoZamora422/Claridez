@@ -12,7 +12,7 @@ from claridez.organizations.capabilities import Capability, require_capability
 from claridez.organizations.exceptions import AuthorizationDenied
 from claridez.organizations.models import Membership, OrganizationSettings, Space
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
-from claridez.people.public import PeopleError, require_canonical_person
+from claridez.people.public import PeopleError, lock_canonical_person_id
 
 from ..errors import CommercialError, conflict, invalid, unavailable
 from ..models import EventRequest, Reservation
@@ -100,7 +100,7 @@ def create_event_request(
         actor, organization_reference, Capability.SALES_MANAGE
     ) as authorization:
         try:
-            person = require_canonical_person(authorization.organization_id, person_id, lock=True)
+            canonical_person_id = lock_canonical_person_id(authorization.organization_id, person_id)
         except PeopleError as error:
             raise CommercialError(error.code, error.message, status=error.status) from error
         event_type = _event_type(authorization.organization_id, event_type_id)
@@ -123,7 +123,7 @@ def create_event_request(
             raise invalid("Los invitados estimados deben ser mayores que cero.")
         row = EventRequest.objects.create(
             organization_id=authorization.organization_id,
-            person=person,
+            person_id=canonical_person_id,
             event_type_definition=event_type,
             space=space,
             event_type=event_type.name,

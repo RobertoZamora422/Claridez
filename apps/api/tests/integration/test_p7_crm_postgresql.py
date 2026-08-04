@@ -15,19 +15,22 @@ from django.db import (
     transaction,
 )
 from django.db.migrations.executor import MigrationExecutor
+from django.db.models import F
 from django.utils import timezone
 
 from claridez.catalog.services import create_event_type, list_event_types
 from claridez.commercial.models import EventRequestHistory
 from claridez.commercial.services import create_event_request
+from claridez.crm.errors import CrmError
 from claridez.crm.models import FollowUpTask, FollowUpTaskHistory, Interaction
-from claridez.crm.services import create_task, record_interaction
+from claridez.crm.services import create_task, record_interaction, update_task
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.configuration_services import list_venues
 from claridez.organizations.services import create_organization
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 from claridez.people import services as people_services
+from claridez.people.errors import PeopleError
 from claridez.people.models import ConsentEvent, Person, PersonContactAlias, PersonMerge
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db(transaction=True)]
@@ -261,6 +264,300 @@ def test_concurrent_merge_is_single_and_idempotent() -> None:
         assert PersonContactAlias.objects.filter(source_person_id=source["id"]).count() == 1
 
 
+def test_corrective_contact_and_task_invariants_cover_sql_and_bulk() -> None:
+    owner, creation = _owner("p7-corrective-sql-bulk")
+    organization_id = creation.organization.pk
+    person = people_services.create_person(
+        owner,
+        organization_id,
+        full_name="Contacto SQL",
+        phone="0992000010",
+        email="sql-original@example.com",
+        origin="website",
+        origin_detail="Prueba correctiva",
+    )
+    other = people_services.create_person(
+        owner,
+        organization_id,
+        full_name="Otro contacto SQL",
+        phone="0992000011",
+        email="otro-sql@example.com",
+        origin="website",
+        origin_detail="Prueba correctiva",
+    )
+    event_request = _request(owner, organization_id, person["id"], days=42)
+
+    with authorized_tenant_scope(owner, organization_id, Capability.PERSON_MANAGE):
+        changed = Person.objects.filter(pk=person["id"]).update(
+            phone_e164="+593992000012",
+            email="sql-actual@example.com",
+            revision=F("revision") + 1,
+        )
+        assert changed == 1
+        assert set(
+            PersonContactAlias.objects.filter(person_id=person["id"]).values_list(
+                "kind", "normalized_value"
+            )
+        ) >= {
+            ("phone", "+593992000010"),
+            ("email", "sql-original@example.com"),
+        }
+        with pytest.raises((DatabaseError, IntegrityError)), transaction.atomic():
+            Person.objects.filter(pk=other["id"]).update(email="sql-original@example.com")
+
+        person_row = Person.objects.get(pk=person["id"])
+        person_row.phone_e164 = "+593992000013"
+        person_row.revision += 1
+        Person.objects.bulk_update([person_row], ["phone_e164", "revision"])
+        assert PersonContactAlias.objects.filter(
+            person_id=person["id"], kind="phone", normalized_value="+593992000012"
+        ).exists()
+
+    task = create_task(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        event_request_id=event_request["id"],
+        title="Tarea SQL",
+        due_at=timezone.now() + timedelta(days=3),
+        next_contact_at=None,
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.TASK_MANAGE):
+        no_op = FollowUpTask.objects.filter(pk=task["id"]).update(title="Tarea SQL")
+        assert no_op == 0
+        assert FollowUpTaskHistory.objects.filter(task_id=task["id"]).count() == 1
+        with pytest.raises((DatabaseError, IntegrityError)), transaction.atomic():
+            FollowUpTask.objects.filter(pk=task["id"]).update(
+                status="cancelled", revision=2, cancellation_reason=""
+            )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE public.crm_followuptask
+                SET status = 'cancelled', revision = revision + 1,
+                    cancellation_reason = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                ["Cancelación verificada por SQL directo.", task["id"]],
+            )
+        cancelled_history = FollowUpTaskHistory.objects.get(task_id=task["id"], revision=2)
+        assert cancelled_history.kind == "cancelled"
+        assert cancelled_history.reason == "Cancelación verificada por SQL directo."
+
+    bulk_task = create_task(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        event_request_id=event_request["id"],
+        title="Tarea bulk original",
+        due_at=timezone.now() + timedelta(days=4),
+        next_contact_at=None,
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.TASK_MANAGE):
+        bulk_row = FollowUpTask.objects.get(pk=bulk_task["id"])
+        bulk_row.title = "Tarea bulk corregida"
+        bulk_row.revision += 1
+        FollowUpTask.objects.bulk_update([bulk_row], ["title", "revision"])
+        bulk_history = FollowUpTaskHistory.objects.get(task_id=bulk_task["id"], revision=2)
+        assert bulk_history.kind == "updated"
+        assert bulk_history.title == "Tarea bulk corregida"
+        assert bulk_history.reason == ""
+
+
+def test_concurrent_current_email_assignment_has_one_winner() -> None:
+    owner, creation = _owner("p7-concurrent-email")
+    organization_id = creation.organization.pk
+    barrier = Barrier(2)
+
+    def create_once(index: int) -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            barrier.wait(timeout=10)
+            try:
+                people_services.create_person(
+                    actor,
+                    organization_id,
+                    full_name=f"Persona concurrente {index}",
+                    phone=f"099200002{index}",
+                    email="correo-concurrente@example.com",
+                    origin="website",
+                    origin_detail="Prueba concurrente",
+                )
+            except PeopleError as error:
+                return error.code
+            return "created"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(create_once, range(2)))
+
+    assert sorted(results) == ["created", "duplicate_person"]
+    with authorized_tenant_scope(owner, organization_id, Capability.PERSON_READ):
+        assert Person.objects.filter(email="correo-concurrente@example.com").count() == 1
+
+
+def test_concurrent_task_revision_allows_only_one_update() -> None:
+    owner, creation = _owner("p7-concurrent-task")
+    organization_id = creation.organization.pk
+    person = _person(owner, organization_id, phone="0992000030", name="Tarea concurrente")
+    task = create_task(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        event_request_id=None,
+        title="Versión inicial",
+        due_at=timezone.now() + timedelta(days=2),
+        next_contact_at=None,
+    )
+    barrier = Barrier(2)
+
+    def update_once(index: int) -> str:
+        close_old_connections()
+        try:
+            actor = User.objects.get(pk=owner.pk)
+            barrier.wait(timeout=10)
+            try:
+                update_task(
+                    actor,
+                    organization_id,
+                    task_id=task["id"],
+                    revision=task["revision"],
+                    changes={"title": f"Versión concurrente {index}"},
+                )
+            except CrmError as error:
+                return error.code
+            return "updated"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(update_once, range(2)))
+
+    assert sorted(results) == ["stale_revision", "updated"]
+    with authorized_tenant_scope(owner, organization_id, Capability.TASK_MANAGE):
+        stored = FollowUpTask.objects.get(pk=task["id"])
+        assert stored.revision == 2
+        assert FollowUpTaskHistory.objects.filter(task=stored).count() == 2
+
+
+def test_postgresql_cluster_guardians_allow_corrections_but_keep_original_context() -> None:
+    owner, creation = _owner("p7-cluster-sql")
+    organization_id = creation.organization.pk
+    source = _person(owner, organization_id, phone="0992000031", name="Fuente SQL")
+    target = _person(owner, organization_id, phone="0992000032", name="Destino SQL")
+    event_request = _request(owner, organization_id, source["id"], days=47)
+    interaction = record_interaction(
+        owner,
+        organization_id,
+        person_id=source["id"],
+        event_request_id=event_request["id"],
+        channel="email",
+        direction="inbound",
+        occurred_at=timezone.now() - timedelta(days=1),
+        summary="Evidencia original SQL.",
+    )
+    consent = people_services.record_consent(
+        owner,
+        organization_id,
+        person_id=source["id"],
+        purpose="seguimiento_comercial",
+        channel="email",
+        event_type="grant",
+        decision="granted",
+        source="registro_sql",
+        occurred_at=timezone.now() - timedelta(days=1),
+        evidence_reference="SQL-CONSENT-001",
+    )
+    people_services.merge_people(
+        owner,
+        organization_id,
+        source_person_id=source["id"],
+        target_person_id=target["id"],
+        source_revision=source["revision"],
+        target_revision=target["revision"],
+        reason="Fusión previa a correcciones SQL.",
+        idempotency_key=uuid4(),
+    )
+    interaction_correction_id = uuid4()
+    consent_correction_id = uuid4()
+
+    with authorized_tenant_scope(owner, organization_id, Capability.INTERACTION_RECORD):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.crm_interaction (
+                    id, organization_id, person_id, event_request_id, channel, direction,
+                    occurred_at, responsible_membership_id, summary, correction_of_id,
+                    recorded_by_membership_id, created_at
+                ) VALUES (
+                    %s, %s, %s, %s, 'email', 'inbound', CURRENT_TIMESTAMP,
+                    %s, 'Corrección SQL dentro del cluster.', %s, %s, CURRENT_TIMESTAMP
+                )
+                """,
+                [
+                    interaction_correction_id,
+                    organization_id,
+                    target["id"],
+                    event_request["id"],
+                    creation.owner_membership.pk,
+                    interaction["id"],
+                    creation.owner_membership.pk,
+                ],
+            )
+        assert Interaction.objects.filter(
+            pk=interaction_correction_id, correction_of_id=interaction["id"]
+        ).exists()
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.crm_interaction (
+                    id, organization_id, person_id, event_request_id, channel, direction,
+                    occurred_at, responsible_membership_id, summary, correction_of_id,
+                    recorded_by_membership_id, created_at
+                ) VALUES (
+                    %s, %s, %s, NULL, 'email', 'inbound', CURRENT_TIMESTAMP,
+                    %s, 'Contexto alterado.', %s, %s, CURRENT_TIMESTAMP
+                )
+                """,
+                [
+                    uuid4(),
+                    organization_id,
+                    target["id"],
+                    creation.owner_membership.pk,
+                    interaction["id"],
+                    creation.owner_membership.pk,
+                ],
+            )
+
+    with authorized_tenant_scope(owner, organization_id, Capability.CONSENT_MANAGE):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.people_consentevent (
+                    id, organization_id, person_id, purpose, channel, event_type,
+                    decision, source, occurred_at, evidence_reference, corrects_id,
+                    recorded_by_membership_id, created_at
+                ) VALUES (
+                    %s, %s, %s, 'seguimiento_comercial', 'email', 'correction',
+                    'revoked', 'rectificacion_sql', CURRENT_TIMESTAMP, 'SQL-CONSENT-002',
+                    %s, %s, CURRENT_TIMESTAMP
+                )
+                """,
+                [
+                    consent_correction_id,
+                    organization_id,
+                    target["id"],
+                    consent["id"],
+                    creation.owner_membership.pk,
+                ],
+            )
+        assert ConsentEvent.objects.filter(
+            pk=consent_correction_id, corrects_id=consent["id"]
+        ).exists()
+
+
 def test_p7_migrates_existing_people_in_place_and_backfills_only_cutover_state() -> None:
     owner, creation = _owner("p7-migration")
     organization_id = creation.organization.pk
@@ -317,3 +614,81 @@ def test_p7_migrates_existing_people_in_place_and_backfills_only_cutover_state()
             )
         )
     assert history == [("cutover_state", None, "cutover_snapshot", None)]
+
+
+def test_corrective_migration_marks_unrecoverable_legacy_cancellation_reasons() -> None:
+    owner, creation = _owner("p7-corrective-migration")
+    organization_id = creation.organization.pk
+    person = _person(owner, organization_id, phone="0992000040", name="Cancelación heredada")
+    task = create_task(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        event_request_id=None,
+        title="Seguimiento cancelado antes de la corrección",
+        due_at=timezone.now() + timedelta(days=2),
+        next_contact_at=None,
+    )
+    update_task(
+        owner,
+        organization_id,
+        task_id=task["id"],
+        revision=task["revision"],
+        changes={"status": "cancelled", "reason": "Razón que P7 descartaba."},
+    )
+
+    try:
+        executor = MigrationExecutor(connection)
+        latest_targets = list(executor.loader.graph.leaf_nodes())
+        previous_targets = [node for node in latest_targets if node[0] != "crm"]
+        previous_targets.append(("crm", "0002_interaction_correction_guard"))
+        executor.migrate(previous_targets)
+
+        with (
+            authorized_tenant_scope(owner, organization_id, Capability.TASK_MANAGE),
+            connection.cursor() as cursor,
+        ):
+            cursor.execute(
+                "ALTER TABLE public.crm_followuptaskhistory "
+                "DISABLE TRIGGER crm_taskhistory_immutable"
+            )
+            cursor.execute(
+                "UPDATE public.crm_followuptaskhistory SET reason = '' WHERE task_id = %s",
+                [task["id"]],
+            )
+            cursor.execute(
+                "ALTER TABLE public.crm_followuptaskhistory "
+                "ENABLE TRIGGER crm_taskhistory_immutable"
+            )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+    finally:
+        executor = MigrationExecutor(connection)
+        pending = executor.migration_plan(executor.loader.graph.leaf_nodes())
+        if pending:
+            executor.migrate(executor.loader.graph.leaf_nodes())
+
+    with authorized_tenant_scope(owner, organization_id, Capability.TASK_MANAGE):
+        stored = FollowUpTask.objects.get(pk=task["id"])
+        cancelled_history = FollowUpTaskHistory.objects.get(task_id=task["id"], revision=2)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT relname, relrowsecurity, relforcerowsecurity
+            FROM pg_class
+            WHERE relname IN ('crm_followuptask', 'crm_followuptaskhistory')
+            ORDER BY relname
+            """
+        )
+        rls_state = cursor.fetchall()
+    assert stored.status == "cancelled"
+    assert stored.cancellation_reason == ""
+    assert stored.cancellation_reason_unavailable is True
+    assert cancelled_history.kind == "cancelled"
+    assert cancelled_history.reason == ""
+    assert cancelled_history.reason_unavailable is True
+    assert rls_state == [
+        ("crm_followuptask", True, True),
+        ("crm_followuptaskhistory", True, True),
+    ]

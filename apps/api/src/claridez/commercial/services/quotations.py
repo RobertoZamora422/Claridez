@@ -17,7 +17,7 @@ from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.models import Organization, OrganizationSettings
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
-from claridez.people.public import canonical_person_id, get_person_raw
+from claridez.people.public import canonical_person_id, get_person
 
 from ..errors import conflict, invalid, unavailable
 from ..models import (
@@ -70,7 +70,7 @@ def _new_version(
     if settings.currency != "USD":
         raise conflict("unsupported_currency", "La Iteración 5.1 solo permite cotizaciones en USD.")
     organization = Organization.objects.get(pk=authorization.organization_id)
-    person = get_person_raw(
+    person = get_person(
         authorization.organization_id,
         canonical_person_id(authorization.organization_id, event_request.person_id),
     )
@@ -84,7 +84,7 @@ def _new_version(
         organization_name_snapshot=organization.name,
         person_name_snapshot=person.full_name,
         person_phone_snapshot=person.phone_e164,
-        person_email_snapshot=person.email,
+        person_email_snapshot=person.email or "",
         event_type_definition_snapshot=event_request.event_type_definition,
         event_type_snapshot=event_request.event_type,
         venue_snapshot=event_request.space.venue,
