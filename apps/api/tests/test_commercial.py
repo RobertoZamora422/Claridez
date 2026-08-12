@@ -7,6 +7,7 @@ from uuid import UUID
 
 import pytest
 from django.db import DatabaseError, transaction
+from django.db.models import F
 from django.utils import timezone
 
 from claridez.catalog.services import create_event_type, list_event_types
@@ -261,7 +262,8 @@ def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() 
 
     with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
         Reservation.objects.filter(pk=provisional["id"]).update(
-            hold_expires_at=timezone.now() - timedelta(seconds=1)
+            hold_expires_at=timezone.now() - timedelta(seconds=1),
+            revision=F("revision") + 1,
         )
     agenda = list_availability(
         owner,
@@ -291,7 +293,8 @@ def test_expiration_before_failed_confirmation_is_persisted() -> None:
     _, provisional = _accepted(owner, organization_id, event_request["id"])
     with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
         Reservation.objects.filter(pk=provisional["id"]).update(
-            hold_expires_at=timezone.now() - timedelta(seconds=1)
+            hold_expires_at=timezone.now() - timedelta(seconds=1),
+            revision=F("revision") + 1,
         )
 
     with pytest.raises(CommercialError) as expired:
@@ -304,7 +307,7 @@ def test_expiration_before_failed_confirmation_is_persisted() -> None:
             reported_at=timezone.now(),
             reference="Llegó fuera de plazo",
         )
-    assert expired.value.code == "invalid_transition"
+    assert expired.value.code == "hold_expired"
     assert read_reservation(owner, organization_id, reservation_id=provisional["id"])["status"] == (
         Reservation.Status.EXPIRED
     )

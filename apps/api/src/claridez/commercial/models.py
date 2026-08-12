@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import uuid
 
-from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Round
@@ -383,98 +381,6 @@ class QuotationLine(TenantModel):
         return f"{self.quotation_version_id}@{self.position}"
 
 
-class Reservation(TenantModel):
-    class Status(models.TextChoices):
-        PROVISIONAL = "provisional", "Provisional"
-        CONFIRMED = "confirmed", "Confirmada"
-        EXPIRED = "expired", "Vencida"
-        CANCELLED = "cancelled", "Cancelada"
-
-    class ConfirmationKind(models.TextChoices):
-        EXTERNAL_DEPOSIT = "external_deposit", "Anticipo recibido externamente"
-        WAIVER = "waiver", "Excepción autorizada"
-
-    event_request = models.ForeignKey(
-        EventRequest, on_delete=models.PROTECT, related_name="reservations", db_index=False
-    )
-    quotation_version = models.OneToOneField(
-        QuotationVersion, on_delete=models.PROTECT, related_name="reservation", db_index=False
-    )
-    space = models.ForeignKey(
-        Space, on_delete=models.PROTECT, related_name="reservations", db_index=False
-    )
-    event_interval = DateTimeRangeField()
-    event_timezone = models.CharField(max_length=64)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROVISIONAL)
-    hold_expires_at = models.DateTimeField()
-    confirmation_kind = models.CharField(
-        max_length=24, choices=ConfirmationKind.choices, blank=True
-    )
-    recognized_deposit_amount = models.DecimalField(
-        max_digits=18, decimal_places=2, null=True, blank=True
-    )
-    deposit_reported_at = models.DateTimeField(null=True, blank=True)
-    deposit_reference = models.CharField(max_length=300, blank=True)
-    confirmed_at = models.DateTimeField(null=True, blank=True)
-    confirmed_by_membership = models.ForeignKey(
-        Membership,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="confirmed_reservations",
-    )
-    waiver_reason = models.CharField(max_length=500, blank=True)
-    waiver_authorized_at = models.DateTimeField(null=True, blank=True)
-    waiver_authorized_by_membership = models.ForeignKey(
-        Membership,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="waived_reservation_deposits",
-    )
-    cancelled_at = models.DateTimeField(null=True, blank=True)
-    cancelled_by_membership = models.ForeignKey(
-        Membership,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="cancelled_reservations",
-    )
-    cancellation_reason = models.CharField(max_length=500, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["organization", "id"], name="commercial_reservation_org_id_uq"
-            ),
-            models.UniqueConstraint(
-                fields=["organization", "quotation_version"],
-                name="commercial_reservation_org_quoteversion_uq",
-            ),
-            models.UniqueConstraint(
-                fields=["organization", "event_request"],
-                condition=Q(status__in=["provisional", "confirmed"]),
-                name="commercial_reservation_one_active_request_uq",
-            ),
-            models.CheckConstraint(
-                condition=Q(status__in=["provisional", "confirmed", "expired", "cancelled"]),
-                name="commercial_reservation_status_valid",
-            ),
-            models.CheckConstraint(
-                condition=Q(recognized_deposit_amount__isnull=True)
-                | Q(recognized_deposit_amount__gt=0),
-                name="commercial_reservation_deposit_positive",
-            ),
-            ExclusionConstraint(
-                name="commercial_reservation_no_overlap",
-                expressions=[
-                    ("organization", RangeOperators.EQUAL),
-                    ("space", RangeOperators.EQUAL),
-                    ("event_interval", RangeOperators.OVERLAPS),
-                ],
-                condition=Q(status__in=["provisional", "confirmed"]),
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.event_request_id}@{self.status}"
+# Compatibilidad de importación de 5.1/5.2. La clase se registra exclusivamente
+# como scheduling.Reservation; commercial no declara un segundo modelo.
+from claridez.scheduling.models import Reservation as Reservation  # noqa: E402

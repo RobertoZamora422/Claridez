@@ -1,6 +1,6 @@
 # ADR 0016 — Propiedad de scheduling e integridad temporal P8
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado
 - **Fecha:** 2026-08-06
 - **Reemplaza a:** No aplica; si se acepta, amplía ADR 0012–0015 y sustituye únicamente la
   propiedad y la exclusión temporal provisionales que ADR 0012 y ADR 0014 difirieron para P8
@@ -21,9 +21,9 @@ reprogramación debe preservar evidencia comercial y operativa, y seguir siendo 
 escritura omite los servicios mediante ORM bulk o SQL directo.
 
 La decisión modifica una propiedad modular ya aceptada y una convención transversal de integridad;
-por ello requiere ADR. Mientras este ADR permanezca `Propuesto`, no autoriza implementación.
+por ello requiere ADR. Su aceptación autoriza la implementación dentro de la especificación P8.
 
-## Decisiones propuestas para aprobación
+## Decisiones aceptadas
 
 ### 1. Propiedad modular y compatibilidad física
 
@@ -253,4 +253,5 @@ OpenAPI, regresión 5.1/5.2/P6/P7 y la interfaz a 1440×900 y 390×844.
 - La historia comercial y operativa se preserva sin convertirse en una segunda historia de agenda.
 - El bloqueo ordenado por espacio reduce deadlocks, pero todas las rutas de escritura, incluidas las
   internas, deben respetar el mismo protocolo.
-- Este documento no autoriza código mientras su estado sea `Propuesto`.
+- Este documento autoriza exclusivamente la implementación de P8 dentro de la especificación
+  aprobada.

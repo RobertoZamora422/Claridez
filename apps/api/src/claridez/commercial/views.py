@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from claridez.identity.models import User
 from claridez.organizations.exceptions import AuthorizationDenied, TenantAccessDenied
+from claridez.scheduling.public import SchedulingError
 
 from .errors import CommercialError
 from .serializers import (
@@ -74,6 +75,8 @@ def _respond(operation: Callable[[], Any], *, created: bool = False) -> Response
     except AuthorizationDenied:
         return _error("forbidden", "La operación no está autorizada.", status=403)
     except CommercialError as error:
+        return _error(error.code, error.message, status=error.status)
+    except SchedulingError as error:
         return _error(error.code, error.message, status=error.status)
     return Response(_json_safe(result), status=201 if created else 200)
 

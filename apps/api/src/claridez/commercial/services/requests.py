@@ -13,12 +13,14 @@ from claridez.organizations.exceptions import AuthorizationDenied
 from claridez.organizations.models import Membership, OrganizationSettings, Space
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 from claridez.people.public import PeopleError, lock_canonical_person_id
+from claridez.scheduling.public import close_provisional_hold, provisional_reservation_ids
 
 from ..errors import CommercialError, conflict, invalid, unavailable
-from ..models import EventRequest, Reservation
+from ..models import EventRequest
 from ..normalization import canonical_optional_text, canonical_text
 from .representations import _request_data
 from .reservations import _expire_overdue
+from .scheduling_adapter import scheduling_call
 from .shared import _origin, _uuid, _validate_interval
 
 
@@ -50,7 +52,7 @@ def _get_request(
         "person", "event_type_definition", "space", "space__venue"
     )
     if lock:
-        rows = rows.select_for_update()
+        rows = rows.select_for_update(of=("self",))
     try:
         return rows.get(organization_id=organization_id, pk=_uuid(request_id, "La solicitud"))
     except EventRequest.DoesNotExist:
@@ -272,18 +274,13 @@ def close_event_request(
         if row.status in {EventRequest.Status.CONFIRMED, EventRequest.Status.CANCELLED}:
             raise conflict("invalid_transition", "La solicitud debe cancelarse desde su reserva.")
         now = timezone.now()
-        active = Reservation.objects.select_for_update().filter(
-            organization_id=authorization.organization_id,
-            event_request=row,
-            status=Reservation.Status.PROVISIONAL,
-        )
-        active.update(
-            status=Reservation.Status.CANCELLED,
-            cancelled_at=now,
-            cancelled_by_membership_id=authorization.membership_id,
-            cancellation_reason=canonical_reason,
-            updated_at=now,
-        )
+        for reservation_id in provisional_reservation_ids(authorization, row.pk):
+            scheduling_call(
+                close_provisional_hold,
+                authorization,
+                reservation_id,
+                reason=canonical_reason,
+            )
         row.status = EventRequest.Status.CLOSED_LOST
         row.closed_at = now
         row.closed_reason = canonical_reason

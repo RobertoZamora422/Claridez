@@ -36,6 +36,7 @@ const TIMELINE_LABELS = {
   opportunity: "Oportunidad",
   interaction: "Interacción",
   task: "Tarea",
+  schedule: "Agenda",
 } as const;
 const CONSENT_LABELS: Record<string, string> = {
   granted: "Concedido",

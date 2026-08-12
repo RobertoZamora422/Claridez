@@ -6,6 +6,7 @@ export const STATUS_LABELS: Record<OperationEvent["preparation"]["status"], stri
   in_progress: "En ejecución",
   completed: "Completado",
   cancelled: "Cancelado",
+  rescheduled: "Reprogramado",
 };
 
 export const ITEM_STATUS_LABELS: Record<PreparationItem["status"], string> = {

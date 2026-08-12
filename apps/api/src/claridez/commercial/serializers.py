@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import ContactOrigin, Reservation
+from .models import ContactOrigin
 
 
 class PersonCreateSerializer(serializers.Serializer[dict[str, object]]):
@@ -106,7 +106,7 @@ class QuotationAcceptSerializer(serializers.Serializer[dict[str, str]]):
 
 
 class ReservationConfirmSerializer(serializers.Serializer[dict[str, object]]):
-    kind = serializers.ChoiceField(choices=Reservation.ConfirmationKind.choices)
+    kind = serializers.ChoiceField(choices=["external_deposit", "waiver"])
     recognized_amount = serializers.DecimalField(
         max_digits=18, decimal_places=2, required=False, allow_null=True
     )

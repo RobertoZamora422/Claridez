@@ -5,7 +5,6 @@ from uuid import UUID
 
 from django.utils import timezone
 
-from claridez.commercial.models import Reservation
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import authorized_tenant_scope
@@ -39,7 +38,7 @@ def mark_ready(
         if preparation.status != EventPreparation.Status.PREPARING:
             raise conflict("invalid_transition", "La preparación no puede declararse lista.")
         check_revision(preparation, revision)
-        if preparation.reservation.status != Reservation.Status.CONFIRMED:
+        if preparation.reservation.status != "confirmed":
             raise conflict("reservation_cancelled", "La reserva ya no está confirmada.")
         if preparation.responsible_membership_id is None:
             raise conflict("responsible_required", "Asigna un responsable principal.")
@@ -95,7 +94,7 @@ def execute_transition(
         if preparation.status != from_status:
             raise conflict("invalid_transition", "La transición operativa no está permitida.")
         check_revision(preparation, revision)
-        if preparation.reservation.status != Reservation.Status.CONFIRMED:
+        if preparation.reservation.status != "confirmed":
             raise conflict("reservation_cancelled", "La reserva ya no está confirmada.")
         now = timezone.now()
         preparation.status = to_status

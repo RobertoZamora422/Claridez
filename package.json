@@ -21,6 +21,7 @@
     "db:check": "uv --directory apps/api run python tools/local_database.py check",
     "db:migrate": "uv --directory apps/api run python manage.py migrate --settings=claridez.settings.migration && uv --directory apps/api run python tools/local_database.py prepare",
     "db:operations-cutover-check": "uv --directory apps/api run python manage.py operations_cutover_check --settings=claridez.settings.migration",
+    "db:scheduling-cutover-check": "uv --directory apps/api run python manage.py scheduling_cutover_check --settings=claridez.settings.migration",
     "db:migrations:check": "uv --directory apps/api run python manage.py makemigrations --check --dry-run --settings=claridez.settings.migration",
     "db:reset": "uv --directory apps/api run python tools/local_database.py reset",
     "api:run": "uv --directory apps/api run python manage.py api_run 127.0.0.1:8000 --settings=claridez.settings.development",

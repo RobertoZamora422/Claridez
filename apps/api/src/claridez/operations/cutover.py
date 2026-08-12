@@ -55,15 +55,26 @@ def verify_operations_cutover() -> dict[str, Any]:
                             count(*) FILTER (WHERE cause = 'initialized') AS initialized,
                             count(*) FILTER (
                                 WHERE cause = 'commercial_cancellation'
-                            ) AS cancelled
+                            ) AS cancelled,
+                            count(*) FILTER (
+                                WHERE cause = 'schedule_reschedule'
+                            ) AS rescheduled
                         FROM public.operations_preparationtransition AS transition
                         WHERE transition.organization_id = reservation.organization_id
                           AND transition.preparation_id = reservation.id
                     ) AS transitions ON true
+                    LEFT JOIN public.commercial_reservation AS successor
+                      ON successor.organization_id = reservation.organization_id
+                     AND successor.predecessor_id = reservation.id
+                    LEFT JOIN public.operations_eventpreparation AS successor_preparation
+                      ON successor_preparation.organization_id = successor.organization_id
+                     AND successor_preparation.reservation_id = successor.id
                     WHERE reservation.organization_id = %s AND (
                         (reservation.status = 'confirmed' AND (
                             preparation.reservation_id IS NULL
-                            OR preparation.status = 'cancelled'
+                            OR preparation.status NOT IN (
+                                'preparing', 'ready', 'in_progress', 'completed'
+                            )
                             OR baseline.total <> 7 OR baseline.expected <> 7
                             OR transitions.initialized <> 1
                         ))
@@ -74,8 +85,28 @@ def verify_operations_cutover() -> dict[str, Any]:
                                 OR transitions.initialized <> 1
                                 OR transitions.cancelled <> 1
                             ))
-                        OR ((reservation.confirmed_at IS NULL
-                            OR reservation.status IN ('provisional', 'expired'))
+                        OR (reservation.status = 'rescheduled'
+                            AND reservation.confirmation_source_id IS NOT NULL AND (
+                                preparation.status IS DISTINCT FROM 'rescheduled'
+                                OR baseline.total <> 7 OR baseline.expected <> 7
+                                OR transitions.initialized <> 1
+                                OR transitions.rescheduled <> 1
+                                OR successor.id IS NULL
+                                OR NOT (
+                                    (successor.status = 'confirmed'
+                                        AND successor_preparation.status IN (
+                                            'preparing', 'ready', 'in_progress', 'completed'
+                                        ))
+                                    OR (successor.status = 'cancelled'
+                                        AND successor_preparation.status = 'cancelled')
+                                    OR (successor.status = 'rescheduled'
+                                        AND successor_preparation.status = 'rescheduled')
+                                )
+                            ))
+                        OR ((reservation.confirmation_source_id IS NULL
+                            AND reservation.status IN (
+                                'provisional', 'expired', 'cancelled', 'rescheduled'
+                            ))
                             AND preparation.reservation_id IS NOT NULL)
                     )
                     """,

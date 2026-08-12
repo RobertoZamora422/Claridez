@@ -32,6 +32,9 @@ class Capability(StrEnum):
     RESERVATION_CONFIRM = "reservation:confirm"
     RESERVATION_CANCEL = "reservation:cancel"
     RESERVATION_WAIVE_DEPOSIT = "reservation:waive_deposit"
+    RESERVATION_RESCHEDULE = "reservation:reschedule"
+    SCHEDULE_BLOCK = "schedule:block"
+    SCHEDULE_EXPORT = "schedule:export"
     OPERATION_READ = "operation:read"
     OPERATION_MANAGE = "operation:manage"
     OPERATION_EXECUTE = "operation:execute"
@@ -70,6 +73,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RESERVATION_CONFIRM,
                 Capability.RESERVATION_CANCEL,
                 Capability.RESERVATION_WAIVE_DEPOSIT,
+                Capability.RESERVATION_RESCHEDULE,
+                Capability.SCHEDULE_BLOCK,
+                Capability.SCHEDULE_EXPORT,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
@@ -105,6 +111,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RESERVATION_CONFIRM,
                 Capability.RESERVATION_CANCEL,
                 Capability.RESERVATION_WAIVE_DEPOSIT,
+                Capability.RESERVATION_RESCHEDULE,
+                Capability.SCHEDULE_BLOCK,
+                Capability.SCHEDULE_EXPORT,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
@@ -133,6 +142,8 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
+                Capability.RESERVATION_RESCHEDULE,
+                Capability.SCHEDULE_EXPORT,
                 Capability.OPERATION_READ,
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.VENUE_READ,
@@ -146,6 +157,8 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.ORGANIZATION_SETTINGS_READ,
                 Capability.SALES_READ,
                 Capability.AVAILABILITY_READ,
+                Capability.SCHEDULE_BLOCK,
+                Capability.SCHEDULE_EXPORT,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,

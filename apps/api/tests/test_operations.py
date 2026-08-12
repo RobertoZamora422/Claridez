@@ -373,6 +373,7 @@ def test_operations_openapi_is_concrete_minimal_and_client_generation_ready() ->
         "in_progress",
         "completed",
         "cancelled",
+        "rescheduled",
     }
     assert set(components["OperationItemStatus"]["enum"]) == {
         "pending",
@@ -924,11 +925,13 @@ def test_cutover_table_lock_orders_existing_and_new_reservation_writers() -> Non
                 connections["default"].cursor() as cursor,
             ):
                 cursor.execute(
-                    "UPDATE commercial_reservation SET updated_at = updated_at WHERE id = %s",
+                    "UPDATE commercial_reservation "
+                    "SET updated_at = updated_at, revision = revision + 1 WHERE id = %s",
                     (reservation["id"],),
                 )
                 before_updated.set()
                 assert release_before.wait(timeout=5)
+                transaction.set_rollback(True, using="default")
         finally:
             connections["default"].close()
 
@@ -950,9 +953,11 @@ def test_cutover_table_lock_orders_existing_and_new_reservation_writers() -> Non
                 after_started.set()
                 with connections["default"].cursor() as cursor:
                     cursor.execute(
-                        "UPDATE commercial_reservation SET updated_at = updated_at WHERE id = %s",
+                        "UPDATE commercial_reservation "
+                        "SET updated_at = updated_at, revision = revision + 1 WHERE id = %s",
                         (reservation["id"],),
                     )
+                transaction.set_rollback(True, using="default")
             after_done.set()
         finally:
             connections["default"].close()

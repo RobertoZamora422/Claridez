@@ -2,12 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..models import Reservation
 
-
-def operational_event_projection(
-    reservation: Reservation, *, include_phone: bool
-) -> dict[str, Any]:
+def operational_event_projection(reservation: Any, *, include_phone: bool) -> dict[str, Any]:
     """Proyección pública mínima que operations puede consumir dentro del scope tenant."""
     version = reservation.quotation_version
     event = {

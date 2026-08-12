@@ -10,6 +10,10 @@ from django.db.models import F
 from django.utils import timezone
 
 from claridez.identity.models import User
+from claridez.scheduling.public import (
+    SchedulingError,
+    materialize_venue_blocks_for_space,
+)
 
 from .capabilities import Capability, capabilities_for_role
 from .models import Organization, OrganizationSettings, Space, Venue
@@ -304,6 +308,10 @@ def create_space(
             )
         except IntegrityError as error:
             raise _conflict("space_conflict", "El espacio ya existe.") from error
+        try:
+            materialize_venue_blocks_for_space(authorization, space.pk)
+        except SchedulingError as error:
+            raise _conflict(error.code, error.message) from error
         return _space_data(space)
 
 
@@ -346,6 +354,10 @@ def update_space(
                 revision=F("revision") + 1,
                 updated_at=timezone.now(),
             )
+        if target_active and not space.is_active:
+            Venue.objects.select_for_update().get(
+                organization_id=authorization.organization_id, pk=space.venue_id
+            )
         space.is_primary = target_primary
         space.is_active = target_active
         space.revision += 1
@@ -353,4 +365,9 @@ def update_space(
             space.save()
         except IntegrityError as error:
             raise _conflict("space_conflict", "El espacio no pudo actualizarse.") from error
+        if target_active:
+            try:
+                materialize_venue_blocks_for_space(authorization, space.pk)
+            except SchedulingError as error:
+                raise _conflict(error.code, error.message) from error
         return _space_data(space)

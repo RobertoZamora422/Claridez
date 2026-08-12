@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .errors import CommercialError, unavailable
-from .models import EventRequest, EventRequestHistory, Reservation
-from .services.reservations import _expire_overdue
+from .models import EventRequest, EventRequestHistory, QuotationVersion
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,65 @@ class OpportunityHistoryProjection:
     created_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class AcceptedScheduleEvidence:
+    event_request_id: UUID
+    quotation_version_id: UUID
+    organization_id: UUID
+    space_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+    total: Decimal
+    status: str
+    accepted_at: datetime | None
+
+
+def accepted_schedule_evidence(
+    authorization: TenantAuthorization, quotation_version_id: UUID
+) -> AcceptedScheduleEvidence:
+    try:
+        row = QuotationVersion.objects.select_related("quotation").get(
+            organization_id=authorization.organization_id,
+            pk=quotation_version_id,
+        )
+    except QuotationVersion.DoesNotExist:
+        raise unavailable("La cotización aceptada") from None
+    return AcceptedScheduleEvidence(
+        event_request_id=row.quotation.event_request_id,
+        quotation_version_id=row.pk,
+        organization_id=row.organization_id,
+        space_id=row.space_snapshot_id,
+        starts_at=row.event_starts_at_snapshot,
+        ends_at=row.event_ends_at_snapshot,
+        timezone_name=row.event_timezone_snapshot,
+        total=row.total,
+        status=row.status,
+        accepted_at=row.accepted_at,
+    )
+
+
+def set_request_schedule_status(
+    authorization: TenantAuthorization,
+    event_request_id: UUID,
+    *,
+    status: str,
+    closed_at: datetime | None = None,
+    closed_reason: str = "",
+) -> None:
+    row = EventRequest.objects.select_for_update().get(
+        organization_id=authorization.organization_id,
+        pk=event_request_id,
+    )
+    row.status = status
+    fields = ["status", "updated_at"]
+    if closed_at is not None:
+        row.closed_at = closed_at
+        row.closed_reason = closed_reason
+        fields += ["closed_at", "closed_reason"]
+    row.save(update_fields=fields)
+
+
 def _opportunity_projection(row: EventRequest, *, won: bool) -> OpportunityProjection:
     result = "won" if won else "lost" if row.status == EventRequest.Status.CLOSED_LOST else "open"
     return OpportunityProjection(
@@ -88,7 +147,9 @@ def opportunities_for_crm(
     status: str = "",
     person_ids: tuple[UUID, ...] | None = None,
 ) -> tuple[OpportunityProjection, ...]:
-    _expire_overdue(authorization)
+    from claridez.scheduling.public import expire_overdue_for_organization
+
+    expire_overdue_for_organization(authorization)
     rows = EventRequest.objects.select_related("space", "space__venue").filter(
         organization_id=authorization.organization_id
     )
@@ -97,13 +158,9 @@ def opportunities_for_crm(
     if person_ids is not None:
         rows = rows.filter(person_id__in=person_ids)
     materialized = tuple(rows.order_by("starts_at", "id"))
-    won_ids = set(
-        Reservation.objects.filter(
-            organization_id=authorization.organization_id,
-            event_request_id__in=(row.pk for row in materialized),
-            confirmed_at__isnull=False,
-        ).values_list("event_request_id", flat=True)
-    )
+    from claridez.scheduling.public import confirmed_event_request_ids
+
+    won_ids = confirmed_event_request_ids(authorization, tuple(row.pk for row in materialized))
     return tuple(_opportunity_projection(row, won=row.pk in won_ids) for row in materialized)
 
 
@@ -144,11 +201,14 @@ def opportunity_history_for_crm(
 def confirmed_evidence_for_people(
     authorization: TenantAuthorization, person_ids: tuple[UUID, ...]
 ) -> bool:
-    return Reservation.objects.filter(
-        organization_id=authorization.organization_id,
-        event_request__person_id__in=person_ids,
-        confirmed_at__isnull=False,
-    ).exists()
+    request_ids = tuple(
+        EventRequest.objects.filter(
+            organization_id=authorization.organization_id, person_id__in=person_ids
+        ).values_list("id", flat=True)
+    )
+    from claridez.scheduling.public import confirmed_event_request_ids
+
+    return bool(confirmed_event_request_ids(authorization, request_ids))
 
 
 def interest_evidence_for_people(
@@ -161,11 +221,14 @@ def interest_evidence_for_people(
 
 __all__ = (
     "CommercialError",
+    "AcceptedScheduleEvidence",
     "OpportunityHistoryProjection",
     "OpportunityProjection",
+    "accepted_schedule_evidence",
     "confirmed_evidence_for_people",
     "interest_evidence_for_people",
     "opportunities_for_crm",
     "opportunity_for_crm",
     "opportunity_history_for_crm",
+    "set_request_schedule_status",
 )

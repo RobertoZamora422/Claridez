@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "claridez.catalog.apps.CatalogConfig",
     "claridez.people.apps.PeopleConfig",
     "claridez.commercial.apps.CommercialConfig",
+    "claridez.scheduling.apps.SchedulingConfig",
     "claridez.crm.apps.CrmConfig",
     "claridez.operations.apps.OperationsConfig",
     "rest_framework",
@@ -112,6 +113,8 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "OperationPreparationStatus": ("claridez.operations.models.EventPreparation.Status"),
         "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
+        "SchedulingReservationStatus": "claridez.scheduling.models.Reservation.Status",
+        "SchedulingBlockStatus": "claridez.scheduling.models.ScheduleBlock.Status",
     },
 }
 

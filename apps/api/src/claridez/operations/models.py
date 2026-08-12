@@ -5,7 +5,6 @@ import uuid
 from django.db import models
 from django.db.models import Q
 
-from claridez.commercial.models import Reservation
 from claridez.organizations.models import Membership, Organization
 
 
@@ -16,9 +15,10 @@ class EventPreparation(models.Model):
         IN_PROGRESS = "in_progress", "En ejecución"
         COMPLETED = "completed", "Completado"
         CANCELLED = "cancelled", "Cancelado"
+        RESCHEDULED = "rescheduled", "Reprogramado"
 
     reservation = models.OneToOneField(
-        Reservation,
+        "scheduling.Reservation",
         on_delete=models.PROTECT,
         related_name="preparation",
         primary_key=True,
@@ -59,6 +59,13 @@ class EventPreparation(models.Model):
         blank=True,
         related_name="completed_event_preparations",
     )
+    rescheduled_to_reservation = models.OneToOneField(
+        "scheduling.Reservation",
+        on_delete=models.PROTECT,
+        related_name="rescheduled_from_preparation",
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -69,7 +76,14 @@ class EventPreparation(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(
-                    status__in=["preparing", "ready", "in_progress", "completed", "cancelled"]
+                    status__in=[
+                        "preparing",
+                        "ready",
+                        "in_progress",
+                        "completed",
+                        "cancelled",
+                        "rescheduled",
+                    ]
                 ),
                 name="operations_preparation_status_valid",
             ),
@@ -96,6 +110,13 @@ class EventPreparation(models.Model):
                     | Q(completed_at__isnull=False, completed_by_membership__isnull=False)
                 ),
                 name="operations_preparation_completed_evidence",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(status="rescheduled", rescheduled_to_reservation__isnull=False)
+                    | (~Q(status="rescheduled") & Q(rescheduled_to_reservation__isnull=True))
+                ),
+                name="operations_preparation_rescheduled_evidence",
             ),
         ]
         indexes = [
@@ -153,6 +174,13 @@ class PreparationItem(models.Model):
         blank=True,
         related_name="resolved_preparation_items",
     )
+    carried_from_item = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="carried_copies",
+        null=True,
+        blank=True,
+    )
     revision = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -175,6 +203,11 @@ class PreparationItem(models.Model):
                 fields=["organization", "preparation", "baseline_key"],
                 condition=Q(baseline_key__isnull=False),
                 name="operations_item_org_baseline_uq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "preparation", "carried_from_item"],
+                condition=Q(carried_from_item__isnull=False),
+                name="operations_item_org_carried_uq",
             ),
             models.CheckConstraint(
                 condition=Q(section__in=["definitions", "setup", "final_review"]),
@@ -241,6 +274,7 @@ class PreparationTransition(models.Model):
         EXECUTION_STARTED = "execution_started", "Ejecución iniciada"
         EXECUTION_COMPLETED = "execution_completed", "Ejecución completada"
         COMMERCIAL_CANCELLATION = "commercial_cancellation", "Cancelación comercial"
+        SCHEDULE_RESCHEDULE = "schedule_reschedule", "Reprogramación de agenda"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)

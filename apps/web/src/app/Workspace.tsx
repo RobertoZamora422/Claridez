@@ -46,18 +46,31 @@ export function Workspace({
         `/api/v1/organizations/${organization.id}/configuration/capabilities/`,
       ),
       api<{ capabilities: string[] }>(`/api/v1/organizations/${organization.id}/crm/capabilities/`),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/scheduling/capabilities/`,
+      ),
     ])
-      .then(([capabilityBody, settingsBody, operationsBody, configurationBody, crmBody]) => {
-        setCapabilities(
-          new Set([
-            ...capabilityBody.capabilities,
-            ...operationsBody.capabilities,
-            ...configurationBody.capabilities,
-            ...crmBody.capabilities,
-          ]),
-        );
-        setTimeZone(settingsBody.settings.timezone);
-      })
+      .then(
+        ([
+          capabilityBody,
+          settingsBody,
+          operationsBody,
+          configurationBody,
+          crmBody,
+          scheduleBody,
+        ]) => {
+          setCapabilities(
+            new Set([
+              ...capabilityBody.capabilities,
+              ...operationsBody.capabilities,
+              ...configurationBody.capabilities,
+              ...crmBody.capabilities,
+              ...scheduleBody.capabilities,
+            ]),
+          );
+          setTimeZone(settingsBody.settings.timezone);
+        },
+      )
       .catch((caught: unknown) => {
         setError(message(caught));
       });
@@ -222,7 +235,11 @@ export function Workspace({
       <main className="workspace">
         {error && <Notice>{error}</Notice>}
         {page === "agenda" ? (
-          <AgendaView organizationId={organization.id} timeZone={timeZone} />
+          <AgendaView
+            organizationId={organization.id}
+            timeZone={timeZone}
+            capabilities={capabilities}
+          />
         ) : page === "requests" ? (
           <RequestsView
             organizationId={organization.id}

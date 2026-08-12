@@ -8,11 +8,12 @@ from uuid import UUID
 
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
-from claridez.organizations.tenant_scope import authorized_tenant_scope
+from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 from claridez.people import public as people_port
+from claridez.scheduling.public import confirmed_event_request_ids
 
 from ..errors import CommercialError
-from ..models import Reservation
+from ..models import EventRequest
 
 
 def _people_call[T](operation: Callable[[], T]) -> T:
@@ -22,17 +23,14 @@ def _people_call[T](operation: Callable[[], T]) -> T:
         raise CommercialError(error.code, error.message, status=error.status) from error
 
 
-def _commercial_type(organization_id: UUID, person_id: UUID) -> str:
-    cluster = people_port.canonical_cluster_ids(organization_id, person_id)
-    return (
-        "client"
-        if Reservation.objects.filter(
-            organization_id=organization_id,
-            event_request__person_id__in=cluster,
-            confirmed_at__isnull=False,
-        ).exists()
-        else "lead"
+def _commercial_type(authorization: TenantAuthorization, person_id: UUID) -> str:
+    cluster = people_port.canonical_cluster_ids(authorization.organization_id, person_id)
+    request_ids = tuple(
+        EventRequest.objects.filter(
+            organization_id=authorization.organization_id, person_id__in=cluster
+        ).values_list("id", flat=True)
     )
+    return "client" if confirmed_event_request_ids(authorization, request_ids) else "lead"
 
 
 def _decorate(
@@ -43,9 +41,7 @@ def _decorate(
     ) as authorization:
         return {
             **data,
-            "commercial_type": _commercial_type(
-                authorization.organization_id, UUID(str(data["canonical_id"]))
-            ),
+            "commercial_type": _commercial_type(authorization, UUID(str(data["canonical_id"]))),
         }
 
 
@@ -59,9 +55,7 @@ def list_people(
         return tuple(
             {
                 **row,
-                "commercial_type": _commercial_type(
-                    authorization.organization_id, UUID(str(row["canonical_id"]))
-                ),
+                "commercial_type": _commercial_type(authorization, UUID(str(row["canonical_id"]))),
             }
             for row in rows
         )

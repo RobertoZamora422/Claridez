@@ -107,6 +107,14 @@ export interface CrmTask {
   cancellation_reason_unavailable: boolean;
   revision: number;
   overdue: boolean;
+  requires_schedule_review: boolean;
+  last_schedule_event: {
+    id: string;
+    kind: string;
+    occurred_at: string;
+    root_id: string;
+    reservation_id: string;
+  } | null;
   history?: {
     id: string;
     kind: string;
@@ -197,13 +205,20 @@ export interface CrmPersonOverview {
     effective: { purpose: string; channel: string; decision: string; event_id: string }[];
     events: ConsentEvent[];
   };
-  timeline: { type: "opportunity" | "interaction" | "task"; at: string; data: unknown }[];
+  timeline: {
+    type: "opportunity" | "interaction" | "task" | "schedule";
+    at: string;
+    data: unknown;
+  }[];
 }
 
 export interface Reservation {
   id: string;
   space_id: string;
-  status: "provisional" | "confirmed" | "expired" | "cancelled";
+  root_id?: string;
+  predecessor_id?: string | null;
+  revision?: number;
+  status: "provisional" | "confirmed" | "expired" | "cancelled" | "rescheduled";
   starts_at: string;
   ends_at: string;
   event_timezone: string;
@@ -219,6 +234,36 @@ export interface Reservation {
   cancellation_reason: string | null;
   event_request_id?: string;
   event_type?: string;
+}
+
+export interface CalendarEntry {
+  id: string;
+  type: "reservation" | "hold" | "block";
+  status: string;
+  revision: number;
+  root_id?: string;
+  space_id: string;
+  space_name: string;
+  venue_id: string;
+  venue_name: string;
+  starts_at: string;
+  ends_at: string;
+  event_timezone: string;
+  reason?: string;
+  setup_minutes?: number;
+  teardown_minutes?: number;
+  buffer_before_minutes?: number;
+  buffer_after_minutes?: number;
+  is_blocking: boolean;
+}
+
+export interface CalendarPayload {
+  view: "day" | "week" | "month";
+  anchor_date: string;
+  timezone: string;
+  from: string;
+  to: string;
+  entries: CalendarEntry[];
 }
 
 export interface EventRequest {
@@ -348,7 +393,8 @@ export interface CatalogItem {
   prices?: CatalogPrice[];
 }
 
-export type OperationStatus = "preparing" | "ready" | "in_progress" | "completed" | "cancelled";
+export type OperationStatus =
+  "preparing" | "ready" | "in_progress" | "completed" | "cancelled" | "rescheduled";
 
 export interface OperationMembership {
   membership_id: string;

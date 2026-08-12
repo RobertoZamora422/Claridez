@@ -59,6 +59,8 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/crm/capabilities/"))
         return Promise.resolve(json({ capabilities: ["sales:read"] }));
+      if (url.endsWith("/scheduling/capabilities/"))
+        return Promise.resolve(json({ capabilities: ["availability:read"] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -94,6 +96,17 @@ describe("flujo comercial de Claridez", () => {
             blocks: [],
           }),
         );
+      if (url.includes("/scheduling/calendar/?"))
+        return Promise.resolve(
+          json({
+            view: "week",
+            anchor_date: "2026-08-06",
+            timezone: "America/Guayaquil",
+            from: "2026-08-03T05:00:00Z",
+            to: "2026-08-10T05:00:00Z",
+            entries: [],
+          }),
+        );
       if (url.endsWith("/event-requests/")) return Promise.resolve(json({ event_requests: [] }));
       if (url.endsWith("/people/")) return Promise.resolve(json({ people: [] }));
       return Promise.resolve(json({ error: { code: "unexpected" } }, 500));
@@ -121,7 +134,7 @@ describe("flujo comercial de Claridez", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/availability/?"),
+        expect.stringContaining("/scheduling/calendar/?view=week"),
         expect.objectContaining({ credentials: "same-origin" }),
       );
     });
@@ -238,6 +251,12 @@ describe("flujo comercial de Claridez", () => {
             ],
           }),
         );
+      if (url.endsWith("/scheduling/capabilities/"))
+        return Promise.resolve(
+          json({
+            capabilities: ["availability:read", "reservation:reschedule", "schedule:export"],
+          }),
+        );
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -264,6 +283,17 @@ describe("flujo comercial de Claridez", () => {
       if (url.includes("/availability/?"))
         return Promise.resolve(
           json({ from: "2026-07-31T05:00:00Z", to: "2026-08-07T05:00:00Z", blocks: [] }),
+        );
+      if (url.includes("/scheduling/calendar/?"))
+        return Promise.resolve(
+          json({
+            view: "week",
+            anchor_date: "2026-08-06",
+            timezone: "America/Guayaquil",
+            from: "2026-08-03T05:00:00Z",
+            to: "2026-08-10T05:00:00Z",
+            entries: [],
+          }),
         );
       if (url.endsWith("/event-requests/"))
         return Promise.resolve(json({ event_requests: [request()] }));

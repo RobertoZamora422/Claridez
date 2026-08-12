@@ -1,17 +1,18 @@
 # P8 — Agenda y reservas avanzadas
 
-- **Estado:** Propuesta
+- **Estado:** Aprobada
 - **Fecha de propuesta:** 2026-08-06
 - **Módulo propietario:** `claridez.scheduling`
-- **ADR relacionado:** ADR 0016, en estado `Propuesto`
+- **ADR relacionado:** ADR 0016, en estado `Aceptado`
 - **Precedentes:** Iteraciones 5.1 y 5.2, P6 y P7 cerradas
 - **Naturaleza:** contrato funcional y técnico previo a implementación
 
 ## 0. Estado documental
 
-Esta especificación concreta P8, pero no autoriza su implementación. No declara creados modelos,
+Esta especificación concreta y autoriza P8. Su aprobación no declara todavía creados modelos,
 migraciones, endpoints, pruebas ni interfaz, y tampoco declara ejecutado un cutover en ningún
-entorno. ADR 0016 y este documento requieren aprobación expresa antes de modificar código.
+entorno. Esos resultados solo podrán registrarse después de observar su implementación y
+validación.
 
 Los contratos aprobados de 5.1 y 5.2 permanecen vigentes salvo las ampliaciones expresas de este
 documento. En particular:

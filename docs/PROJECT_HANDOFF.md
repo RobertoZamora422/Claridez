@@ -1,8 +1,8 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 3 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P7 cerró su corrección y está completada localmente
-- **Siguiente etapa:** P8 — Agenda y reservas avanzadas
+- **Fecha de corte:** 12 de agosto de 2026
+- **Etapa funcional activa:** ninguna; P8 está completada y validada localmente
+- **Siguiente etapa:** P9 — Contratos, documentos y archivos; pendiente de su plan y aprobación
 
 ## Qué es Claridez
 
@@ -39,8 +39,13 @@ duplica: registra cómo continuar desde el checkout real.
   consentimiento append-only; contactos actuales e históricos con propiedad canónica única por
   tenant bajo un advisory lock transaccional común; conserva las tablas físicas históricas de
   persona.
-- `claridez.commercial`: solicitudes como única oportunidad, historial comercial append-only,
-  cotizaciones versionadas con catálogo/ad hoc, disponibilidad por espacio y reservas.
+- `claridez.commercial`: solicitudes como única oportunidad, historial comercial append-only y
+  cotizaciones versionadas con catálogo/ad hoc; conserva la autoridad de la evidencia comercial y
+  delega agenda y reservas mediante el puerto público de scheduling.
+- `claridez.scheduling`: propietario lógico de `Reservation` sobre la tabla física conservada
+  `commercial_reservation`; políticas temporales, disponibilidad, holds, reservas confirmadas,
+  bloqueos, reprogramación por sucesora, cancelación, asignación temporal unificada, expiración
+  determinista, historia canónica append-only y exportación iCalendar.
 - `claridez.crm`: composición mediante puertos públicos estrechos; identidad y oportunidades usan
   proyecciones inmutables, y consentimiento usa valores serializados sin exponer ORM ni
   `QuerySet`; vistas integrales, interacciones inmutables, correcciones enlazadas por conjunto
@@ -48,17 +53,17 @@ duplica: registra cómo continuar desde el checkout real.
   indicadores.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
-- Web: autenticación, selector organizacional, agenda, solicitudes/cotizaciones/reservas,
-  operación, configuración/catálogo y CRM responsive con bandeja, persona integral, timeline,
-  interacciones, tareas, consentimiento y fusión mediante búsqueda y selección, sin UUID ni
-  revisiones manuales.
+- Web: autenticación, selector organizacional, agenda responsive diaria/semanal/mensual con
+  filtros y carriles/listas, políticas, bloqueos, reprogramación guiada, cancelación, historia y
+  exportación; solicitudes/cotizaciones/reservas, operación, configuración/catálogo y CRM con
+  bandeja, persona integral, timeline, interacciones, tareas, consentimiento y fusión.
 
-No existen aún los módulos de P8 en adelante. No hay módulos financieros, contratos/archivos,
+No existen aún los módulos de P9 en adelante. No hay módulos financieros, contratos/archivos,
 portal, proveedores productivos de correo/identidad, staging ni producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2, P6 y P7: completadas y validadas localmente.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2, P6, P7 y P8: completadas y validadas localmente.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -96,11 +101,28 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   la persona canónica. El navegador real validó 1440×900 y 390×844 con búsqueda, selección,
   inversión de dirección, resumen, conflicto por revisión obsoleta, nueva confirmación, mensajes,
   scroll y ausencia de overflow horizontal; no fue necesario cambiar CSS.
-- `npm run check:all` pasó con los toolchains fijados: 154 pruebas no integración, 50 integración
-  PostgreSQL y 19 frontend, además de OpenAPI y builds. Incluye dos tenants, SQL directo, bulk,
-  concurrencia, revisiones, migraciones correctivas y RLS. Este cierre no planificó ni implementó
-  P8 y no hay etapa funcional autorizada en ejecución. `npm run audit` no encontró vulnerabilidades
-  conocidas en Python ni npm.
+- P8 adopta `Reservation` mediante migración de estado sin copiar filas ni renombrar
+  `commercial_reservation`. Una única exclusión GiST sobre `ScheduleAllocation` protege
+  organización, espacio e intervalo `[)` para reservas y bloqueos. Las cadenas tenant-aware,
+  equivalencia de proyección, expiración determinista, idempotencia e historia `ScheduleEvent`
+  append-only están protegidas por constraints, triggers, privilegios, advisory locks ordenados y
+  `ENABLE` + `FORCE RLS`.
+- La reprogramación crea una reserva sucesora en la misma transacción, conserva evidencia
+  comercial y coordina `EventPreparation`: la anterior queda terminal, la nueva baseline nace del
+  snapshot aceptado y solo los ítems libres permitidos se trasladan pendientes con procedencia.
+  CRM deriva “requiere revisión” desde una proyección inmutable sin mutar tareas ni importar ORM de
+  scheduling.
+- `npm run check:all` pasó con los toolchains fijados: 158 pruebas API no integración, 64 de
+  integración PostgreSQL y 19 frontend, además de formato, lint, tipos, migraciones, OpenAPI y
+  builds. Incluye C01–C18, dos tenants, RLS, roles reales, SQL directo, bulk, idempotencia,
+  migraciones desde cero/P6/P7 y regresión 5.1/5.2/P6/P7. `npm run audit` terminó sin
+  vulnerabilidades conocidas y `git diff --check` pasó.
+- Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
+  cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
+  destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
+  conflicto de bloqueo, liberación, hold, confirmación, reprogramación, comparación, consecuencias
+  operativas, cancelación, historia, `.ics`, teclado y scroll sin overflow horizontal ni errores de
+  consola.
 
 ## Decisiones cerradas
 
@@ -113,7 +135,9 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
 - Multi-espacio, configuración funcional, catálogo, backfill y frontera MFA de P6: ADR 0014.
 - Propiedad `people`/CRM, autoridad comercial, historial, fusión, consentimiento y capacidades P7:
   ADR 0015.
-- Comportamiento exacto implementado: especificaciones 5.1 y 5.2.
+- Propiedad de scheduling, defensa temporal unificada, cadenas, expiración, historia, locks y
+  cutover: ADR 0016.
+- Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
@@ -146,8 +170,8 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2 y ADR aplicables; para P8, revisar además ADR 0012–0015 y los contratos
-   de agenda, reservas, operación, multi-espacio y CRM ya implementados.
+5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluido ADR 0016; para P9 deben preservarse la
+   reserva vigente, evidencia comercial, historia de agenda y preparación operativa ya cerradas.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -205,17 +229,17 @@ falta.
 
 ## Próximo trabajo autorizado
 
-Está autorizado preparar, a partir del estado real, un plan breve de **P8 — Agenda y reservas
-avanzadas** y señalar solo decisiones bloqueantes. Su implementación requiere una nueva aprobación.
-El plan debe conservar las exclusiones concurrentes, snapshots, reservas, coordinación 5.2,
-multi-espacio y evidencia CRM existentes sin adelantar documentos, cobros ni integraciones
-externas.
+P8 está cerrada. La siguiente etapa del Roadmap es **P9 — Contratos, documentos y archivos**, pero
+no está autorizada su implementación. Su trabajo deberá comenzar con la lectura del estado real y
+un plan breve, y resolver únicamente las decisiones humanas bloqueantes sobre aceptación, firma,
+retención y proveedores antes de cualquier parte afectada.
 
 ## Riesgos actuales
 
 - Un despliegue futuro debe ejecutar el cutover 5.2 completo; no admite convivencia 5.1/5.2.
-- Ese despliegue debe respetar también el orden multi-espacio, la adopción de estado P7 y las
-  comprobaciones de ADR 0014–0015.
+- Ese despliegue debe respetar también el orden multi-espacio, las adopciones de estado P7/P8 y las
+  comprobaciones de ADR 0014–0016. P8 exige preflight, ventana sin tráfico, respaldo, verificadores
+  5.2/P8 y rollback documentado; el ensayo local no sustituye esa autorización operativa.
 - Antes de desplegar la migración correctiva P7 se deben auditar correos actuales duplicados o no
   canónicos del entorno destino. La migración falla cerrada en esos casos y no reasigna evidencia
   de contacto de manera automática.

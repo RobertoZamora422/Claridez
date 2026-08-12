@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 3 de agosto de 2026
+- **Fecha de corte:** 12 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -329,7 +329,8 @@ propietaria del contacto.
 
 **Identificador y nombre:** P8 — Disponibilidad, bloqueos, reprogramación y cancelación completa.
 
-**Estado:** Pendiente.
+**Estado:** Completada y validada localmente; no desplegada y sin cutover ejecutado sobre un
+entorno destino.
 
 **Objetivo:** Operar calendario real por sede y espacio preservando historia y coordinación
 transversal.
@@ -341,17 +342,31 @@ consecuencias; exportación de calendario básica; concurrencia PostgreSQL.
 **Exclusiones:** Calendario personal genérico, asignación de inventario detallada y sincronización
 bidireccional con proveedores no evaluados.
 
-**Dependencias:** P6, contratos vigentes de 5.1/5.2 y ADR de concurrencia/cutover multi-espacio.
+**Dependencias:** P6, contratos vigentes de 5.1/5.2, especificación funcional P8 aprobada y ADR
+0016 aceptado.
 
-**Resultado visible:** El equipo agenda varios espacios, bloquea indisponibilidad y reprograma sin
-doble reserva ni pérdida de evidencia.
+**Resultado visible:** El equipo consulta agenda diaria, semanal y mensual por sede y espacio,
+configura políticas temporales, crea y termina bloqueos, confirma, reprograma y cancela reservas,
+consulta la historia canónica y exporta iCalendar. La vista móvil se presenta como lista por día y
+la de escritorio conserva carriles por espacio. Comercial, operaciones y CRM consumen puertos
+estrechos de `claridez.scheduling`, propietario lógico de las reservas sin copia de filas ni
+renombrado de `commercial_reservation`.
 
-**Criterio verificable de finalización:** Solapamientos y carreras rechazados, reprogramación
-coordina comercial/operación, zona horaria y buffers correctos, calendario accesible y migraciones
-ensayadas.
+**Criterio verificable de finalización:** Una única exclusión GiST tenant-aware protege reservas y
+bloqueos; guardianes PostgreSQL preservan cadenas, proyección temporal e historia append-only aun
+frente a bulk y SQL directo; expiración, confirmación, bloqueo, cancelación y reprogramación se
+serializan sin estados parciales. `npm run check:all` cerró con 158 pruebas API no integración, 64
+pruebas de integración PostgreSQL y 19 pruebas frontend, además de formato, lint, tipos,
+migraciones, OpenAPI y builds. Los ensayos cubrieron instalación desde cero, P6 y P7 final, los
+escenarios concurrentes C01–C18 y los cutovers 5.2/P8 sobre la base local. `npm run audit` no
+encontró vulnerabilidades conocidas. La validación en navegador real cubrió 1440×900 y 390×844,
+día/semana/mes, filtros, bloqueos, conflictos, hold, confirmación, reprogramación, cancelación,
+historia, exportación, teclado, scroll y consola sin desbordamiento horizontal ni errores.
 
-**Riesgos principales:** Deadlocks, intervalos ambiguos, cambios históricos silenciosos y
-descoordinación con preparación/documentos.
+**Riesgos principales:** El cutover de un entorno destino continúa siendo una operación futura que
+requiere ventana, preflight, respaldo, ensayo y autorización separados; el cierre local no afirma
+CI remota, staging, producción ni despliegue. Contratos y documentos pertenecen a P9 y no fueron
+adelantados.
 
 **Siguiente etapa:** P9 — Contratos, documentos y archivos.
 

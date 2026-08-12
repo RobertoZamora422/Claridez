@@ -7,6 +7,11 @@ from django.utils import timezone
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization
 from claridez.people.public import canonical_cluster_ids
+from claridez.scheduling.public import (
+    confirmed_event_request_ids,
+    current_reservation_for_request,
+    reservation_for_quotation,
+)
 
 from ..models import (
     EventRequest,
@@ -14,24 +19,26 @@ from ..models import (
     Quotation,
     QuotationLine,
     QuotationVersion,
-    Reservation,
 )
 from .shared import _can
 
 
-def _is_client(person: Person) -> bool:
+def _is_client(person: Person, authorization: TenantAuthorization) -> bool:
     cluster = canonical_cluster_ids(person.organization_id, person.pk)
-    return Reservation.objects.filter(
-        organization_id=person.organization_id,
-        event_request__person_id__in=cluster,
-        confirmed_at__isnull=False,
-    ).exists()
+    request_ids = tuple(
+        EventRequest.objects.filter(
+            organization_id=person.organization_id, person_id__in=cluster
+        ).values_list("id", flat=True)
+    )
+    return bool(confirmed_event_request_ids(authorization, request_ids))
 
 
-def _person_data(person: Person, *, include_contact: bool = True) -> dict[str, Any]:
+def _person_data(
+    person: Person, authorization: TenantAuthorization, *, include_contact: bool = True
+) -> dict[str, Any]:
     data: dict[str, Any] = {
         "id": person.pk,
-        "commercial_type": "client" if _is_client(person) else "lead",
+        "commercial_type": "client" if _is_client(person, authorization) else "lead",
         "revision": person.revision,
         "created_at": person.created_at,
         "updated_at": person.updated_at,
@@ -71,24 +78,27 @@ def _line_data(line: QuotationLine) -> dict[str, Any]:
     }
 
 
-def _reservation_summary(row: Reservation) -> dict[str, Any]:
+def _reservation_summary(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": row.pk,
-        "space_id": row.space_id,
-        "status": row.status,
-        "starts_at": row.event_interval.lower,
-        "ends_at": row.event_interval.upper,
-        "event_timezone": row.event_timezone,
-        "hold_expires_at": row.hold_expires_at,
-        "confirmation_kind": row.confirmation_kind or None,
-        "recognized_deposit_amount": row.recognized_deposit_amount,
-        "deposit_reported_at": row.deposit_reported_at,
-        "deposit_reference": row.deposit_reference or None,
-        "confirmed_at": row.confirmed_at,
-        "waiver_reason": row.waiver_reason or None,
-        "waiver_authorized_at": row.waiver_authorized_at,
-        "cancelled_at": row.cancelled_at,
-        "cancellation_reason": row.cancellation_reason or None,
+        key: row.get(key)
+        for key in (
+            "id",
+            "space_id",
+            "status",
+            "starts_at",
+            "ends_at",
+            "event_timezone",
+            "hold_expires_at",
+            "confirmation_kind",
+            "recognized_deposit_amount",
+            "deposit_reported_at",
+            "deposit_reference",
+            "confirmed_at",
+            "waiver_reason",
+            "waiver_authorized_at",
+            "cancelled_at",
+            "cancellation_reason",
+        )
     }
 
 
@@ -96,17 +106,11 @@ def _request_data(
     event_request: EventRequest, authorization: TenantAuthorization
 ) -> dict[str, Any]:
     include_contact = _can(authorization, Capability.PERSON_READ)
-    person = _person_data(event_request.person, include_contact=include_contact)
+    person = _person_data(event_request.person, authorization, include_contact=include_contact)
     quotation = Quotation.objects.filter(
         organization_id=authorization.organization_id, event_request=event_request
     ).first()
-    reservation = (
-        Reservation.objects.filter(
-            organization_id=authorization.organization_id, event_request=event_request
-        )
-        .order_by("-created_at")
-        .first()
-    )
+    reservation = current_reservation_for_request(authorization, event_request.pk)
     return {
         "id": event_request.pk,
         "person": person,
@@ -137,7 +141,9 @@ def _request_data(
     }
 
 
-def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, Any]:
+def _version_data(
+    row: QuotationVersion, authorization: TenantAuthorization, *, include_contact: bool
+) -> dict[str, Any]:
     effective_status = (
         "expired"
         if row.status == QuotationVersion.Status.ISSUED and row.valid_until <= timezone.now()
@@ -148,9 +154,7 @@ def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, 
         .filter(organization_id=row.organization_id, quotation_version=row)
         .order_by("position", "id")
     )
-    reservation = Reservation.objects.filter(
-        organization_id=row.organization_id, quotation_version=row
-    ).first()
+    reservation = reservation_for_quotation(authorization, row.pk)
     person: dict[str, Any] = (
         {
             "full_name": row.person_name_snapshot,
@@ -192,7 +196,7 @@ def _version_data(row: QuotationVersion, *, include_contact: bool) -> dict[str, 
         "acceptance_channel": row.acceptance_channel or None,
         "acceptance_note": row.acceptance_note or None,
         "lines": tuple(_line_data(line) for line in lines),
-        "reservation_id": reservation.pk if reservation is not None else None,
+        "reservation_id": reservation["id"] if reservation is not None else None,
     }
 
 
@@ -207,6 +211,7 @@ def _quotation_data(quotation: Quotation, authorization: TenantAuthorization) ->
         "versions": tuple(
             _version_data(
                 row,
+                authorization,
                 include_contact=_can(authorization, Capability.PERSON_READ),
             )
             for row in versions

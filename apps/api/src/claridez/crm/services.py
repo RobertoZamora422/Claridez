@@ -27,6 +27,7 @@ from claridez.organizations.capabilities import (
 from claridez.organizations.exceptions import AuthorizationDenied
 from claridez.organizations.models import Membership
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
+from claridez.scheduling.public import latest_schedule_changes, schedule_changes
 
 from .errors import conflict, invalid, unavailable
 from .models import FollowUpTask, Interaction
@@ -167,8 +168,25 @@ def _interaction_data(row: Interaction) -> dict[str, Any]:
     }
 
 
-def _task_data(row: FollowUpTask, *, include_history: bool = False) -> dict[str, Any]:
+def _task_data(
+    row: FollowUpTask,
+    authorization: TenantAuthorization,
+    *,
+    include_history: bool = False,
+) -> dict[str, Any]:
     action_at = row.next_contact_at or row.due_at
+    latest_history = row.history.order_by("-revision", "-id").first()
+    schedule_change = (
+        latest_schedule_changes(authorization, (row.event_request_id,)).get(row.event_request_id)
+        if row.event_request_id is not None
+        else None
+    )
+    requires_schedule_review = bool(
+        row.status == FollowUpTask.Status.OPEN
+        and latest_history is not None
+        and schedule_change is not None
+        and schedule_change.occurred_at >= latest_history.created_at
+    )
     data: dict[str, Any] = {
         "id": row.pk,
         "person_id": row.person_id,
@@ -187,6 +205,18 @@ def _task_data(row: FollowUpTask, *, include_history: bool = False) -> dict[str,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
         "overdue": row.status == FollowUpTask.Status.OPEN and row.due_at < timezone.now(),
+        "requires_schedule_review": requires_schedule_review,
+        "last_schedule_event": (
+            {
+                "id": schedule_change.event_id,
+                "kind": schedule_change.kind,
+                "occurred_at": schedule_change.occurred_at,
+                "root_id": schedule_change.root_id,
+                "reservation_id": schedule_change.current_reservation_id,
+            }
+            if schedule_change is not None
+            else None
+        ),
     }
     if include_history:
         data["history"] = tuple(
@@ -253,7 +283,7 @@ def _opportunity_data(
         "responsible_membership_id": row.responsible_membership_id,
         "closed_reason": row.closed_reason or None,
         "revision": row.revision,
-        "next_action": _task_data(next_task) if next_task is not None else None,
+        "next_action": (_task_data(next_task, authorization) if next_task is not None else None),
         "updated_at": row.updated_at,
     }
     if detailed:
@@ -430,7 +460,7 @@ def list_tasks(
         if status:
             rows = rows.filter(status=status)
         return tuple(
-            _task_data(row, include_history=True)
+            _task_data(row, authorization, include_history=True)
             for row in rows.annotate(action_at=Coalesce("next_contact_at", "due_at")).order_by(
                 "action_at", "id"
             )[:200]
@@ -476,7 +506,7 @@ def create_task(
             )
         except IntegrityError as error:
             raise conflict("task_conflict", "La tarea no pudo registrarse.") from error
-        return _task_data(row, include_history=True)
+        return _task_data(row, authorization, include_history=True)
 
 
 def update_task(
@@ -556,13 +586,13 @@ def update_task(
             row.cancellation_reason,
         )
         if current == original:
-            return _task_data(row, include_history=True)
+            return _task_data(row, authorization, include_history=True)
         row.revision += 1
         try:
             row.save()
         except IntegrityError as error:
             raise conflict("task_conflict", "La tarea no pudo actualizarse.") from error
-        return _task_data(row, include_history=True)
+        return _task_data(row, authorization, include_history=True)
 
 
 def indicators(actor: User, organization_reference: UUID | str) -> dict[str, int]:
@@ -628,7 +658,7 @@ def person_overview(
             ).order_by("-occurred_at", "-id")
         )
         tasks = tuple(
-            _task_data(row, include_history=True)
+            _task_data(row, authorization, include_history=True)
             for row in FollowUpTask.objects.filter(
                 organization_id=authorization.organization_id, person_id__in=cluster
             )
@@ -652,6 +682,23 @@ def person_overview(
         for task in tasks:
             for history in task["history"]:
                 timeline.append({"type": "task", "at": history["created_at"], "data": history})
+        request_ids = tuple(UUID(str(item["id"])) for item in opportunities)
+        for change in schedule_changes(authorization, request_ids):
+            timeline.append(
+                {
+                    "type": "schedule",
+                    "at": change.occurred_at,
+                    "data": {
+                        "id": change.event_id,
+                        "event_request_id": change.event_request_id,
+                        "kind": change.kind,
+                        "root_id": change.root_id,
+                        "reservation_id": change.current_reservation_id,
+                        "previous_snapshot": change.previous_snapshot,
+                        "new_snapshot": change.new_snapshot,
+                    },
+                }
+            )
         timeline.sort(key=lambda item: item["at"], reverse=True)
         return {
             "person": person,

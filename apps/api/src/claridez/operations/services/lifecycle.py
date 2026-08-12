@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
-
-from claridez.commercial.models import Reservation
 
 from ..baseline import (
     BASELINE,
@@ -20,7 +19,7 @@ from .shared import EDITABLE_PREPARATION_STATES, append_transition, increment_pr
 
 
 def initialize_preparation(
-    reservation: Reservation, *, actor_membership_id: UUID, occurred_at: datetime
+    reservation: Any, *, actor_membership_id: UUID, occurred_at: datetime
 ) -> EventPreparation:
     """Crear el agregado base; solo lo invoca el coordinador de confirmación."""
     preparation = EventPreparation.objects.create(
@@ -64,7 +63,7 @@ def initialize_preparation(
     return preparation
 
 
-def validate_initialized_preparation(reservation: Reservation) -> EventPreparation:
+def validate_initialized_preparation(reservation: Any) -> EventPreparation:
     try:
         preparation = EventPreparation.objects.select_for_update().get(
             organization_id=reservation.organization_id, reservation_id=reservation.pk

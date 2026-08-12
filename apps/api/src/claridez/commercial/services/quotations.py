@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.utils import timezone
-from psycopg.types.range import Range
 
 from claridez.catalog.services import resolve_catalog_line
 from claridez.identity.models import User
@@ -18,6 +17,7 @@ from claridez.organizations.capabilities import Capability
 from claridez.organizations.models import Organization, OrganizationSettings
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 from claridez.people.public import canonical_person_id, get_person
+from claridez.scheduling.public import create_hold_from_accepted, lock_command_spaces
 
 from ..errors import conflict, invalid, unavailable
 from ..models import (
@@ -26,17 +26,15 @@ from ..models import (
     QuotationLine,
     QuotationSequence,
     QuotationVersion,
-    Reservation,
 )
 from ..normalization import canonical_optional_text, canonical_text, money
-from .representations import _quotation_data, _reservation_summary
+from .representations import _quotation_data
 from .requests import _get_request
 from .reservations import (
-    HOLD_DURATION,
     _evaluate_expiration,
     _expire_overdue,
-    _lock_organization_schedule,
 )
+from .scheduling_adapter import scheduling_call
 from .shared import _aware, _uuid
 
 ACCEPTANCE_CHANNELS = frozenset({"in_person", "phone_call", "whatsapp", "email", "other"})
@@ -180,7 +178,7 @@ def _get_quotation(
         "event_request__space__venue",
     )
     if lock:
-        rows = rows.select_for_update()
+        rows = rows.select_for_update(of=("self",))
     try:
         return rows.get(organization_id=organization_id, pk=_uuid(quotation_id, "La cotización"))
     except Quotation.DoesNotExist:
@@ -381,17 +379,28 @@ def accept_quotation_version(
     with authorized_tenant_scope(
         actor, organization_reference, Capability.SALES_MANAGE
     ) as authorization:
+        preflight_quotation = _get_quotation(
+            authorization.organization_id, quotation_id, lock=False
+        )
+        preflight_version = _get_version(
+            authorization.organization_id,
+            preflight_quotation,
+            version,
+            lock=False,
+        )
+        lock_command_spaces(authorization, (preflight_version.space_snapshot_id,))
         quotation = _get_quotation(authorization.organization_id, quotation_id, lock=True)
         event_request = _get_request(
             authorization.organization_id, quotation.event_request_id, lock=True
         )
         row = _get_version(authorization.organization_id, quotation, version, lock=True)
-        _lock_organization_schedule(authorization.organization_id, row.space_snapshot_id)
-        existing = Reservation.objects.filter(
-            organization_id=authorization.organization_id, quotation_version=row
-        ).first()
+        from claridez.scheduling.public import current_reservation_for_request
+
+        from ..public import accepted_schedule_evidence
+
+        existing = current_reservation_for_request(authorization, event_request.pk)
         if row.status == QuotationVersion.Status.ACCEPTED and existing is not None:
-            return _reservation_summary(existing)
+            return existing
         latest = QuotationVersion.objects.filter(
             organization_id=authorization.organization_id, quotation=quotation
         ).aggregate(value=Max("version"))["value"]
@@ -431,22 +440,13 @@ def accept_quotation_version(
                 )
                 event_request.status = EventRequest.Status.ACCEPTED
                 event_request.save(update_fields=["status", "updated_at"])
-                reservation = Reservation.objects.create(
-                    organization_id=authorization.organization_id,
-                    event_request=event_request,
-                    quotation_version=row,
-                    space_id=row.space_snapshot_id,
-                    event_interval=Range(
-                        row.event_starts_at_snapshot,
-                        row.event_ends_at_snapshot,
-                        bounds="[)",
-                    ),
-                    event_timezone=row.event_timezone_snapshot,
-                    status=Reservation.Status.PROVISIONAL,
-                    hold_expires_at=now + HOLD_DURATION,
+                reservation = scheduling_call(
+                    create_hold_from_accepted,
+                    authorization,
+                    accepted_schedule_evidence(authorization, row.pk),
                 )
         except IntegrityError as error:
             raise conflict(
                 "schedule_conflict", "El horario ya no se encuentra disponible."
             ) from error
-        return _reservation_summary(reservation)
+        return reservation

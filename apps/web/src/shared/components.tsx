@@ -13,6 +13,9 @@ const STATUS_LABELS: Record<string, string> = {
   issued: "Emitida",
   superseded: "Sustituida",
   withdrawn: "Retirada",
+  active: "Activo",
+  released: "Liberado",
+  rescheduled: "Reprogramada",
 };
 
 export function StatusBadge({ value }: { value: string }) {

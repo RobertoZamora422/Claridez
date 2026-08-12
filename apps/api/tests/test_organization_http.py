@@ -303,6 +303,23 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/": {"get"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/confirm/": {"post"},
         "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/cancel/": {"post"},
+        "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/reschedule/": {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/reservations/{reservation_id}/schedule-history/": {
+            "get"
+        },
+        "/api/v1/organizations/{organization_id}/scheduling/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/scheduling/calendar/": {"get"},
+        "/api/v1/organizations/{organization_id}/scheduling/calendar.ics": {"get"},
+        "/api/v1/organizations/{organization_id}/scheduling/availability/": {"post"},
+        "/api/v1/organizations/{organization_id}/scheduling/spaces/{space_id}/policy/": {
+            "get",
+            "patch",
+        },
+        "/api/v1/organizations/{organization_id}/scheduling/blocks/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/scheduling/blocks/{block_id}/release/": {"post"},
+        "/api/v1/organizations/{organization_id}/scheduling/blocks/{block_id}/cancel/": {"post"},
         "/api/v1/organizations/{organization_id}/crm/capabilities/": {"get"},
         "/api/v1/organizations/{organization_id}/crm/opportunities/": {"get"},
         "/api/v1/organizations/{organization_id}/crm/opportunities/{event_request_id}/": {"get"},
