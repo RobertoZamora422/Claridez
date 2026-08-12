@@ -2,7 +2,8 @@
 
 - **Fecha de corte:** 12 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P8 está completada y validada localmente
-- **Siguiente etapa:** P9 — Contratos, documentos y archivos; pendiente de su plan y aprobación
+- **Siguiente etapa:** P9 — Contratos, documentos y archivos; plan y ADR 0017–0018 aprobados,
+  implementación todavía no autorizada
 
 ## Qué es Claridez
 
@@ -123,6 +124,9 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   conflicto de bloqueo, liberación, hold, confirmación, reprogramación, comparación, consecuencias
   operativas, cancelación, historia, `.ics`, teclado y scroll sin overflow horizontal ni errores de
   consola.
+- El plan de P9 y su formalización arquitectónica están aprobados mediante ADR 0017 y ADR 0018.
+  `claridez.documents`, sus tablas, capacidades, endpoints, jobs, almacenamiento, renderer y
+  frontend todavía no existen; no se presenta P9 como implementada.
 
 ## Decisiones cerradas
 
@@ -137,15 +141,22 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   ADR 0015.
 - Propiedad de scheduling, defensa temporal unificada, cadenas, expiración, historia, locks y
   cutover: ADR 0016.
+- Dominio documental único, expediente contractual por raíz, instrumentos/versiones, aceptación,
+  acceso externo, autorización conjuntiva y retención sin destrucción física: ADR 0017.
+- Entorno canónico de render, checksums separados, almacenamiento privado, uploads externos,
+  malware y primer mecanismo asíncrono durable: ADR 0018.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
 
-- Proveedores de staging/producción, correo, WhatsApp, archivos, malware y observabilidad.
+- Proveedores de staging/producción, correo, WhatsApp, almacenamiento, renderer, malware y
+  observabilidad.
 - MFA productiva, OIDC y `ExternalIdentity`; identidad/autorización siguen siendo locales.
-- Infraestructura asíncrona y outbox hasta el primer proceso real.
-- Política legal detallada de privacidad, retención, aceptación contractual y firma.
+- ADR 0018 aprueba para P9 un ledger durable de jobs PostgreSQL y ejecución at-least-once; el
+  framework/runner, dimensionamiento y una eventual cola o broker externos continúan abiertos.
+- Datos legales, método y texto de aceptación, representación, materialidad, política detallada de
+  privacidad/retención y firma electrónica acreditada.
 - Facturación electrónica, contabilidad formal, aplicaciones nativas, marketplace, IA avanzada,
   expansión internacional y constructor web libre.
 - Planes y cobro de suscripciones de Claridez, posteriores al producto funcional.
@@ -170,8 +181,8 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluido ADR 0016; para P9 deben preservarse la
-   reserva vigente, evidencia comercial, historia de agenda y preparación operativa ya cerradas.
+5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluidos ADR 0016–0018; para P9 deben preservarse
+   la reserva vigente, evidencia comercial, historia de agenda y preparación operativa ya cerradas.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -229,10 +240,11 @@ falta.
 
 ## Próximo trabajo autorizado
 
-P8 está cerrada. La siguiente etapa del Roadmap es **P9 — Contratos, documentos y archivos**, pero
-no está autorizada su implementación. Su trabajo deberá comenzar con la lectura del estado real y
-un plan breve, y resolver únicamente las decisiones humanas bloqueantes sobre aceptación, firma,
-retención y proveedores antes de cualquier parte afectada.
+P8 está cerrada. El plan y la arquitectura de **P9 — Contratos, documentos y archivos** están
+aprobados mediante ADR 0017–0018, pero su implementación no está autorizada. El siguiente paso es
+la aprobación de revisión de estos ADR y una autorización explícita para implementar P9; antes de
+cada superficie afectada deberán cerrarse sus decisiones pendientes sobre datos legales,
+aceptación, representación, materialidad, retención, almacenamiento, renderer, malware y runner.
 
 ## Riesgos actuales
 
@@ -247,7 +259,8 @@ retención y proveedores antes de cualquier parte afectada.
 - Correo es local; recuperación/verificación externas no están listas para clientes reales.
 - La política legal definitiva de retención, anonimización y eliminación de personas sigue
   diferida; P7 no concede capacidades ni endpoints para ejecutarlas.
-- Proveedores, privacidad/retención y firma requieren investigación antes de sus etapas.
+- Los puertos y límites de P9 están decididos, pero proveedor de almacenamiento, renderer,
+  scanner, runner y políticas jurídicas siguen requiriendo spikes o aprobación antes de su parte.
 - No se ha observado una ejecución remota de CI ni existe ambiente desplegado.
 
 ## Reporte de cierre obligatorio

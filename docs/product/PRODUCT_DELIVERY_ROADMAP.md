@@ -374,29 +374,39 @@ adelantados.
 
 **Identificador y nombre:** P9 — Evidencia contractual y documental.
 
-**Estado:** Pendiente; requiere investigación legal y de proveedores antes de firma electrónica.
+**Estado:** Pendiente; plan y ADR 0017–0018 aprobados. Requiere cerrar las decisiones jurídicas y
+los spikes técnicos de cada superficie antes de implementarla.
 
-**Objetivo:** Crear, aceptar y conservar contratos y documentos versionados vinculados al evento.
+**Objetivo:** Crear, aceptar y conservar instrumentos contractuales y documentos versionados
+vinculados con la raíz y la historia del evento.
 
-**Alcance obligatorio:** Plantillas/versiones; variables autorizadas; contrato por reserva;
-aceptación y evidencia; archivos privados; PDF server-side; checksum; permisos; retención; portal de
-lectura/descarga; análisis de malware.
+**Alcance obligatorio:** Plantillas/versiones; lenguaje cerrado de variables; expediente
+contractual único por raíz con múltiples instrumentos y versiones emitidas; snapshots canónicos;
+aceptación y evidencia vinculadas al artefacto exacto; grants externos de lectura/descarga y
+challenge de aceptación; archivos privados; PDF server-side en entorno canónico; checksums;
+autorización; retención y legal hold sin destrucción física; cuarentena y análisis de malware para
+uploads externos no confiables.
 
-**Exclusiones:** Asesoría legal, facturación electrónica, firma avanzada no validada y editor libre
-de documentos o sitios.
+**Exclusiones:** Asesoría legal, facturación electrónica, firma avanzada no validada, portal de
+cliente completo, destrucción física, editor libre de documentos o sitios y semántica financiera
+de P10.
 
-**Dependencias:** P8; revisión legal ecuatoriana de aceptación/firma/retención; selección de
-almacenamiento, malware y PDF; ADR de archivos y proveedor.
+**Dependencias:** P8 y ADR 0017–0018; política aprobada de datos legales, aceptación, representación,
+materialidad y retención; spikes y selección del almacenamiento, renderer canónico, scanner,
+límites de archivos y runner compatible con el ledger PostgreSQL aprobado.
 
-**Resultado visible:** Comercial emite un contrato consistente y el cliente accede a una copia
-verificable sin exponer archivos ajenos.
+**Resultado visible:** Comercial emite instrumentos contractuales consistentes y el cliente accede
+mediante enlace seguro a la copia exacta que puede aceptar, sin exponer archivos ajenos.
 
-**Criterio verificable de finalización:** Plantilla y PDF reproducibles, versión emitida inmutable,
-URLs temporales, malware y límites probados, evidencia legal aprobada y aislamiento de archivos con
-dos tenants.
+**Criterio verificable de finalización:** Plantilla y snapshot canónicos, emisión exclusiva desde el
+entorno de render versionado, artefacto exacto preservado con SHA-256, versión emitida y aceptación
+append-only, URLs temporales, uploads externos indisponibles hasta `clean`, límites y recuperación
+probados, política jurídica de la superficie aprobada y aislamiento de metadata, archivos y jobs
+con dos tenants.
 
-**Riesgos principales:** Prometer validez legal no comprobada, URLs predecibles, PII en metadatos o
-regeneración que altere evidencia.
+**Riesgos principales:** Prometer validez legal no comprobada, confundir aceptación propia con firma
+acreditada, URLs predecibles, PII en metadatos/object keys, tratar un análisis fallido como limpio,
+divergencia PostgreSQL–objetos o regeneración que sustituya evidencia.
 
 **Siguiente etapa:** P10 — Cobros y cuentas por cobrar.
 

@@ -268,7 +268,7 @@ atómicas, endpoints y pruebas sin conceder permisos por inferencia.
 | Solicitudes y propuestas | Administrar | Administrar | Administrar | Leer snapshot aceptado | Leer y confirmar condiciones financieras autorizadas |
 | Agenda y reservas | Administrar | Administrar | Gestionar solicitud y propuesta; cancelación crítica restringida | Leer y coordinar ejecución | Leer y confirmar evidencia de cobro según capacidad |
 | Operación | Administrar y ejecutar | Administrar y ejecutar | Leer | Administrar y ejecutar | Sin acceso salvo proyección futura aprobada |
-| Contratos y documentos | Administrar | Administrar | Preparar y gestionar | Leer documentos operativos asignados | Leer documentos financieros asignados |
+| Contratos y documentos | Administrar | Administrar | Preparar y gestionar | Leer solo con capacidad documental, relación operativa real y propósito permitido | Acceso futuro sujeto a capacidades expresas de su etapa |
 | Cobros y cuentas por cobrar | Administrar | Administrar | Leer estado resumido | Sin acceso | Administrar |
 | Costos, gastos y rentabilidad | Administrar | Administrar | Sin acceso salvo precio comercial propio | Registrar evidencia operativa autorizada sin aprobar | Administrar |
 | Proveedores, recursos e inventario | Administrar | Administrar | Leer disponibilidad pertinente | Administrar operación y movimientos | Administrar términos y costos autorizados |
@@ -321,9 +321,10 @@ permiten líneas excepcionales autorizadas sin convertirlas automáticamente en 
 
 Los archivos privados conservan organización, propietario conceptual, vínculo de dominio, nombre
 seguro, tipo, tamaño, checksum, versión y marcas. Se almacenan fuera de la base en almacenamiento
-de objetos privado, con cifrado, URLs temporales, límites, validación de tipo y análisis de malware.
-No se aceptan rutas públicas predecibles. Borrado, retención y legal hold siguen una política
-aprobada.
+de objetos privado, con cifrado, URLs temporales y límites. Los artefactos producidos por el
+renderer controlado conservan además su procedencia y entorno; los uploads externos no confiables
+requieren cuarentena, validación de tipo y análisis de malware antes de entregarse. No se aceptan
+rutas públicas predecibles. Borrado, retención y legal hold siguen una política aprobada.
 
 Los PDF de propuesta, contrato, recibo y reporte se generan en servidor desde datos y plantillas
 versionados. Un documento emitido conserva su hash y snapshot; regenerarlo no modifica la evidencia

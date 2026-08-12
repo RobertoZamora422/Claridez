@@ -58,6 +58,8 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0014](0014-multi-space-business-configuration-and-catalog-boundaries.md) | Aceptado | Multi-espacio y límites de configuración funcional P6 |
 | [0015](0015-people-crm-boundaries-and-commercial-authority.md) | Aceptado | Límites de people/CRM y autoridad comercial P7 |
 | [0016](0016-scheduling-ownership-and-temporal-integrity.md) | Aceptado | Propiedad de scheduling e integridad temporal P8 |
+| [0017](0017-contractual-domain-and-documentary-evidence.md) | Aceptado | Dominio contractual y evidencia documental P9 |
+| [0018](0018-file-platform-and-document-processing.md) | Aceptado | Plataforma de archivos y procesamiento documental P9 |
 
 ## Modificación y reemplazo
 
