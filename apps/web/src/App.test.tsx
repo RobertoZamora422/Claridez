@@ -46,6 +46,7 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(
           json({ user: { id: "user-1", email: "owner@example.test", display_name: "Ana" } }),
         );
+      if (url === "/api/v1/auth/csrf/") return Promise.resolve(json({ csrf_token: "csrf-test" }));
       if (url === "/api/v1/organizations/")
         return Promise.resolve(json({ organizations: [organization] }));
       if (url === "/api/v1/organizations/context/") return Promise.resolve(json({ organization }));
@@ -138,6 +139,164 @@ describe("flujo comercial de Claridez", () => {
         expect.objectContaining({ credentials: "same-origin" }),
       );
     });
+  });
+
+  it("reprograma una reserva temporal desde Agenda y recarga el calendario", async () => {
+    const organization = { id: "org-1", name: "Salón Horizonte", slug: "horizonte" };
+    let calendarLoads = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url === "/api/v1/auth/me/")
+        return Promise.resolve(
+          json({ user: { id: "user-1", email: "owner@example.test", display_name: "Ana" } }),
+        );
+      if (url === "/api/v1/auth/csrf/") return Promise.resolve(json({ csrf_token: "csrf-test" }));
+      if (url === "/api/v1/organizations/")
+        return Promise.resolve(json({ organizations: [organization] }));
+      if (url === "/api/v1/organizations/context/") return Promise.resolve(json({ organization }));
+      if (url.endsWith("/commercial/capabilities/"))
+        return Promise.resolve(
+          json({
+            capabilities: [
+              "sales:read",
+              "sales:manage",
+              "availability:read",
+              "reservation:confirm",
+            ],
+          }),
+        );
+      if (url.endsWith("/operations/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/configuration/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/crm/capabilities/")) return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/scheduling/capabilities/"))
+        return Promise.resolve(
+          json({ capabilities: ["availability:read", "reservation:reschedule"] }),
+        );
+      if (url.endsWith("/settings/"))
+        return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
+      if (url.endsWith("/venues/"))
+        return Promise.resolve(
+          json({
+            venues: [
+              {
+                id: "venue-1",
+                name: "Sede principal",
+                is_active: true,
+                spaces: [
+                  {
+                    id: "space-1",
+                    name: "Espacio principal",
+                    is_active: true,
+                    is_primary: true,
+                  },
+                  {
+                    id: "space-2",
+                    name: "Espacio alterno",
+                    is_active: true,
+                    is_primary: false,
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      if (url.includes("/scheduling/calendar/?")) {
+        calendarLoads += 1;
+        return Promise.resolve(
+          json({
+            view: "week",
+            anchor_date: "2026-08-06",
+            timezone: "America/Guayaquil",
+            from: "2026-08-03T05:00:00Z",
+            to: "2026-08-10T05:00:00Z",
+            entries: [
+              {
+                id: "reservation-hold-1",
+                type: "hold",
+                status: "provisional",
+                revision: 7,
+                root_id: "reservation-hold-1",
+                space_id: "space-1",
+                space_name: "Espacio principal",
+                venue_id: "venue-1",
+                venue_name: "Sede principal",
+                starts_at: "2026-08-07T23:00:00Z",
+                ends_at: "2026-08-08T04:00:00Z",
+                event_timezone: "America/Guayaquil",
+                setup_minutes: 0,
+                teardown_minutes: 0,
+                buffer_before_minutes: 0,
+                buffer_after_minutes: 0,
+                is_blocking: true,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.endsWith("/reservations/reservation-hold-1/schedule-history/"))
+        return Promise.resolve(json({ results: [] }));
+      if (url.endsWith("/reservations/reservation-hold-1/reschedule/") && init?.method === "POST")
+        return Promise.resolve(
+          json({
+            previous: { reservation_id: "reservation-hold-1", status: "provisional" },
+            reservation: { id: "reservation-hold-2", status: "provisional" },
+            carried_item_ids: [],
+          }),
+        );
+      return Promise.resolve(json({ error: { code: "unexpected" } }, 500));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Agenda y disponibilidad" })).toBeVisible();
+    const [holdButton] = await screen.findAllByRole("button", { name: /Reserva temporal/ });
+    if (!holdButton) throw new Error("No se encontró la reserva temporal de prueba.");
+    fireEvent.click(holdButton);
+    expect(await screen.findByRole("button", { name: "Confirmar" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reprogramar" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
+    fireEvent.change(screen.getByLabelText("Nuevo espacio"), { target: { value: "space-2" } });
+    fireEvent.change(screen.getByLabelText("Inicio local"), {
+      target: { value: "2026-08-14T18:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Fin local"), {
+      target: { value: "2026-08-14T23:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Razón"), {
+      target: { value: "Cambio solicitado antes de confirmar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar reprogramación" }));
+
+    expect(
+      await screen.findByText("Reserva reprogramada. La fecha anterior permanece en la historia."),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(calendarLoads).toBeGreaterThanOrEqual(2);
+    });
+    const call = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return (
+        url.endsWith("/reservations/reservation-hold-1/reschedule/") && init?.method === "POST"
+      );
+    });
+    expect(call).toBeDefined();
+    const requestBody = call?.[1]?.body;
+    expect(typeof requestBody).toBe("string");
+    if (typeof requestBody !== "string") throw new Error("El POST no contiene JSON serializado.");
+    const body = JSON.parse(requestBody) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      revision: 7,
+      space_id: "space-2",
+      starts_at_local: "2026-08-14T18:00",
+      ends_at_local: "2026-08-14T23:00",
+      timezone: "America/Guayaquil",
+      reason: "Cambio solicitado antes de confirmar",
+      commercial_terms_unchanged: true,
+    });
+    expect(body.idempotency_key).toEqual(expect.any(String));
   });
 
   it("confirma y cancela una reserva conservando la constancia externa", async () => {

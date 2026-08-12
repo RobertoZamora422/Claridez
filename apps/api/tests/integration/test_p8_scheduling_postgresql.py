@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from django.db import IntegrityError, close_old_connections, connection, transaction
+from django.db.models import F
 from django.utils import timezone
 
 from claridez.catalog.services import create_event_type, list_event_types
@@ -28,6 +29,7 @@ from claridez.commercial.services import (
 )
 from claridez.identity.models import User
 from claridez.operations.errors import OperationsError
+from claridez.operations.models import EventPreparation
 from claridez.operations.services import assign_preparation, mark_ready, read_event, update_item
 from claridez.operations.services.transitions import start_event
 from claridez.organizations.capabilities import Capability
@@ -487,6 +489,99 @@ def test_c07_two_reschedules_and_c08_idempotent_retries() -> None:
     )
     assert [status for status, _ in same_key] == ["ok", "ok"]
     assert same_key[0][1]["reservation"]["id"] == same_key[1][1]["reservation"]["id"]
+
+
+def test_provisional_reschedule_concurrency_and_guardian_regression() -> None:
+    owner, organization_id = _owner("provisional-race")
+    source, destination = _space_ids(owner, organization_id, 2)
+    start = timezone.now() + timedelta(days=48)
+    request, quotation = _quote(
+        owner,
+        organization_id,
+        phone="0994111111",
+        starts_at=start,
+        space_id=source,
+    )
+    hold = _accept(owner, organization_id, quotation)
+    original_expiration = hold["hold_expires_at"]
+    target = start + timedelta(days=1)
+    results = _parallel(
+        _reschedule_command(
+            owner,
+            organization_id,
+            hold,
+            destination=destination,
+            start=target,
+            key=uuid4(),
+        ),
+        _reschedule_command(
+            owner,
+            organization_id,
+            hold,
+            destination=destination,
+            start=target,
+            key=uuid4(),
+        ),
+    )
+    assert [status for status, _ in results].count("ok") == 1
+    assert {value for status, value in results if status == "error"} == {"stale_revision"}
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        predecessor = Reservation.objects.get(pk=hold["id"])
+        successors = Reservation.objects.filter(predecessor_id=predecessor.pk)
+        assert predecessor.status == Reservation.Status.RESCHEDULED
+        assert successors.count() == 1
+        successor = successors.get()
+        assert successor.status == Reservation.Status.PROVISIONAL
+        assert successor.root_id == predecessor.root_id
+        assert successor.event_request_id == predecessor.event_request_id
+        assert successor.event_request_id == UUID(str(request["id"]))
+        assert successor.quotation_version_id == predecessor.quotation_version_id
+        assert successor.confirmation_source_id is None
+        assert successor.hold_expires_at == predecessor.hold_expires_at == original_expiration
+        chain = Reservation.objects.filter(root_id=predecessor.root_id)
+        assert chain.filter(status__in=("provisional", "confirmed")).count() == 1
+        assert (
+            ScheduleAllocation.objects.filter(reservation__in=chain, is_blocking=True).count() == 1
+        )
+        assert (
+            ScheduleEvent.objects.filter(
+                root_reservation_id=predecessor.root_id,
+                kind=ScheduleEvent.Kind.RESERVATION_RESCHEDULED,
+            ).count()
+            == 1
+        )
+        assert not EventPreparation.objects.filter(reservation_id__in=chain).exists()
+
+    partial_start = start + timedelta(days=4)
+    _, partial_quotation = _quote(
+        owner,
+        organization_id,
+        phone="0994111112",
+        starts_at=partial_start,
+        space_id=source,
+    )
+    partial_hold = _accept(owner, organization_id, partial_quotation)
+    with (
+        authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE),
+        pytest.raises(IntegrityError),
+        transaction.atomic(),
+    ):
+        Reservation.objects.filter(pk=partial_hold["id"]).update(
+            status=Reservation.Status.RESCHEDULED,
+            revision=F("revision") + 1,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        partial_row = Reservation.objects.get(pk=partial_hold["id"])
+        assert partial_row.status == Reservation.Status.PROVISIONAL
+        assert not Reservation.objects.filter(predecessor_id=partial_row.pk).exists()
+        assert ScheduleAllocation.objects.get(reservation_id=partial_row.pk).is_blocking is True
+        assert not ScheduleEvent.objects.filter(
+            predecessor_id=partial_row.pk,
+            kind=ScheduleEvent.Kind.RESERVATION_RESCHEDULED,
+        ).exists()
 
 
 def test_c09_destination_occupancy_and_c10_destination_block() -> None:

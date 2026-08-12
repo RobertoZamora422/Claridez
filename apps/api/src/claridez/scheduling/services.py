@@ -1375,12 +1375,12 @@ def reschedule_reservation(
             organization_id=auth.organization_id, pk=candidate.root_id
         )
         row = _get_reservation(auth.organization_id, candidate.pk, lock=True)
-        if row.revision != revision:
-            raise conflict("stale_revision", "La reserva cambió; vuelve a cargarla.")
-        if row.status == Reservation.Status.RESCHEDULED:
-            raise conflict("already_rescheduled", "La reserva ya fue reprogramada.")
         if row.status == Reservation.Status.EXPIRED:
             expired = True
+        elif row.revision != revision:
+            raise conflict("stale_revision", "La reserva cambió; vuelve a cargarla.")
+        elif row.status == Reservation.Status.RESCHEDULED:
+            raise conflict("already_rescheduled", "La reserva ya fue reprogramada.")
         elif row.status not in {Reservation.Status.PROVISIONAL, Reservation.Status.CONFIRMED}:
             raise conflict("invalid_transition", "La reserva no puede reprogramarse.")
         elif (

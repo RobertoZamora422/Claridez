@@ -7,10 +7,12 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from django.db import connection
 from django.test import Client
 from django.utils import timezone
 
 from claridez.catalog.services import create_event_type, list_event_types
+from claridez.commercial.models import EventRequest
 from claridez.commercial.services import (
     accept_quotation_version,
     cancel_reservation,
@@ -138,6 +140,25 @@ def _commercial_hold(
         note="Aceptada",
     )
     return request, hold
+
+
+def _force_hold_expired(owner: User, organization_id: UUID, reservation_id: UUID | str) -> None:
+    """Simulate elapsed wall-clock time without changing domain code."""
+
+    with (
+        authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE),
+        connection.cursor() as cursor,
+    ):
+        cursor.execute("ALTER TABLE public.commercial_reservation DISABLE TRIGGER USER")
+        try:
+            cursor.execute(
+                "UPDATE public.commercial_reservation SET hold_expires_at = %s "
+                "WHERE organization_id = %s AND id = %s",
+                [timezone.now() - timedelta(seconds=1), organization_id, reservation_id],
+            )
+            assert cursor.rowcount == 1
+        finally:
+            cursor.execute("ALTER TABLE public.commercial_reservation ENABLE TRIGGER USER")
 
 
 def test_local_time_contract_and_calendar_boundaries() -> None:
@@ -399,6 +420,106 @@ def test_confirmed_reschedule_is_atomic_idempotent_and_preserves_evidence() -> N
         )
 
 
+@pytest.mark.django_db
+def test_provisional_reschedule_preserves_hold_and_never_creates_preparation() -> None:
+    owner, organization_id = _owner("provisional-reschedule")
+    request, hold = _commercial_hold(owner, organization_id, phone="0992233445")
+    venue = list_venues(owner, organization_id)[0]
+    destination = create_space(
+        owner,
+        organization_id,
+        venue_id=venue["id"],
+        name="Espacio sucesor provisional",
+    )
+    original_expiration = hold["hold_expires_at"]
+    key = uuid4()
+    command = {
+        "reservation_id": hold["id"],
+        "revision": hold["revision"],
+        "idempotency_key": key,
+        "space_id": UUID(str(destination["id"])),
+        "starts_at_local": datetime(2026, 10, 18, 18, 0),
+        "ends_at_local": datetime(2026, 10, 18, 23, 0),
+        "timezone_name": "America/Guayaquil",
+        "reason": "Nueva fecha antes de confirmar",
+        "commercial_terms_unchanged": True,
+    }
+
+    result = reschedule_reservation(owner, organization_id, **command)
+    replay = reschedule_reservation(owner, organization_id, **command)
+    assert replay["reservation"]["id"] == result["reservation"]["id"]
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        predecessor = Reservation.objects.get(pk=hold["id"])
+        successor = Reservation.objects.get(pk=result["reservation"]["id"])
+        assert predecessor.status == Reservation.Status.RESCHEDULED
+        assert successor.status == Reservation.Status.PROVISIONAL
+        assert successor.root_id == predecessor.root_id
+        assert successor.event_request_id == predecessor.event_request_id
+        assert successor.event_request_id == UUID(str(request["id"]))
+        assert successor.quotation_version_id == predecessor.quotation_version_id
+        assert successor.predecessor_id == predecessor.pk
+        assert successor.confirmation_source_id is None
+        assert successor.hold_expires_at == predecessor.hold_expires_at == original_expiration
+        assert not EventPreparation.objects.filter(
+            reservation_id__in=(predecessor.pk, successor.pk)
+        ).exists()
+        assert ScheduleAllocation.objects.get(reservation_id=predecessor.pk).is_blocking is False
+        assert ScheduleAllocation.objects.get(reservation_id=successor.pk).is_blocking is True
+        assert (
+            ScheduleEvent.objects.filter(
+                root_reservation_id=predecessor.root_id,
+                kind=ScheduleEvent.Kind.RESERVATION_RESCHEDULED,
+            ).count()
+            == 1
+        )
+        assert Reservation.objects.filter(predecessor_id=predecessor.pk).count() == 1
+        assert EventRequest.objects.get(pk=request["id"]).status == EventRequest.Status.ACCEPTED
+
+    with pytest.raises(SchedulingError) as idempotency_conflict:
+        reschedule_reservation(
+            owner,
+            organization_id,
+            **{**command, "reason": "Otra razón con la misma clave"},
+        )
+    assert idempotency_conflict.value.code == "idempotency_conflict"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_expired_provisional_cannot_be_rescheduled_and_leaves_no_partial_state() -> None:
+    owner, organization_id = _owner("expired-provisional-reschedule")
+    request, hold = _commercial_hold(owner, organization_id, phone="0992233446")
+    _force_hold_expired(owner, organization_id, hold["id"])
+
+    with pytest.raises(SchedulingError) as expired:
+        reschedule_reservation(
+            owner,
+            organization_id,
+            reservation_id=hold["id"],
+            revision=hold["revision"],
+            idempotency_key=uuid4(),
+            space_id=UUID(str(hold["space_id"])),
+            starts_at_local=datetime(2026, 10, 28, 18, 0),
+            ends_at_local=datetime(2026, 10, 28, 23, 0),
+            timezone_name="America/Guayaquil",
+            reason="Intento después del vencimiento",
+            commercial_terms_unchanged=True,
+        )
+    assert expired.value.code == "hold_expired"
+
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        predecessor = Reservation.objects.get(pk=hold["id"])
+        assert predecessor.status == Reservation.Status.EXPIRED
+        assert not Reservation.objects.filter(predecessor_id=predecessor.pk).exists()
+        assert not ScheduleEvent.objects.filter(
+            predecessor_id=predecessor.pk,
+            kind=ScheduleEvent.Kind.RESERVATION_RESCHEDULED,
+        ).exists()
+        assert ScheduleAllocation.objects.get(reservation_id=predecessor.pk).is_blocking is False
+        assert not EventPreparation.objects.filter(reservation_id=predecessor.pk).exists()
+        assert EventRequest.objects.get(pk=request["id"]).status == EventRequest.Status.QUOTED
+
+
 def _authenticated_client(user: User) -> tuple[Client, str]:
     client = Client(enforce_csrf_checks=True)
     login_token = str(client.get("/api/v1/auth/csrf/").json()["csrf_token"])
@@ -497,3 +618,95 @@ def test_scheduling_http_session_csrf_membership_tenant_and_conjunctive_capabili
     membership.suspended_at = timezone.now()
     membership.save(update_fields=["status", "suspended_at", "updated_at"])
     assert client.get(calendar_path, calendar_query).status_code == 404
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reschedule_http_accepts_current_provisional_and_reports_expired_hold() -> None:
+    owner, organization_id = _owner("http-provisional-reschedule")
+    request, hold = _commercial_hold(owner, organization_id, phone="0992233447")
+    venue = list_venues(owner, organization_id)[0]
+    destination = create_space(
+        owner,
+        organization_id,
+        venue_id=venue["id"],
+        name="Destino HTTP provisional",
+    )
+    client, token = _authenticated_client(owner)
+    path = f"/api/v1/organizations/{organization_id}/reservations/{hold['id']}/reschedule/"
+    key = uuid4()
+    payload = {
+        "revision": hold["revision"],
+        "idempotency_key": str(key),
+        "space_id": str(destination["id"]),
+        "starts_at_local": "2026-11-10T18:00",
+        "ends_at_local": "2026-11-10T23:00",
+        "timezone": "America/Guayaquil",
+        "reason": "Cambio provisional por API",
+        "commercial_terms_unchanged": True,
+    }
+    assert (
+        client.post(path, data=json.dumps(payload), content_type="application/json").status_code
+        == 403
+    )
+    response = client.post(
+        path,
+        data=json.dumps(payload),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reservation"]["status"] == Reservation.Status.PROVISIONAL
+    assert body["reservation"]["predecessor_id"] == str(hold["id"])
+    assert body["reservation"]["hold_expires_at"] == hold["hold_expires_at"].isoformat().replace(
+        "+00:00", "Z"
+    )
+    replay = client.post(
+        path,
+        data=json.dumps(payload),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert replay.status_code == 200
+    assert replay.json()["reservation"]["id"] == body["reservation"]["id"]
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        assert EventRequest.objects.get(pk=request["id"]).status == EventRequest.Status.ACCEPTED
+
+    expired_request, expired_hold = _commercial_hold(
+        owner,
+        organization_id,
+        phone="0992233448",
+        starts_at=timezone.now() + timedelta(days=45),
+    )
+    _force_hold_expired(owner, organization_id, expired_hold["id"])
+    expired_path = (
+        f"/api/v1/organizations/{organization_id}/reservations/{expired_hold['id']}/reschedule/"
+    )
+    expired_payload = {
+        **payload,
+        "revision": expired_hold["revision"],
+        "idempotency_key": str(uuid4()),
+        "space_id": str(expired_hold["space_id"]),
+        "starts_at_local": "2026-12-12T18:00",
+        "ends_at_local": "2026-12-12T23:00",
+    }
+    expired_response = client.post(
+        expired_path,
+        data=json.dumps(expired_payload),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert expired_response.status_code == 409
+    assert expired_response.json()["error"]["code"] == "hold_expired"
+    with authorized_tenant_scope(owner, organization_id, Capability.SALES_READ):
+        expired_row = Reservation.objects.get(pk=expired_hold["id"])
+        assert expired_row.status == Reservation.Status.EXPIRED
+        assert not Reservation.objects.filter(predecessor_id=expired_row.pk).exists()
+        assert ScheduleAllocation.objects.get(reservation_id=expired_row.pk).is_blocking is False
+        assert not ScheduleEvent.objects.filter(
+            predecessor_id=expired_row.pk,
+            kind=ScheduleEvent.Kind.RESERVATION_RESCHEDULED,
+        ).exists()
+        assert (
+            EventRequest.objects.get(pk=expired_request["id"]).status == EventRequest.Status.QUOTED
+        )
