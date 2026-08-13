@@ -46,6 +46,16 @@ class Capability(StrEnum):
     CATALOG_PRICE_READ = "catalog_price:read"
     CATALOG_MANAGE = "catalog:manage"
     CATALOG_PRICE_MANAGE = "catalog_price:manage"
+    DOCUMENT_TEMPLATE_READ = "document_template:read"
+    DOCUMENT_TEMPLATE_MANAGE = "document_template:manage"
+    CONTRACTUAL_RECORD_READ = "contractual_record:read"
+    CONTRACTUAL_INSTRUMENT_ISSUE = "contractual_instrument:issue"
+    CONTRACTUAL_ACCEPTANCE_READ = "contractual_acceptance:read"
+    DOCUMENT_ARTIFACT_DOWNLOAD = "document_artifact:download"
+    DOCUMENT_EXTERNAL_FILE_MANAGE = "document_external_file:manage"
+    DOCUMENT_EXTERNAL_ACCESS_MANAGE = "document_external_access:manage"
+    DOCUMENT_RETENTION_READ = "document_retention:read"
+    DOCUMENT_RETENTION_MANAGE = "document_retention:manage"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -87,6 +97,16 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.CATALOG_PRICE_READ,
                 Capability.CATALOG_MANAGE,
                 Capability.CATALOG_PRICE_MANAGE,
+                Capability.DOCUMENT_TEMPLATE_READ,
+                Capability.DOCUMENT_TEMPLATE_MANAGE,
+                Capability.CONTRACTUAL_RECORD_READ,
+                Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
+                Capability.CONTRACTUAL_ACCEPTANCE_READ,
+                Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
+                Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
+                Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
+                Capability.DOCUMENT_RETENTION_READ,
+                Capability.DOCUMENT_RETENTION_MANAGE,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -125,6 +145,16 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.CATALOG_PRICE_READ,
                 Capability.CATALOG_MANAGE,
                 Capability.CATALOG_PRICE_MANAGE,
+                Capability.DOCUMENT_TEMPLATE_READ,
+                Capability.DOCUMENT_TEMPLATE_MANAGE,
+                Capability.CONTRACTUAL_RECORD_READ,
+                Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
+                Capability.CONTRACTUAL_ACCEPTANCE_READ,
+                Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
+                Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
+                Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
+                Capability.DOCUMENT_RETENTION_READ,
+                Capability.DOCUMENT_RETENTION_MANAGE,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -149,6 +179,13 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.VENUE_READ,
                 Capability.CATALOG_READ,
                 Capability.CATALOG_PRICE_READ,
+                Capability.DOCUMENT_TEMPLATE_READ,
+                Capability.CONTRACTUAL_RECORD_READ,
+                Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
+                Capability.CONTRACTUAL_ACCEPTANCE_READ,
+                Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
+                Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
+                Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -165,6 +202,8 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.VENUE_READ,
                 Capability.CATALOG_READ,
+                Capability.CONTRACTUAL_RECORD_READ,
+                Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
             }
         ),
         Membership.Role.FINANCE: frozenset(

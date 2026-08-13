@@ -63,4 +63,5 @@ urlpatterns = [
     path("<uuid:organization_id>/", include("claridez.commercial.urls")),
     path("<uuid:organization_id>/", include("claridez.crm.urls")),
     path("<uuid:organization_id>/", include("claridez.scheduling.urls")),
+    path("<uuid:organization_id>/", include("claridez.documents.urls")),
 ]

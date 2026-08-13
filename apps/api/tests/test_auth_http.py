@@ -279,4 +279,10 @@ def test_openapi_contains_only_the_nine_approved_authentication_endpoints() -> N
 
 def test_root_routes_keep_health_and_mount_only_the_approved_api_groups() -> None:
     routes = {str(pattern.pattern) for pattern in get_resolver().url_patterns}
-    assert routes == {"health", "ready", "api/v1/auth/", "api/v1/organizations/"}
+    assert routes == {
+        "health",
+        "ready",
+        "api/v1/auth/",
+        "api/v1/organizations/",
+        "api/v1/external/documents/",
+    }

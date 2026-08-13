@@ -13,10 +13,13 @@ Windows nativo
 ├── Django / uv
 ├── React, Vite / npm
 └── Docker Desktop
-    └── PostgreSQL 17 en contenedor
-        ├── puerto interno 5432
-        ├── publicación 127.0.0.1:55432 por defecto
-        └── volumen claridez_postgres17_data
+    ├── PostgreSQL 17 en contenedor
+        ├── puerto interno 5432
+        ├── publicación 127.0.0.1:55432 por defecto
+        └── volumen claridez_postgres17_data
+    └── perfil opcional documents
+        ├── ClamAV privado, 127.0.0.1:3310
+        └── worker y renderer canónico Linux
 ```
 
 PostgreSQL no se publica en `0.0.0.0`. La red del host solo recibe la vinculación de loopback declarada en `compose.yaml`.
@@ -156,6 +159,10 @@ Ejecutar desde la raíz en PowerShell:
 | `npm run check` | Puerta reproducible sin auditorías ni integración real |
 | `npm run check:all` | Añadir conexión, migraciones e integración PostgreSQL |
 | `npm run db:reset -- --confirm-local-data-loss` | Recrear solo `claridez_local` y eliminar la base efímera de prueba |
+| `npm run documents:start` | Iniciar ClamAV y el worker/renderer canónico del perfil `documents` |
+| `npm run documents:status` | Mostrar estado de scanner y worker sin exponer secretos |
+| `npm run documents:logs` | Mostrar las últimas 200 líneas del perfil documental |
+| `npm run documents:stop` | Detener scanner y worker sin eliminar objetos ni volúmenes |
 
 Inicio nuevo recomendado:
 
@@ -234,7 +241,10 @@ RLS silenciosamente.
 
 ## Datos y recuperación
 
-El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una copia de seguridad. Los procedimientos de dump, restore, retención y recuperación se definirán cuando existan datos funcionales y objetivos reales de recuperación.
+El volumen sobrevive a detener y recrear el contenedor. Esto no sustituye una copia de seguridad.
+P9 define la coherencia PostgreSQL–objetos y el ensayo obligatorio posterior a una restauración en
+[Plataforma documental de P9](DOCUMENT_PLATFORM.md). Aún no existen comandos generales `db:dump`
+o `db:restore`, ni una política productiva de RPO/RTO.
 
 ## Evidencia de salida
 

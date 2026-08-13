@@ -55,6 +55,72 @@ function CloseLostAction({
   );
 }
 
+function ReservationDocumentStatus({
+  organizationId,
+  reservation,
+}: {
+  organizationId: string;
+  reservation: Reservation;
+}) {
+  const [status, setStatus] = useState<{
+    status: string;
+    label?: string;
+    instruments: { versions: { acceptance: object | null; state: string }[] }[];
+    materiality?: { status: string; changes: string[] } | null;
+  } | null>(null);
+  const [error, setError] = useState("");
+  const rootId = reservation.root_id ?? reservation.id;
+  const load = useCallback(async () => {
+    try {
+      setStatus(
+        await api(
+          `/api/v1/organizations/${organizationId}/documents/records/?root_reservation_id=${encodeURIComponent(rootId)}`,
+        ),
+      );
+    } catch (caught) {
+      setError(message(caught));
+    }
+  }, [organizationId, rootId]);
+  useInitialLoad(load);
+  const issued = status?.instruments.flatMap((instrument) => instrument.versions) ?? [];
+  return (
+    <section className="panel" aria-labelledby="reservation-documents-title">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Expediente contractual</p>
+          <h2 id="reservation-documents-title">Estado documental</h2>
+        </div>
+        {status ? <StatusBadge value={status.status} /> : null}
+      </div>
+      {error ? <Notice>{error}</Notice> : null}
+      {!status ? (
+        <Loading label="Consultando evidencia documental…" />
+      ) : status.status === "no_contract_issued" ? (
+        <p>sin contrato emitido</p>
+      ) : (
+        <dl className="details">
+          <div>
+            <dt>Instrumentos</dt>
+            <dd>{status.instruments.length}</dd>
+          </div>
+          <div>
+            <dt>Emisiones</dt>
+            <dd>{issued.length}</dd>
+          </div>
+          <div>
+            <dt>Aceptaciones</dt>
+            <dd>{issued.filter((version) => version.acceptance !== null).length}</dd>
+          </div>
+          <div>
+            <dt>Materialidad</dt>
+            <dd>{status.materiality?.status ?? "sin emisión que comparar"}</dd>
+          </div>
+        </dl>
+      )}
+    </section>
+  );
+}
+
 export function RequestDetail({
   organizationId,
   requestId,
@@ -189,12 +255,17 @@ export function RequestDetail({
         onChanged={load}
       />
       {reservation && (
-        <ReservationActions
-          organizationId={organizationId}
-          reservation={reservation}
-          capabilities={capabilities}
-          onChanged={load}
-        />
+        <>
+          <ReservationActions
+            organizationId={organizationId}
+            reservation={reservation}
+            capabilities={capabilities}
+            onChanged={load}
+          />
+          {capabilities.has("contractual_record:read") ? (
+            <ReservationDocumentStatus organizationId={organizationId} reservation={reservation} />
+          ) : null}
+        </>
       )}
       {(request.status === "new" || request.status === "quoted") &&
         capabilities.has("sales:manage") && (

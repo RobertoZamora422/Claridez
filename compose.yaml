@@ -33,6 +33,49 @@ services:
       start_period: 10s
     stop_grace_period: 30s
 
+  clamav:
+    image: clamav/clamav:1.4@sha256:7173cd3d57a839c6fee673b07246301e0d1f68f5a14a5ca063f502323bf1cc61
+    platform: linux/amd64
+    container_name: claridez-clamav-local
+    profiles: ["documents"]
+    restart: "on-failure:3"
+    ports:
+      - "127.0.0.1:${CLARIDEZ_DOCUMENT_SCANNER_PORT:-3310}:3310"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 6m
+    stop_grace_period: 30s
+
+  document-worker:
+    build:
+      context: .
+      dockerfile: apps/api/docker/render-worker.Dockerfile
+    image: claridez/document-worker:p9-local
+    platform: linux/amd64
+    container_name: claridez-document-worker-local
+    profiles: ["documents"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CLARIDEZ_DB_HOST: postgres
+      CLARIDEZ_DB_PORT: 5432
+      CLARIDEZ_DOCUMENT_SCANNER_HOST: clamav
+      CLARIDEZ_DOCUMENT_SCANNER_PORT: 3310
+      CLARIDEZ_DOCUMENT_RENDERER_ENVIRONMENT: claridez-render-weasyprint-69.0-debian12-v1
+    volumes:
+      - ./.runtime/documents:/workspace/.runtime/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    command: ["--max-seconds", "86400"]
+    stop_grace_period: 30s
+
 volumes:
   claridez_postgres17_data:
     name: claridez_postgres17_data

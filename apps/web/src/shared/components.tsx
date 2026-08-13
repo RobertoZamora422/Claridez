@@ -16,6 +16,20 @@ const STATUS_LABELS: Record<string, string> = {
   active: "Activo",
   released: "Liberado",
   rescheduled: "Reprogramada",
+  inactive: "Inactiva",
+  published: "Publicada",
+  pending_render: "Pendiente de render",
+  rendering: "Renderizando",
+  render_failed: "Render fallido",
+  quarantined: "En cuarentena",
+  pending_scan: "Pendiente de análisis",
+  clean: "Limpio",
+  infected: "Infectado",
+  rejected: "Rechazado",
+  scan_error: "Error de análisis",
+  retain: "Conservar",
+  held: "Legal hold",
+  eligible: "Elegible para disposición",
 };
 
 export function StatusBadge({ value }: { value: string }) {

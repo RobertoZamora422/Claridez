@@ -262,7 +262,8 @@ def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() 
 
     with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
         Reservation.objects.filter(pk=provisional["id"]).update(
-            hold_expires_at=timezone.now() - timedelta(seconds=1),
+            # Debe preceder inequÃ­vocamente al transaction_timestamp() del test.
+            hold_expires_at=timezone.now() - timedelta(days=1),
             revision=F("revision") + 1,
         )
     agenda = list_availability(

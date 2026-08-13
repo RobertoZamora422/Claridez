@@ -358,5 +358,56 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/complete/"): {
             "post"
         },
+        "/api/v1/organizations/{organization_id}/documents/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/documents/templates/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/documents/templates/{template_id}/versions/": {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/documents/templates/{template_id}/active/": {
+            "patch"
+        },
+        "/api/v1/organizations/{organization_id}/documents/template-versions/{version_id}/": {
+            "patch"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/documents/template-versions/"
+            "{version_id}/publish/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/documents/template-versions/"
+            "{version_id}/inactivate/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/documents/preview/": {"post"},
+        "/api/v1/organizations/{organization_id}/documents/records/": {"get", "post"},
+        ("/api/v1/organizations/{organization_id}/documents/records/{record_id}/instruments/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/documents/instruments/{instrument_id}/issue/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/documents/artifacts/{artifact_id}/download/"): {
+            "get"
+        },
+        "/api/v1/organizations/{organization_id}/documents/external-files/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/documents/external-files/"
+            "{external_file_id}/download/"
+        ): {"get"},
+        "/api/v1/organizations/{organization_id}/documents/grants/": {"post"},
+        "/api/v1/organizations/{organization_id}/documents/grants/{grant_id}/revoke/": {"post"},
+        "/api/v1/organizations/{organization_id}/documents/retention/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/documents/retention/assignments/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/documents/retention/assignments/"
+            "{assignment_id}/eligibility/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/documents/retention/holds/": {"post"},
+        ("/api/v1/organizations/{organization_id}/documents/retention/holds/{hold_id}/release/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/documents/retention/policies/"
+            "{policy_id}/activate/"
+        ): {"post"},
     }
     assert organization_paths == expected_paths

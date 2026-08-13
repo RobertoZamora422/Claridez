@@ -43,6 +43,58 @@ class ScheduleChangeProjection:
     cutover: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ContractualScheduleProjection:
+    organization_id: UUID
+    event_request_id: UUID
+    root_reservation_id: UUID
+    current_reservation_id: UUID
+    quotation_version_id: UUID
+    venue_id: UUID
+    space_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+    status: str
+    revision: int
+    cancelled_at: datetime | None
+    chain_reservation_ids: tuple[UUID, ...]
+
+
+def contractual_schedule(
+    authorization: TenantAuthorization, root_reservation_id: UUID
+) -> ContractualScheduleProjection:
+    from .models import Reservation
+
+    chain = tuple(
+        Reservation.objects.select_related("space")
+        .filter(
+            organization_id=authorization.organization_id,
+            root_id=root_reservation_id,
+        )
+        .order_by("created_at", "id")
+    )
+    if not chain or chain[0].root_id != root_reservation_id:
+        raise SchedulingError("not_found", "La raíz de reserva no está disponible.", status=404)
+    current = chain[-1]
+    return ContractualScheduleProjection(
+        organization_id=current.organization_id,
+        event_request_id=current.event_request_id,
+        root_reservation_id=current.root_id,
+        current_reservation_id=current.pk,
+        quotation_version_id=current.quotation_version_id,
+        venue_id=current.space.venue_id,
+        space_id=current.space_id,
+        starts_at=current.event_interval.lower,
+        ends_at=current.event_interval.upper,
+        timezone_name=current.event_timezone,
+        status=current.status,
+        revision=current.revision,
+        cancelled_at=current.cancelled_at,
+        chain_reservation_ids=tuple(row.pk for row in chain),
+    )
+
+
 def expire_overdue_for_organization(authorization: TenantAuthorization) -> int:
     from .services import expire_overdue_for_organization as implementation
 
@@ -182,9 +234,11 @@ def legacy_availability_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 __all__ = (
     "ReservationProjection",
+    "ContractualScheduleProjection",
     "ScheduleChangeProjection",
     "SchedulingError",
     "confirmed_event_request_ids",
+    "contractual_schedule",
     "close_provisional_hold",
     "cancel_command",
     "confirm_command",

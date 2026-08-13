@@ -3,16 +3,23 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type Organization, type User } from "./api";
 import { Workspace } from "./app/Workspace";
 import { LoginScreen } from "./features/authentication/LoginScreen";
+import { ExternalDocumentView } from "./features/documents/ExternalDocumentView";
 import { OrganizationPicker } from "./features/organizations/OrganizationPicker";
 import { Loading, Notice } from "./shared/components";
 import { message } from "./shared/utilities";
 import "./styles.css";
 
 export function App() {
+  const isExternalExchange = window.location.pathname === "/documents/access";
+  const externalToken = isExternalExchange
+    ? decodeURIComponent(window.location.hash.replace(/^#/, "")) || null
+    : null;
+  const isExternalDocument =
+    isExternalExchange || window.location.pathname === "/documents/external";
   const [user, setUser] = useState<User | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isExternalDocument);
   const [error, setError] = useState("");
   const loadOrganizations = useCallback(async () => {
     const [list, context] = await Promise.all([
@@ -23,6 +30,9 @@ export function App() {
     setOrganization(context.organization);
   }, []);
   useEffect(() => {
+    if (isExternalDocument) {
+      return;
+    }
     void api<{ user: User }>("/api/v1/auth/me/")
       .then(async (body) => {
         setUser(body.user);
@@ -34,7 +44,7 @@ export function App() {
       .finally(() => {
         setLoading(false);
       });
-  }, [loadOrganizations]);
+  }, [isExternalDocument, loadOrganizations]);
   async function selectOrganization(selected: Organization) {
     const body = await api<{ organization: Organization }>("/api/v1/organizations/context/", {
       method: "POST",
@@ -42,6 +52,7 @@ export function App() {
     });
     setOrganization(body.organization);
   }
+  if (isExternalDocument) return <ExternalDocumentView token={externalToken} />;
   if (loading)
     return (
       <main className="center-layout">

@@ -26,7 +26,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
-  if (init.body !== undefined) headers.set("Content-Type", "application/json");
+  if (init.body !== undefined && !(init.body instanceof FormData))
+    headers.set("Content-Type", "application/json");
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRFToken", await csrf());
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const body = (await response.json().catch(() => null)) as {
@@ -36,6 +37,24 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(
       body?.error?.code ?? "request_failed",
       body?.error?.message ?? "No fue posible completar la operación.",
+      response.status,
+    );
+  }
+  return body as T;
+}
+
+export async function externalApi<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body !== undefined) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string };
+  } | null;
+  if (!response.ok) {
+    throw new ApiError(
+      body?.error?.code ?? "external_access_failed",
+      body?.error?.message ?? "El acceso documental no está disponible.",
       response.status,
     );
   }

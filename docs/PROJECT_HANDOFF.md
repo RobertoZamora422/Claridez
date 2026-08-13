@@ -1,9 +1,8 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 12 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P8 está completada y validada localmente
-- **Siguiente etapa:** P9 — Contratos, documentos y archivos; plan y ADR 0017–0018 aprobados,
-  implementación todavía no autorizada
+- **Fecha de corte:** 13 de agosto de 2026
+- **Etapa funcional activa:** ninguna; P9 está completada y validada localmente
+- **Siguiente etapa:** P10 — Cobros y cuentas por cobrar; pendiente de plan y aprobación
 
 ## Qué es Claridez
 
@@ -20,7 +19,8 @@ duplica: registra cómo continuar desde el checkout real.
 - Monorepo y monolito modular.
 - Backend Django 5.2/DRF bajo `apps/api`, API JSON `/api/v1` y OpenAPI generado.
 - Frontend React 19, TypeScript estricto y Vite bajo `apps/web`.
-- PostgreSQL 17 en todos los ambientes; localmente solo PostgreSQL usa Docker.
+- PostgreSQL 17 en todos los ambientes; localmente PostgreSQL, ClamAV y el worker documental
+  canónico usan Docker/Compose.
 - Sesiones Django de servidor y CSRF; autorización backend-first por capacidades.
 - Datos privados dentro de `authorized_tenant_scope` y RLS `ENABLE` + `FORCE`.
 - `docs/product`: destino, roadmap y contratos funcionales.
@@ -54,17 +54,22 @@ duplica: registra cómo continuar desde el checkout real.
   indicadores.
 - `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
   coordinación atómica con comercial.
+- `claridez.documents`: plantillas/versiones; expediente por raíz; instrumentos y emisiones
+  inmutables; snapshot contractual y artefacto PDF con hashes separados; aceptación propia;
+  grants/challenges externos; archivos privados; retención/holds; integridad, malware y jobs
+  durables PostgreSQL mediante puertos estrechos.
 - Web: autenticación, selector organizacional, agenda responsive diaria/semanal/mensual con
   filtros y carriles/listas, políticas, bloqueos, reprogramación guiada, cancelación, historia y
   exportación; solicitudes/cotizaciones/reservas, operación, configuración/catálogo y CRM con
-  bandeja, persona integral, timeline, interacciones, tareas, consentimiento y fusión.
+  bandeja, persona integral, timeline, interacciones, tareas, consentimiento y fusión; backoffice
+  documental y experiencia externa mínima responsive para lectura, descarga y aceptación.
 
-No existen aún los módulos de P9 en adelante. No hay módulos financieros, contratos/archivos,
-portal, proveedores productivos de correo/identidad, staging ni producción.
+No existen aún los módulos de P10 en adelante. No hay módulos financieros ni portal completo, ni
+proveedores productivos de almacenamiento/correo/identidad, staging o producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2, P6, P7 y P8: completadas y validadas localmente.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2, P6, P7, P8 y P9: completadas y validadas localmente.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -113,20 +118,38 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   snapshot aceptado y solo los ítems libres permitidos se trasladan pendientes con procedencia.
   CRM deriva “requiere revisión” desde una proyección inmutable sin mutar tareas ni importar ORM de
   scheduling.
-- `npm run check:all` pasó con los toolchains fijados: 158 pruebas API no integración, 64 de
-  integración PostgreSQL y 19 frontend, además de formato, lint, tipos, migraciones, OpenAPI y
-  builds. Incluye C01–C18, dos tenants, RLS, roles reales, SQL directo, bulk, idempotencia,
-  migraciones desde cero/P6/P7 y regresión 5.1/5.2/P6/P7. `npm run audit` terminó sin
-  vulnerabilidades conocidas y `git diff --check` pasó.
+- P9 separa `ContractualRecord`, `ContractualInstrument`, `IssuedInstrumentVersion`,
+  `GeneratedArtifact` y `AcceptanceEvidence`. La cotización aceptada es la única fuente comercial;
+  el snapshot semántico y el PDF exacto tienen SHA-256 distintos y ninguna aceptación se transfiere
+  a otros bytes. Reprogramación/cancelación solo se consumen desde scheduling y no alteran P8.
+- El renderer canónico usa WeasyPrint 69.0 dentro de Debian 12/Python 3.13.14 fijados por digest,
+  fuentes/assets fijados y fetcher fail-closed. El spike repitió un PDF realista de 1.060.929 bytes
+  con SHA-256 `93ee73e8fdddcf87d47a5fd1860e38b79cac95260dfb0964731ec44ffcb23d66` y bloqueó HTTP/`file://`.
+- El puerto de almacenamiento privado incluye filesystem local y adaptador S3-compatible
+  create-only. ClamAV 1.4.6/firma 28087 distinguió limpio, EICAR y timeout; solo `clean` permite
+  descargar uploads externos PDF/JPEG/PNG. `DocumentJob` implementa `SKIP LOCKED`, leases,
+  at-least-once, idempotencia, backoff, retries y fallo terminal append-only.
+- P9 aplica diez capabilities documentales propias. Propietario/administrador tienen la matriz
+  completa; comercial recibe la superficie aprobada; operaciones solo lectura/descarga con
+  relación `EventPreparation` real; finanzas no recibe capacidades documentales. No existe
+  destrucción física ni capability interna para aceptar por el cliente.
+- Siete migraciones documentales pasan desde cero y desde P8 final sin backfill ficticio. Las 22
+  tablas privadas tienen `ENABLE` + `FORCE RLS`, FKs tenant-aware y privilegios mínimos; pruebas
+  con `claridez_app`, ORM, bulk, SQL directo y dos tenants bloquean acceso cruzado.
+- `npm run check:all` pasó el 13 de agosto con los toolchains fijados: 185 pruebas API no
+  integración, 72 de integración PostgreSQL y 22 frontend, además de locks, formato, lint, tipos,
+  migraciones, OpenAPI y builds. `npm run audit` terminó sin vulnerabilidades conocidas tras
+  actualizar `pypdf` a 6.15.0; `git diff --check` se repite en el cierre final.
+- El navegador real comprobó el enlace documental inválido en viewport normal y 390×844: falló
+  cerrado sin revelar documento ni organización y sin errores de consola. También comprobó que la
+  ruta interna conserva el inicio de sesión normal; los flujos autenticados completos quedan
+  cubiertos por las pruebas HTTP y de componentes, no se presentan como recorrido manual.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
   conflicto de bloqueo, liberación, hold, confirmación, reprogramación, comparación, consecuencias
   operativas, cancelación, historia, `.ics`, teclado y scroll sin overflow horizontal ni errores de
   consola.
-- El plan de P9 y su formalización arquitectónica están aprobados mediante ADR 0017 y ADR 0018.
-  `claridez.documents`, sus tablas, capacidades, endpoints, jobs, almacenamiento, renderer y
-  frontend todavía no existen; no se presenta P9 como implementada.
 
 ## Decisiones cerradas
 
@@ -145,18 +168,20 @@ portal, proveedores productivos de correo/identidad, staging ni producción.
   acceso externo, autorización conjuntiva y retención sin destrucción física: ADR 0017.
 - Entorno canónico de render, checksums separados, almacenamiento privado, uploads externos,
   malware y primer mecanismo asíncrono durable: ADR 0018.
-- Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8.
+- Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8; P9 se rige por ADR
+  0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
 
-- Proveedores de staging/producción, correo, WhatsApp, almacenamiento, renderer, malware y
-  observabilidad.
+- Proveedores de staging/producción, correo, WhatsApp, almacenamiento y malware gestionado;
+  dimensionamiento/observabilidad productivos del renderer y worker.
 - MFA productiva, OIDC y `ExternalIdentity`; identidad/autorización siguen siendo locales.
-- ADR 0018 aprueba para P9 un ledger durable de jobs PostgreSQL y ejecución at-least-once; el
-  framework/runner, dimensionamiento y una eventual cola o broker externos continúan abiertos.
-- Datos legales, método y texto de aceptación, representación, materialidad, política detallada de
-  privacidad/retención y firma electrónica acreditada.
+- P9 implementa el ledger durable PostgreSQL y runner canónico; dimensionamiento y una eventual
+  cola/broker externos continúan abiertos detrás del puerto operativo.
+- Datos legales obligatorios, representación, política de materialidad, política detallada de
+  privacidad/retención, mecanismos de atribución superiores y firma electrónica acreditada. El
+  método base se identifica únicamente como aceptación electrónica propia.
 - Facturación electrónica, contabilidad formal, aplicaciones nativas, marketplace, IA avanzada,
   expansión internacional y constructor web libre.
 - Planes y cobro de suscripciones de Claridez, posteriores al producto funcional.
@@ -181,8 +206,8 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluidos ADR 0016–0018; para P9 deben preservarse
-   la reserva vigente, evidencia comercial, historia de agenda y preparación operativa ya cerradas.
+5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluidos ADR 0016–0018; P10 no puede redefinir la
+   evidencia comercial, documental o de agenda ya cerrada.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -220,6 +245,10 @@ npm run audit
 requiere PostgreSQL local preparado. `audit` usa servicios de red. No ejecutar
 `docker compose down -v` como reset normal.
 
+El perfil documental local se opera con `npm run documents:start|status|logs|stop`; su runbook de
+render, almacenamiento, backup/restauración, malware y jobs está en
+[DOCUMENT_PLATFORM.md](architecture/DOCUMENT_PLATFORM.md).
+
 ## Modelo permanente de trabajo
 
 1. Leer Blueprint, Roadmap y Handoff.
@@ -238,13 +267,11 @@ transversales, irreversibles o relacionadas con datos, seguridad, infraestructur
 límites arquitectónicos. Una nota corta de etapa puede aclarar contratos reversibles cuando haga
 falta.
 
-## Próximo trabajo autorizado
+## Próximo trabajo
 
-P8 está cerrada. El plan y la arquitectura de **P9 — Contratos, documentos y archivos** están
-aprobados mediante ADR 0017–0018, pero su implementación no está autorizada. El siguiente paso es
-la aprobación de revisión de estos ADR y una autorización explícita para implementar P9; antes de
-cada superficie afectada deberán cerrarse sus decisiones pendientes sobre datos legales,
-aceptación, representación, materialidad, retención, almacenamiento, renderer, malware y runner.
+P9 está cerrada localmente. La siguiente etapa del Roadmap es **P10 — Cobros y cuentas por cobrar**.
+Antes de implementarla corresponde revisar las fuentes maestras y presentar únicamente su plan
+breve y decisiones realmente bloqueantes; P10 no está autorizada por este cierre.
 
 ## Riesgos actuales
 
@@ -259,8 +286,9 @@ aceptación, representación, materialidad, retención, almacenamiento, renderer
 - Correo es local; recuperación/verificación externas no están listas para clientes reales.
 - La política legal definitiva de retención, anonimización y eliminación de personas sigue
   diferida; P7 no concede capacidades ni endpoints para ejecutarlas.
-- Los puertos y límites de P9 están decididos, pero proveedor de almacenamiento, renderer,
-  scanner, runner y políticas jurídicas siguen requiriendo spikes o aprobación antes de su parte.
+- Antes de desplegar P9 se debe seleccionar y ensayar el almacenamiento/backup productivo, operar
+  scanner y worker con observabilidad, fijar secretos estables y aprobar las políticas jurídicas
+  aplicables. La disposición física permanece ausente, no meramente deshabilitada.
 - No se ha observado una ejecución remota de CI ni existe ambiente desplegado.
 
 ## Reporte de cierre obligatorio

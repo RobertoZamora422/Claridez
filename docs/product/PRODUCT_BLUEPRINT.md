@@ -356,6 +356,12 @@ archivos, exportaciones, recordatorios programados y agregados analíticos. Al i
 se debe decidir cola, outbox, idempotencia, reintentos, dead letters, orden, monitoreo y operación
 mediante ADR. Ninguna notificación puede ser la única defensa de una invariante transaccional.
 
+P9 implementa el primer caso mediante un ledger durable de jobs PostgreSQL, claim concurrente con
+`SKIP LOCKED`, leases recuperables, ejecución at-least-once, idempotencia, retries acotados y fallo
+terminal observable. Procesa render, verificación de integridad, finalización de uploads y malware
+sin introducir Redis ni broker. No anticipa todavía el outbox o la infraestructura de mensajería de
+etapas posteriores.
+
 ## 14. Analítica y administración interna
 
 ### Analítica del negocio

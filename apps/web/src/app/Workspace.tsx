@@ -6,12 +6,14 @@ import { AgendaView } from "../features/agenda/AgendaView";
 import { CatalogView } from "../features/catalog/CatalogView";
 import { ConfigurationView } from "../features/configuration/ConfigurationView";
 import { CRMView } from "../features/crm/CRMView";
+import { DocumentsView } from "../features/documents/DocumentsView";
 import { OperationsView } from "../features/operations/OperationsView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
 
-type Page = "agenda" | "crm" | "requests" | "operations" | "catalog" | "configuration";
+type Page =
+  "agenda" | "crm" | "requests" | "operations" | "catalog" | "documents" | "configuration";
 
 export function Workspace({
   user,
@@ -49,6 +51,9 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/scheduling/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/documents/capabilities/`,
+      ),
     ])
       .then(
         ([
@@ -58,6 +63,7 @@ export function Workspace({
           configurationBody,
           crmBody,
           scheduleBody,
+          documentsBody,
         ]) => {
           setCapabilities(
             new Set([
@@ -66,6 +72,7 @@ export function Workspace({
               ...configurationBody.capabilities,
               ...crmBody.capabilities,
               ...scheduleBody.capabilities,
+              ...documentsBody.capabilities,
             ]),
           );
           setTimeZone(settingsBody.settings.timezone);
@@ -135,6 +142,17 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">◇</span>Catálogo
+              </button>
+            ) : null}
+            {capabilities.has("contractual_record:read") ? (
+              <button
+                aria-current={page === "documents" ? "page" : undefined}
+                onClick={() => {
+                  setPage("documents");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">▤</span>Documentos
               </button>
             ) : null}
             {capabilities.has("business_configuration:manage") ? (
@@ -220,6 +238,17 @@ export function Workspace({
             Catálogo
           </button>
         ) : null}
+        {capabilities.has("contractual_record:read") ? (
+          <button
+            aria-current={page === "documents" ? "page" : undefined}
+            onClick={() => {
+              setPage("documents");
+              setSelectedRequest(null);
+            }}
+          >
+            Documentos
+          </button>
+        ) : null}
         {capabilities.has("business_configuration:manage") ? (
           <button
             aria-current={page === "configuration" ? "page" : undefined}
@@ -269,6 +298,8 @@ export function Workspace({
             canReadPrices={capabilities.has("catalog_price:read")}
             canManagePrices={capabilities.has("catalog_price:manage")}
           />
+        ) : page === "documents" ? (
+          <DocumentsView organizationId={organization.id} capabilities={capabilities} />
         ) : (
           <ConfigurationView
             organizationId={organization.id}

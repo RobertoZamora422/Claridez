@@ -22,6 +22,163 @@
   --shadow-md: 0 16px 36px rgb(20 57 51 / 14%);
 }
 
+/* P9 — contratos, evidencia documental y acceso externo */
+.documents-page,
+.external-document-shell,
+.external-document-card,
+.document-card,
+.document-version,
+.preview-shell {
+  min-width: 0;
+}
+
+.document-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1rem;
+}
+
+.document-card,
+.document-version,
+.preview-shell,
+.acceptance-panel {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.document-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.document-version {
+  display: grid;
+  gap: 0.65rem;
+  overflow-wrap: anywhere;
+}
+
+.document-version code,
+.document-facts code {
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.template-editor textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.preview-shell {
+  border: 2px dashed #b45309;
+  background: #fff7ed;
+}
+
+.preview-shell > strong {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: #9a3412;
+  text-align: center;
+}
+
+.preview-shell iframe,
+.document-pdf-frame {
+  width: 100%;
+  min-height: 38rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: white;
+}
+
+.external-document-shell {
+  display: grid;
+  gap: 1rem;
+  width: min(100% - 2rem, 70rem);
+  margin: 0 auto;
+  padding: 1.25rem 0 3rem;
+}
+
+.external-document-brand {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.external-document-card {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.document-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.document-facts div {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+}
+
+.document-facts dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.document-facts dd {
+  margin: 0;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.check-row input {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+@media (max-width: 680px) {
+  .document-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-shell iframe,
+  .document-pdf-frame {
+    min-height: 28rem;
+  }
+
+  .external-document-brand {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* P8 — agenda conectada a reservas, bloqueos y operación */
 .schedule-page,
 .schedule-layout,

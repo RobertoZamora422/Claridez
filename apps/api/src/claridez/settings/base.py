@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "claridez.scheduling.apps.SchedulingConfig",
     "claridez.crm.apps.CrmConfig",
     "claridez.operations.apps.OperationsConfig",
+    "claridez.documents.apps.DocumentsConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -115,6 +116,11 @@ SPECTACULAR_SETTINGS = {
         "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
         "SchedulingReservationStatus": "claridez.scheduling.models.Reservation.Status",
         "SchedulingBlockStatus": "claridez.scheduling.models.ScheduleBlock.Status",
+        "DocumentTemplateVersionStatus": (
+            "claridez.documents.models.DocumentTemplateVersion.Status"
+        ),
+        "IssuedInstrumentVersionState": ("claridez.documents.models.IssuedInstrumentVersion.State"),
+        "ExternalDocumentFileState": "claridez.documents.models.ExternalFile.State",
     },
 }
 

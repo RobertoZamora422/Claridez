@@ -123,3 +123,25 @@ def authorized_tenant_scope(
                 if previous_membership_context is not None:
                     _restore_local_membership_context(previous_membership_context)
                 _restore_local_organization_context(previous_context)
+
+
+@contextmanager
+def infrastructure_tenant_scope(
+    organization_reference: UUID | str, *, purpose: str
+) -> Iterator[None]:
+    """Scope privado para workers y sesiones externas autenticadas por su propio mecanismo."""
+    if purpose not in {"document_worker", "external_document_session"}:
+        raise TenantAccessDenied("El propósito de infraestructura no está autorizado.")
+    organization_id = _organization_id(organization_reference)
+    active_organization = _current_organization.get()
+    if active_organization is not None and active_organization != organization_id:
+        raise ConflictingTenantScope("No se permite cambiar de organización dentro del scope.")
+    with transaction.atomic():
+        previous_context = _set_local_organization_context(str(organization_id))
+        token = _current_organization.set(organization_id)
+        try:
+            yield
+        finally:
+            _current_organization.reset(token)
+            if not connection.needs_rollback:
+                _restore_local_organization_context(previous_context)

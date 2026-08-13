@@ -94,7 +94,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2, P6, P7 y P8 están completadas. 4.1 incorpora el usuario
+5.2, P6, P7, P8 y P9 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -113,12 +113,17 @@ P8 incorpora `claridez.scheduling` como propietario lógico de agenda y `Reserva
 tabla física `commercial_reservation`, unifica la exclusión temporal de reservas y bloqueos,
 coordina reprogramación/cancelación con operaciones y expone proyecciones inmutables hacia CRM y
 commercial, conforme a ADR 0016 y su especificación funcional aprobada.
-Django y React/Vite se ejecutan nativamente en Windows; únicamente PostgreSQL está contenerizado.
+P9 incorpora `claridez.documents` como autoridad de expedientes, instrumentos, versiones emitidas,
+artefactos, aceptación, archivos externos, acceso externo y retención; usa renderer canónico,
+almacenamiento privado sustituible, ClamAV y ledger durable de jobs PostgreSQL conforme a ADR 0017
+y ADR 0018. La disposición física no existe y finanzas permanece sin capacidades documentales.
+Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
+usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P9 o etapas posteriores.
+- Módulos o pantallas de P10 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
@@ -127,6 +132,8 @@ de autenticación de ADR 0010, las cinco operaciones organizacionales de solo le
 ADR 0011, las operaciones comerciales de la especificación 5.1, las operaciones de la
 especificación 5.2, las operaciones funcionales P6 de ADR 0014, las operaciones P7 de personas y
 CRM aprobadas por ADR 0015 y las operaciones P8 de agenda y reservas aprobadas por ADR 0016.
+También están aprobadas las operaciones internas y externas de P9 bajo `/api/v1` conforme a ADR
+0017–0018; el acceso externo es un intercambio acotado, no un portal completo.
 PostgreSQL local se publica solo sobre loopback. Django normal usa
 `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
@@ -138,7 +145,8 @@ organizaciones, membresías, `OrganizationSettings` ni las tablas comerciales sa
 `QuotationLine`, cuyo reemplazo en borrador requiere borrado controlado. Tampoco tiene `DELETE`
 sobre las tablas operativas, sedes, espacios, catálogo, people ni CRM. Interacciones, fusiones,
 aliases, consentimiento e historiales son append-only; las tareas solo admiten actualización
-controlada.
+controlada. `claridez_app` tampoco tiene `DELETE` sobre tablas documentales; P9 no expone
+capability, endpoint, acción web, job ni servicio de destrucción física.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.
@@ -146,7 +154,8 @@ modelo de amenazas se conservan como evidencia histórica; no constituyen códig
 ## 9. Dependencias y herramientas
 
 - Toda dependencia futura necesita una necesidad concreta y compatibilidad comprobada.
-- No se añadirán colas, Redis, brokers, Celery, Dramatiq ni workers hasta que exista un proceso asíncrono real.
+- P9 incorpora el primer proceso asíncrono real mediante un ledger durable PostgreSQL y worker
+  canónico sin Redis, broker, Celery ni Dramatiq.
 - El patrón outbox permanece diferido como candidato; no es código obligatorio.
 - Docker se utilizará cuando aporte reproducibilidad, especialmente para PostgreSQL, pero no será requisito para cada comando local en Windows.
 - No se implementará una plataforma completa de OpenTelemetry de forma anticipada.

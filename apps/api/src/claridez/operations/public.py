@@ -67,6 +67,13 @@ def preparation_for_schedule(
     return None if row is None else _projection(row)
 
 
+def has_document_relationship(organization_id: UUID, root_reservation_id: UUID) -> bool:
+    return EventPreparation.objects.filter(
+        organization_id=organization_id,
+        reservation__root_id=root_reservation_id,
+    ).exists()
+
+
 def initialize_from_accepted_snapshot(
     reservation: ReservationValue,
     *,
@@ -251,6 +258,7 @@ __all__ = (
     "PreparationProjection",
     "cancel_for_schedule",
     "initialize_from_accepted_snapshot",
+    "has_document_relationship",
     "preparation_for_schedule",
     "reschedule_preparation",
 )

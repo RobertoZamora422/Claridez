@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 12 de agosto de 2026
+- **Fecha de corte:** 13 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -374,8 +374,8 @@ adelantados.
 
 **Identificador y nombre:** P9 — Evidencia contractual y documental.
 
-**Estado:** Pendiente; plan y ADR 0017–0018 aprobados. Requiere cerrar las decisiones jurídicas y
-los spikes técnicos de cada superficie antes de implementarla.
+**Estado:** Completada y validada localmente el 13 de agosto de 2026. No implica CI remota,
+staging, producción, despliegue ni selección de proveedor productivo.
 
 **Objetivo:** Crear, aceptar y conservar instrumentos contractuales y documentos versionados
 vinculados con la raíz y la historia del evento.
@@ -391,22 +391,34 @@ uploads externos no confiables.
 cliente completo, destrucción física, editor libre de documentos o sitios y semántica financiera
 de P10.
 
-**Dependencias:** P8 y ADR 0017–0018; política aprobada de datos legales, aceptación, representación,
-materialidad y retención; spikes y selección del almacenamiento, renderer canónico, scanner,
-límites de archivos y runner compatible con el ledger PostgreSQL aprobado.
+**Dependencias:** P8 y ADR 0017–0018. Los datos legales, representación, materialidad y retención
+jurídica no aprobados permanecen como políticas explícitas; ninguna conclusión abierta habilita
+destrucción física ni firma acreditada. Los adaptadores productivos siguen sustituibles.
 
 **Resultado visible:** Comercial emite instrumentos contractuales consistentes y el cliente accede
 mediante enlace seguro a la copia exacta que puede aceptar, sin exponer archivos ajenos.
 
-**Criterio verificable de finalización:** Plantilla y snapshot canónicos, emisión exclusiva desde el
-entorno de render versionado, artefacto exacto preservado con SHA-256, versión emitida y aceptación
-append-only, URLs temporales, uploads externos indisponibles hasta `clean`, límites y recuperación
-probados, política jurídica de la superficie aprobada y aislamiento de metadata, archivos y jobs
-con dos tenants.
+**Criterio verificable de finalización:** `claridez.documents` separa expediente, instrumento,
+versión emitida, artefacto y aceptación; congela la `QuotationVersion` aceptada sin recalcularla;
+protege snapshot y PDF con hashes distintos; emite exclusivamente desde la imagen canónica; y
+conserva el artefacto exacto. Plantillas publicadas, emisión, aceptación, integridad, malware,
+retención y jobs dejan historia append-only. Grants CSPRNG/HMAC, sesión corta y challenge
+single-use protegen lectura, descarga y aceptación propia sin presentarla como firma acreditada.
+Uploads PDF/JPEG/PNG permanecen indisponibles hasta `clean`; renderer, almacenamiento y scanner
+fallan cerradamente. `ENABLE` + `FORCE RLS`, privilegios del rol `claridez_app`, capabilities
+documentales conjuntivas y relaciones reales impiden cruce de tenants; finanzas no recibe acceso
+documental. Siete migraciones funcionan desde cero y desde P8 final sin fabricar expedientes,
+instrumentos, PDFs, aceptaciones ni archivos. `npm run check:all` pasó con 185 pruebas API no
+integración, 72 pruebas de integración PostgreSQL y 22 frontend, además de formato, lint, tipos,
+migraciones, OpenAPI y builds. `npm run audit` cerró sin vulnerabilidades conocidas tras actualizar
+`pypdf` a 6.15.0. El spike canónico reprodujo dos veces el PDF realista de 1.060.929 bytes con
+SHA-256 `93ee73e8fdddcf87d47a5fd1860e38b79cac95260dfb0964731ec44ffcb23d66`; ClamAV 1.4.6 distinguió
+archivo limpio, EICAR y timeout.
 
-**Riesgos principales:** Prometer validez legal no comprobada, confundir aceptación propia con firma
-acreditada, URLs predecibles, PII en metadatos/object keys, tratar un análisis fallido como limpio,
-divergencia PostgreSQL–objetos o regeneración que sustituya evidencia.
+**Riesgos principales:** La política jurídica de datos obligatorios, representación, materialidad y
+retención sigue abierta; P9 la parametriza y mantiene deshabilitada toda disposición física. Deben
+seleccionarse y ensayarse almacenamiento/backup productivos y operación del scanner/worker antes de
+un despliegue. El mecanismo base es aceptación electrónica propia, no firma acreditada.
 
 **Siguiente etapa:** P10 — Cobros y cuentas por cobrar.
 

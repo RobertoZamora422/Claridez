@@ -18,6 +18,10 @@ Este documento registra versiones exactas y evidencia observada. No define arqui
 | Psycopg | 3.3.4 | Driver PostgreSQL |
 | pydantic-settings | 2.14.2 | Configuración local tipada y validada; añadido en la Iteración 2 |
 | django-axes | 8.3.1 | Protección de login persistida en PostgreSQL; añadido en 4.3 |
+| boto3 | 1.43.53 | Adaptador sustituible S3-compatible de P9 |
+| WeasyPrint | 69.0 | Renderer PDF server-side dentro de la imagen canónica P9 |
+| pypdf | 6.15.0 | Validación estructural conservadora de uploads PDF |
+| Pillow | 12.3.0 | Decodificación real de uploads JPEG/PNG |
 | djangorestframework-stubs | 3.16.9 | Tipos y plugin mypy para DRF; añadido en 4.3 |
 | PostgreSQL | 17.10 | Imagen local `17.10-bookworm` fijada por digest en la Iteración 2 |
 | Node.js | 24.18.1 | LTS Krypton |
@@ -42,6 +46,8 @@ No se utilizan versiones preliminares ni etiquetas flotantes. Los parches exacto
 - Psycopg con binarios: driver PostgreSQL reproducible en Windows durante esta etapa.
 - pydantic-settings: perfiles locales tipados, secretos protegidos y fallo temprano de configuración.
 - django-axes: límite de intentos de login por combinación de correo canónico e IP.
+- boto3: adaptador de almacenamiento privado S3-compatible detrás del puerto de documentos.
+- WeasyPrint, pypdf y Pillow: render canónico y validación real de archivos en P9.
 
 ### API de desarrollo
 

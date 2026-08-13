@@ -10,7 +10,7 @@ from uuid import UUID
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .errors import CommercialError, unavailable
-from .models import EventRequest, EventRequestHistory, QuotationVersion
+from .models import EventRequest, EventRequestHistory, QuotationLine, QuotationVersion
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +66,123 @@ class AcceptedScheduleEvidence:
     total: Decimal
     status: str
     accepted_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedQuotationLineProjection:
+    position: int
+    source: str
+    description: str
+    unit_label: str
+    quantity: Decimal
+    unit_price: Decimal
+    discount_amount: Decimal
+    line_subtotal: Decimal
+    line_total: Decimal
+    package_components_snapshot: tuple[dict[str, object], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedQuotationProjection:
+    id: UUID
+    organization_id: UUID
+    event_request_id: UUID
+    person_id: UUID
+    visible_number: str
+    version: int
+    status: str
+    currency: str
+    organization_name: str
+    person_name: str
+    person_phone: str
+    person_email: str | None
+    event_type: str
+    venue_id: UUID
+    venue_name: str
+    space_id: UUID
+    space_name: str
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+    estimated_guests: int
+    general_need: str
+    request_notes: str
+    quotation_notes: str
+    subtotal: Decimal
+    discount_total: Decimal
+    total: Decimal
+    accepted_at: datetime
+    acceptance_channel: str
+    acceptance_note: str
+    lines: tuple[AcceptedQuotationLineProjection, ...]
+
+
+def accepted_quotation_for_documents(
+    authorization: TenantAuthorization, quotation_version_id: UUID
+) -> AcceptedQuotationProjection:
+    try:
+        row = QuotationVersion.objects.select_related("quotation", "quotation__event_request").get(
+            organization_id=authorization.organization_id,
+            pk=quotation_version_id,
+            status=QuotationVersion.Status.ACCEPTED,
+            accepted_at__isnull=False,
+        )
+    except QuotationVersion.DoesNotExist:
+        raise unavailable("La cotización aceptada") from None
+    line_rows = QuotationLine.objects.filter(
+        organization_id=authorization.organization_id, quotation_version_id=row.pk
+    ).order_by("position", "id")
+    lines = tuple(
+        AcceptedQuotationLineProjection(
+            position=line.position,
+            source=line.source,
+            description=line.description,
+            unit_label=line.unit_label,
+            quantity=line.quantity,
+            unit_price=line.unit_price,
+            discount_amount=line.discount_amount,
+            line_subtotal=line.line_subtotal,
+            line_total=line.line_total,
+            package_components_snapshot=tuple(line.package_components_snapshot),
+        )
+        for line in line_rows
+    )
+    accepted_at = row.accepted_at
+    if accepted_at is None:
+        raise unavailable("La cotización aceptada")
+    return AcceptedQuotationProjection(
+        id=row.pk,
+        organization_id=row.organization_id,
+        event_request_id=row.quotation.event_request_id,
+        person_id=row.quotation.event_request.person_id,
+        visible_number=row.quotation.visible_number,
+        version=row.version,
+        status=row.status,
+        currency=row.currency,
+        organization_name=row.organization_name_snapshot,
+        person_name=row.person_name_snapshot,
+        person_phone=row.person_phone_snapshot,
+        person_email=row.person_email_snapshot or None,
+        event_type=row.event_type_snapshot,
+        venue_id=row.venue_snapshot_id,
+        venue_name=row.venue_name_snapshot,
+        space_id=row.space_snapshot_id,
+        space_name=row.space_name_snapshot,
+        starts_at=row.event_starts_at_snapshot,
+        ends_at=row.event_ends_at_snapshot,
+        timezone_name=row.event_timezone_snapshot,
+        estimated_guests=row.estimated_guests_snapshot,
+        general_need=row.general_need_snapshot,
+        request_notes=row.request_notes_snapshot,
+        quotation_notes=row.notes,
+        subtotal=row.subtotal,
+        discount_total=row.discount_total,
+        total=row.total,
+        accepted_at=accepted_at,
+        acceptance_channel=row.acceptance_channel,
+        acceptance_note=row.acceptance_note,
+        lines=lines,
+    )
 
 
 def accepted_schedule_evidence(
@@ -222,9 +339,12 @@ def interest_evidence_for_people(
 __all__ = (
     "CommercialError",
     "AcceptedScheduleEvidence",
+    "AcceptedQuotationLineProjection",
+    "AcceptedQuotationProjection",
     "OpportunityHistoryProjection",
     "OpportunityProjection",
     "accepted_schedule_evidence",
+    "accepted_quotation_for_documents",
     "confirmed_evidence_for_people",
     "interest_evidence_for_people",
     "opportunities_for_crm",

@@ -89,6 +89,37 @@ class RuntimeSettings(_LocalConnectionSettings):
         return value.rstrip("/")
 
 
+class DocumentWorkerSettings(BaseSettings):
+    """Configuración acotada del worker canónico dentro de Compose local."""
+
+    model_config = SettingsConfigDict(
+        env_file=LOCAL_ENV_FILE,
+        env_file_encoding="utf-8",
+        env_prefix="CLARIDEZ_",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    environment: Literal["local"]
+    secret_key: LocalSecret
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+    db_host: Literal["postgres"]
+    db_port: int = Field(ge=1, le=65535)
+    db_connect_timeout: int = Field(ge=1, le=10)
+    db_statement_timeout_ms: int = Field(ge=100, le=30_000)
+    db_sslmode: Literal["disable"]
+    db_name: Literal["claridez_local"]
+    db_user: Literal["claridez_app"]
+    db_password: LocalSecret
+
+    @field_validator("db_port")
+    @classmethod
+    def validate_internal_postgres_port(cls, value: int) -> int:
+        if value != 5432:
+            raise ValueError("el worker solo admite el puerto interno 5432")
+        return value
+
+
 class MigrationSettings(_LocalConnectionSettings):
     """Configuración exclusiva de comandos de migración."""
 
@@ -144,6 +175,10 @@ def _load[SettingsType: BaseSettings](settings_type: type[SettingsType]) -> Sett
 
 def load_runtime_settings() -> RuntimeSettings:
     return _load(RuntimeSettings)
+
+
+def load_document_worker_settings() -> DocumentWorkerSettings:
+    return _load(DocumentWorkerSettings)
 
 
 def load_migration_settings() -> MigrationSettings:
