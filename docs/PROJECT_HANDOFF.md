@@ -1,8 +1,9 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 13 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P9 está completada y validada localmente
-- **Siguiente etapa:** P10 — Cobros y cuentas por cobrar; pendiente de plan y aprobación
+- **Fecha de corte:** 14 de agosto de 2026
+- **Etapa funcional activa:** ninguna; P9 está cerrada y ADR 0019 está aceptado
+- **Siguiente etapa:** implementación de P10 — Cobros y cuentas por cobrar; pendiente de autorización
+  explícita
 
 ## Qué es Claridez
 
@@ -140,6 +141,9 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   integración, 72 de integración PostgreSQL y 23 frontend, además de locks, formato, lint, tipos,
   migraciones, OpenAPI y builds. `npm run audit` terminó sin vulnerabilidades conocidas tras
   actualizar `pypdf` a 6.15.0; `git diff --check` se repite en el cierre final.
+- CI #23, run `31757547140`, fue observado exitosamente sobre
+  `dab6b7ea367ce3d80dd375f1c41f048d5a9d9906`: completó Calidad, PostgreSQL 17 y Auditoría de
+  dependencias. Esta evidencia no afirma staging, producción, despliegue ni cutover.
 - El navegador real comprobó el enlace documental inválido en viewport normal y 390×844: falló
   cerrado sin revelar documento ni organización y sin errores de consola. También comprobó que la
   ruta interna conserva el inicio de sesión normal; los flujos autenticados completos quedan
@@ -168,6 +172,8 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   acceso externo, autorización conjuntiva y retención sin destrucción física: ADR 0017.
 - Entorno canónico de render, checksums separados, almacenamiento privado, uploads externos,
   malware y primer mecanismo asíncrono durable: ADR 0018.
+- Autoridad de `claridez.receivables`, obligación por primera confirmación de raíz, coordinación
+  transaccional, ledger append-only, saldo derivado, migración 5.1 y capacidades P10: ADR 0019.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8; P9 se rige por ADR
   0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -269,9 +275,9 @@ falta.
 
 ## Próximo trabajo
 
-P9 está cerrada localmente. La siguiente etapa del Roadmap es **P10 — Cobros y cuentas por cobrar**.
-Antes de implementarla corresponde revisar las fuentes maestras y presentar únicamente su plan
-breve y decisiones realmente bloqueantes; P10 no está autorizada por este cierre.
+P9 está cerrada y ADR 0019 formaliza la arquitectura aceptada de **P10 — Cobros y cuentas por
+cobrar**. El siguiente paso exacto es recibir autorización explícita para implementar P10; este
+cierre documental no autoriza modelos, migraciones, capabilities, endpoints ni frontend.
 
 ## Riesgos actuales
 
@@ -289,9 +295,9 @@ breve y decisiones realmente bloqueantes; P10 no está autorizada por este cierr
 - Antes de desplegar P9 se debe seleccionar y ensayar el almacenamiento/backup productivo, operar
   scanner y worker con observabilidad, fijar secretos estables y aprobar las políticas jurídicas
   aplicables. La disposición física permanece ausente, no meramente deshabilitada.
-- Se observó el run remoto de calidad 22 fallido sobre `36e41ef` por tres suppressions de mypy
-  innecesarias en Linux. El cierre focalizado las eliminó y pasó los gates locales completos; no se
-  ha observado todavía un run remoto verde ni existe ambiente desplegado.
+- El run remoto 22 falló históricamente sobre `36e41ef`; CI #23, run `31757547140`, fue observado
+  verde sobre `dab6b7ea367ce3d80dd375f1c41f048d5a9d9906`. No existe evidencia de staging,
+  producción, despliegue ni cutover.
 
 ## Reporte de cierre obligatorio
 

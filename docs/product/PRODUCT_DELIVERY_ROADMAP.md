@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 13 de agosto de 2026
+- **Fecha de corte:** 14 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -426,7 +426,7 @@ un despliegue. El mecanismo base es aceptación electrónica propia, no firma ac
 
 **Identificador y nombre:** P10 — Pagos de clientes, saldos y cartera.
 
-**Estado:** Pendiente.
+**Estado:** Pendiente de implementación; ADR 0019 aceptado el 14 de agosto de 2026.
 
 **Objetivo:** Controlar el dinero que cada salón recibe de sus clientes y el saldo de cada evento.
 
@@ -437,8 +437,8 @@ recibos/estado de cuenta; migración de constancias 5.1; capacidades y auditorí
 **Exclusiones:** Cobro de suscripciones de Claridez, custodia de fondos, conciliación bancaria
 automática, facturación electrónica y contabilidad formal.
 
-**Dependencias:** P9; reglas monetarias y de cancelación; ADR para integridad, reversos,
-concurrencia y migración de evidencia histórica.
+**Dependencias:** P9 y ADR 0019 aceptado, que fija autoridad, reglas monetarias, cancelación
+fail-closed, integridad, reversos, concurrencia y migración de evidencia histórica.
 
 **Resultado visible:** Finanzas conoce qué debía cobrarse, qué recibió el salón, qué se aplicó y qué
 saldo queda por cliente y evento.

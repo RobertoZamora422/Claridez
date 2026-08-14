@@ -40,26 +40,27 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 
 ## Índice actual
 
-| ADR                                                              | Estado                              | Tema                                                        |
-| ---------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- |
-| [0001](0001-monorepo-and-modular-monolith.md)                    | Aceptado                            | Monorepo, monolito modular e independencia                  |
-| [0002](0002-application-technology-baseline.md)                  | Aceptado                            | Familias tecnológicas y contrato de API                     |
-| [0003](0003-multitenancy-foundations.md)                         | Aceptado con aspectos provisionales | Fundamentos multiempresa                                    |
-| [0004](0004-defer-asynchronous-infrastructure.md)                | Aceptado                            | Diferimiento de infraestructura asíncrona                   |
-| [0005](0005-incremental-observability.md)                        | Aceptado                            | Observabilidad incremental                                  |
-| [0006](0006-reproducible-toolchains.md)                          | Aceptado con asuntos diferidos      | Toolchains reproducibles y comandos oficiales               |
-| [0007](0007-local-postgresql-platform.md)                        | Aceptado con asuntos diferidos      | Plataforma PostgreSQL local reproducible                    |
-| [0008](0008-validated-local-configuration-and-health.md)         | Aceptado con asuntos diferidos      | Configuración local validada y endpoints técnicos           |
-| [0009](0009-tenant-isolation-strategy.md)                        | Aceptado                            | Aplicación tenant-aware más RLS como defensa en profundidad |
-| [0010](0010-local-identity-and-server-sessions.md)               | Aceptado                            | Identidad local y sesiones de servidor                      |
-| [0011](0011-organizations-memberships-and-authorization.md)      | Aceptado                            | Organizaciones, membresías y autorización backend-first     |
-| [0012](0012-commercial-scheduling-and-monetary-integrity.md)     | Aceptado                            | Integridad de agenda y cotizaciones comerciales             |
-| [0013](0013-commercial-operations-coordination-and-integrity.md) | Aceptado                            | Coordinación e integridad entre comercial y operaciones     |
-| [0014](0014-multi-space-business-configuration-and-catalog-boundaries.md) | Aceptado | Multi-espacio y límites de configuración funcional P6 |
-| [0015](0015-people-crm-boundaries-and-commercial-authority.md) | Aceptado | Límites de people/CRM y autoridad comercial P7 |
-| [0016](0016-scheduling-ownership-and-temporal-integrity.md) | Aceptado | Propiedad de scheduling e integridad temporal P8 |
-| [0017](0017-contractual-domain-and-documentary-evidence.md) | Aceptado | Dominio contractual y evidencia documental P9 |
-| [0018](0018-file-platform-and-document-processing.md) | Aceptado | Plataforma de archivos y procesamiento documental P9 |
+| ADR                                                                       | Estado                              | Tema                                                        |
+| ------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- |
+| [0001](0001-monorepo-and-modular-monolith.md)                             | Aceptado                            | Monorepo, monolito modular e independencia                  |
+| [0002](0002-application-technology-baseline.md)                           | Aceptado                            | Familias tecnológicas y contrato de API                     |
+| [0003](0003-multitenancy-foundations.md)                                  | Aceptado con aspectos provisionales | Fundamentos multiempresa                                    |
+| [0004](0004-defer-asynchronous-infrastructure.md)                         | Aceptado                            | Diferimiento de infraestructura asíncrona                   |
+| [0005](0005-incremental-observability.md)                                 | Aceptado                            | Observabilidad incremental                                  |
+| [0006](0006-reproducible-toolchains.md)                                   | Aceptado con asuntos diferidos      | Toolchains reproducibles y comandos oficiales               |
+| [0007](0007-local-postgresql-platform.md)                                 | Aceptado con asuntos diferidos      | Plataforma PostgreSQL local reproducible                    |
+| [0008](0008-validated-local-configuration-and-health.md)                  | Aceptado con asuntos diferidos      | Configuración local validada y endpoints técnicos           |
+| [0009](0009-tenant-isolation-strategy.md)                                 | Aceptado                            | Aplicación tenant-aware más RLS como defensa en profundidad |
+| [0010](0010-local-identity-and-server-sessions.md)                        | Aceptado                            | Identidad local y sesiones de servidor                      |
+| [0011](0011-organizations-memberships-and-authorization.md)               | Aceptado                            | Organizaciones, membresías y autorización backend-first     |
+| [0012](0012-commercial-scheduling-and-monetary-integrity.md)              | Aceptado                            | Integridad de agenda y cotizaciones comerciales             |
+| [0013](0013-commercial-operations-coordination-and-integrity.md)          | Aceptado                            | Coordinación e integridad entre comercial y operaciones     |
+| [0014](0014-multi-space-business-configuration-and-catalog-boundaries.md) | Aceptado                            | Multi-espacio y límites de configuración funcional P6       |
+| [0015](0015-people-crm-boundaries-and-commercial-authority.md)            | Aceptado                            | Límites de people/CRM y autoridad comercial P7              |
+| [0016](0016-scheduling-ownership-and-temporal-integrity.md)               | Aceptado                            | Propiedad de scheduling e integridad temporal P8            |
+| [0017](0017-contractual-domain-and-documentary-evidence.md)               | Aceptado                            | Dominio contractual y evidencia documental P9               |
+| [0018](0018-file-platform-and-document-processing.md)                     | Aceptado                            | Plataforma de archivos y procesamiento documental P9        |
+| [0019](0019-receivables-authority-and-financial-movement-integrity.md)    | Aceptado                            | Autoridad de cuentas por cobrar e integridad financiera P10 |
 
 ## Modificación y reemplazo
 
