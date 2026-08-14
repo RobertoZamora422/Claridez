@@ -129,15 +129,15 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   create-only. ClamAV 1.4.6/firma 28087 distinguió limpio, EICAR y timeout; solo `clean` permite
   descargar uploads externos PDF/JPEG/PNG. `DocumentJob` implementa `SKIP LOCKED`, leases,
   at-least-once, idempotencia, backoff, retries y fallo terminal append-only.
-- P9 aplica diez capabilities documentales propias. Propietario/administrador tienen la matriz
+- P9 aplica nueve capabilities documentales propias. Propietario/administrador tienen la matriz
   completa; comercial recibe la superficie aprobada; operaciones solo lectura/descarga con
   relación `EventPreparation` real; finanzas no recibe capacidades documentales. No existe
   destrucción física ni capability interna para aceptar por el cliente.
-- Siete migraciones documentales pasan desde cero y desde P8 final sin backfill ficticio. Las 22
+- Ocho migraciones documentales pasan desde cero y desde P8 final sin backfill ficticio. Las 22
   tablas privadas tienen `ENABLE` + `FORCE RLS`, FKs tenant-aware y privilegios mínimos; pruebas
   con `claridez_app`, ORM, bulk, SQL directo y dos tenants bloquean acceso cruzado.
-- `npm run check:all` pasó el 13 de agosto con los toolchains fijados: 185 pruebas API no
-  integración, 72 de integración PostgreSQL y 22 frontend, además de locks, formato, lint, tipos,
+- `npm run check:all` pasó el 13 de agosto con los toolchains fijados: 194 pruebas API no
+  integración, 72 de integración PostgreSQL y 23 frontend, además de locks, formato, lint, tipos,
   migraciones, OpenAPI y builds. `npm run audit` terminó sin vulnerabilidades conocidas tras
   actualizar `pypdf` a 6.15.0; `git diff --check` se repite en el cierre final.
 - El navegador real comprobó el enlace documental inválido en viewport normal y 390×844: falló
@@ -289,7 +289,9 @@ breve y decisiones realmente bloqueantes; P10 no está autorizada por este cierr
 - Antes de desplegar P9 se debe seleccionar y ensayar el almacenamiento/backup productivo, operar
   scanner y worker con observabilidad, fijar secretos estables y aprobar las políticas jurídicas
   aplicables. La disposición física permanece ausente, no meramente deshabilitada.
-- No se ha observado una ejecución remota de CI ni existe ambiente desplegado.
+- Se observó el run remoto de calidad 22 fallido sobre `36e41ef` por tres suppressions de mypy
+  innecesarias en Linux. El cierre focalizado las eliminó y pasó los gates locales completos; no se
+  ha observado todavía un run remoto verde ni existe ambiente desplegado.
 
 ## Reporte de cierre obligatorio
 

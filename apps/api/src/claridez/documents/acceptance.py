@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .artifacts import verify_generated_artifact
+from .config import document_settings
 from .errors import DocumentsError, conflict, unavailable
 from .external_access import authorize_session, external_token_scope, token_hash
 from .models import (
@@ -30,7 +31,7 @@ MECHANISM_VERSION = "secure-link-session-challenge-v1"
 class AcceptanceRequestEvidence:
     asserted_name: str
     ip_address: str | None
-    user_agent: str
+    user_agent: str | None
     request_id: str
     correlation_id: str
     timezone_name: str
@@ -102,6 +103,7 @@ def _accept_in_scope(
     challenge.consumed_at = now
     challenge.save(update_fields=["consumed_at"])
     counterparty = challenge.issued_version.snapshot["counterparty"]
+    collection_policy = document_settings()
     acceptance = AcceptanceEvidence.objects.create(
         organization_id=session.organization_id,
         challenge=challenge,
@@ -119,8 +121,14 @@ def _accept_in_scope(
         mechanism_version=MECHANISM_VERSION,
         accepted_at=now,
         timezone_name=evidence.timezone_name,
-        ip_address=evidence.ip_address,
-        user_agent=evidence.user_agent[:500],
+        ip_address=(
+            evidence.ip_address if collection_policy.capture_acceptance_ip_address else None
+        ),
+        user_agent=(
+            evidence.user_agent[:500]
+            if collection_policy.capture_acceptance_user_agent and evidence.user_agent
+            else None
+        ),
         request_id=evidence.request_id[:128],
         correlation_id=evidence.correlation_id[:128],
     )

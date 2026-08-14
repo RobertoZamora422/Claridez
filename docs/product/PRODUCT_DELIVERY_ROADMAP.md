@@ -407,9 +407,9 @@ single-use protegen lectura, descarga y aceptación propia sin presentarla como 
 Uploads PDF/JPEG/PNG permanecen indisponibles hasta `clean`; renderer, almacenamiento y scanner
 fallan cerradamente. `ENABLE` + `FORCE RLS`, privilegios del rol `claridez_app`, capabilities
 documentales conjuntivas y relaciones reales impiden cruce de tenants; finanzas no recibe acceso
-documental. Siete migraciones funcionan desde cero y desde P8 final sin fabricar expedientes,
-instrumentos, PDFs, aceptaciones ni archivos. `npm run check:all` pasó con 185 pruebas API no
-integración, 72 pruebas de integración PostgreSQL y 22 frontend, además de formato, lint, tipos,
+documental. Ocho migraciones funcionan desde cero y desde P8 final sin fabricar expedientes,
+instrumentos, PDFs, aceptaciones ni archivos. `npm run check:all` pasó con 194 pruebas API no
+integración, 72 pruebas de integración PostgreSQL y 23 frontend, además de formato, lint, tipos,
 migraciones, OpenAPI y builds. `npm run audit` cerró sin vulnerabilidades conocidas tras actualizar
 `pypdf` a 6.15.0. El spike canónico reprodujo dos veces el PDF realista de 1.060.929 bytes con
 SHA-256 `93ee73e8fdddcf87d47a5fd1860e38b79cac95260dfb0964731ec44ffcb23d66`; ClamAV 1.4.6 distinguió

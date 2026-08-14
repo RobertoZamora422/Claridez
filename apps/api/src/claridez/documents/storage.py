@@ -164,7 +164,11 @@ class S3PrivateStorage:
             self.client.put_object(**parameters)
         except ClientError as error:
             status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-            if status in {409, 412}:
+            code = error.response.get("Error", {}).get("Code")
+            if status in {409, 412} or code in {
+                "ConditionalRequestConflict",
+                "PreconditionFailed",
+            }:
                 raise DocumentsError(
                     "object_exists", "La evidencia no puede sobrescribirse.", status_code=409
                 ) from error

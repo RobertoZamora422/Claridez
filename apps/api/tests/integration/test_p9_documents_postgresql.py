@@ -21,10 +21,13 @@ from claridez.documents.external_access import create_acceptance_challenge, exch
 from claridez.documents.jobs import claim_job, enqueue_job, work_once
 from claridez.documents.models import (
     AcceptanceEvidence,
+    ArtifactIntegrityEvent,
     ContractualRecord,
     DocumentJob,
+    DocumentJobAttempt,
     DocumentTemplateVersion,
     GeneratedArtifact,
+    IssuedInstrumentVersion,
 )
 from claridez.documents.rendering import RenderedPDF
 from claridez.documents.services import (
@@ -65,6 +68,16 @@ P9_PRIVATE_TABLES = (
     "documents_legalhold",
     "documents_retentionevent",
     "documents_documentjob",
+    "documents_documentjobattempt",
+)
+P9_APPEND_ONLY_TABLES = (
+    "documents_templateevent",
+    "documents_artifactintegrityevent",
+    "documents_externalfileevent",
+    "documents_malwarescanattempt",
+    "documents_acceptanceevidence",
+    "documents_externalaccessevent",
+    "documents_retentionevent",
     "documents_documentjobattempt",
 )
 BODY = "<h1>{{ organization.name }}</h1><p>{{ counterparty.full_name }}</p>"
@@ -166,8 +179,34 @@ def test_p9_force_rls_app_role_privileges_and_direct_sql_tenant_isolation() -> N
             "has_table_privilege('claridez_app', 'documents_acceptanceevidence', 'DELETE')"
         )
         privileges = cursor.fetchone()
+        cursor.execute(
+            "SELECT c.relname FROM pg_trigger t "
+            "JOIN pg_class c ON c.oid = t.tgrelid "
+            "WHERE NOT t.tgisinternal AND c.relname = ANY(%s) "
+            "AND t.tgname = c.relname || '_no_delete' ORDER BY c.relname",
+            [list(P9_PRIVATE_TABLES)],
+        )
+        no_delete_tables = [row[0] for row in cursor.fetchall()]
+        cursor.execute(
+            "SELECT c.relname FROM pg_trigger t "
+            "JOIN pg_class c ON c.oid = t.tgrelid "
+            "WHERE NOT t.tgisinternal AND c.relname = ANY(%s) "
+            "AND t.tgname = c.relname || '_append_only' ORDER BY c.relname",
+            [list(P9_APPEND_ONLY_TABLES)],
+        )
+        append_only_tables = [row[0] for row in cursor.fetchall()]
+        cursor.execute(
+            "SELECT table_name, has_table_privilege('claridez_app', "
+            "'public.' || table_name, 'DELETE') FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = ANY(%s) ORDER BY table_name",
+            [list(P9_PRIVATE_TABLES)],
+        )
+        delete_privileges = cursor.fetchall()
     assert metadata == sorted((table, True, True) for table in P9_PRIVATE_TABLES)
     assert privileges == (True, False, False, False)
+    assert no_delete_tables == sorted(P9_PRIVATE_TABLES)
+    assert append_only_tables == sorted(P9_APPEND_ONLY_TABLES)
+    assert delete_privileges == sorted((table, False) for table in P9_PRIVATE_TABLES)
 
     with _app_connection() as app_connection, app_connection.cursor() as cursor:
         cursor.execute("SELECT count(*) FROM documents_contractualrecord")
@@ -324,7 +363,9 @@ def test_acceptance_challenge_is_single_use_under_concurrency(
         assert AcceptanceEvidence.objects.filter(artifact=artifact).count() == 1
 
 
-def test_database_guards_stop_bulk_and_direct_mutation_of_published_evidence() -> None:
+def test_database_guards_stop_orm_bulk_delete_and_app_sql_evidence_bypasses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     case = build_document_case("p9-guards")
     template = create_template(
         case.owner,
@@ -339,8 +380,16 @@ def test_database_guards_stop_bulk_and_direct_mutation_of_published_evidence() -
     with authorized_tenant_scope(
         case.owner, case.organization_id, Capability.DOCUMENT_TEMPLATE_MANAGE
     ):
+        version = DocumentTemplateVersion.objects.get(pk=version_id)
+        version.title = "Mutado por save"
+        with pytest.raises(IntegrityError), transaction.atomic():
+            version.save(update_fields=["title"])
+        version.refresh_from_db()
         with pytest.raises(IntegrityError), transaction.atomic():
             DocumentTemplateVersion.objects.filter(pk=version_id).update(title="Mutado")
+        version.body_html = "<p>Mutado por bulk</p>"
+        with pytest.raises(IntegrityError), transaction.atomic():
+            DocumentTemplateVersion.objects.bulk_update([version], ["body_html"])
         with (
             pytest.raises(IntegrityError),
             transaction.atomic(),
@@ -351,14 +400,108 @@ def test_database_guards_stop_bulk_and_direct_mutation_of_published_evidence() -
                 "WHERE id = %s",
                 (version_id,),
             )
-    record = _record(case)
-    with (
-        authorized_tenant_scope(
-            case.owner, case.organization_id, Capability.CONTRACTUAL_RECORD_READ
+    artifact = _artifact(case, monkeypatch)
+    grant = create_external_grant(
+        case.owner,
+        case.organization_id,
+        issued_version_id=artifact.issued_version_id,
+        purpose="accept",
+        expires_at=timezone.now() + timedelta(hours=1),
+    )
+    session = exchange_grant(grant["token"], request_id="guard-accept", ip_hash="guard-ip")
+    challenge = create_acceptance_challenge(session.token)
+    acceptance = accept(
+        session.token,
+        challenge_token=challenge.token,
+        manifestation_version=MANIFESTATION_VERSION,
+        affirmative=True,
+        evidence=AcceptanceRequestEvidence(
+            asserted_name="Contraparte inmutable",
+            ip_address=None,
+            user_agent=None,
+            request_id="guard-accept",
+            correlation_id="guard-accept",
+            timezone_name="America/Guayaquil",
         ),
-        pytest.raises(IntegrityError),
-        transaction.atomic(),
+    )
+    with authorized_tenant_scope(
+        case.owner, case.organization_id, Capability.CONTRACTUAL_RECORD_READ
     ):
-        ContractualRecord.objects.filter(pk=UUID(str(record["id"]))).update(
-            root_reservation_id=uuid4()
+        issued = IssuedInstrumentVersion.objects.get(pk=artifact.issued_version_id)
+        issued.snapshot_sha256 = "0" * 64
+        with pytest.raises(IntegrityError), transaction.atomic():
+            issued.save(update_fields=["snapshot_sha256"])
+        issued.refresh_from_db()
+        with pytest.raises(IntegrityError), transaction.atomic():
+            IssuedInstrumentVersion.objects.filter(pk=issued.pk).update(snapshot_sha256="1" * 64)
+        issued.snapshot_sha256 = "2" * 64
+        with pytest.raises(IntegrityError), transaction.atomic():
+            IssuedInstrumentVersion.objects.bulk_update([issued], ["snapshot_sha256"])
+
+        artifact.sha256 = "3" * 64
+        with pytest.raises(IntegrityError), transaction.atomic():
+            artifact.save(update_fields=["sha256"])
+        artifact.refresh_from_db()
+        with pytest.raises(IntegrityError), transaction.atomic():
+            GeneratedArtifact.objects.filter(pk=artifact.pk).update(sha256="3" * 64)
+        artifact.sha256 = "3" * 64
+        with pytest.raises(IntegrityError), transaction.atomic():
+            GeneratedArtifact.objects.bulk_update([artifact], ["sha256"])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ContractualRecord.objects.filter(pk=issued.instrument.record_id).update(
+                root_reservation_id=uuid4()
+            )
+
+        acceptance.manifestation_text = "Mutación prohibida"
+        with pytest.raises(IntegrityError), transaction.atomic():
+            acceptance.save(update_fields=["manifestation_text"])
+        acceptance.refresh_from_db()
+        with pytest.raises(IntegrityError), transaction.atomic():
+            AcceptanceEvidence.objects.filter(pk=acceptance.pk).update(
+                manifestation_text="Mutación bulk prohibida"
+            )
+        acceptance.manifestation_text = "Mutación bulk_update prohibida"
+        with pytest.raises(IntegrityError), transaction.atomic():
+            AcceptanceEvidence.objects.bulk_update([acceptance], ["manifestation_text"])
+        with pytest.raises(IntegrityError), transaction.atomic():
+            acceptance.delete()
+        with pytest.raises(IntegrityError), transaction.atomic():
+            AcceptanceEvidence.objects.filter(pk=acceptance.pk).delete()
+
+        attempt = DocumentJobAttempt.objects.first()
+        integrity_event = ArtifactIntegrityEvent.objects.first()
+        assert attempt is not None and integrity_event is not None
+        with pytest.raises(IntegrityError), transaction.atomic():
+            DocumentJobAttempt.objects.filter(pk=attempt.pk).update(outcome="mutated")
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ArtifactIntegrityEvent.objects.filter(pk=integrity_event.pk).update(result="missing")
+        with pytest.raises(IntegrityError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM documents_issuedinstrumentversion WHERE id = %s", (issued.pk,)
+            )
+
+    with _app_connection() as app_connection, app_connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT set_config('claridez.organization_id', %s, false)",
+            (str(case.organization_id),),
         )
+        with pytest.raises(psycopg.errors.CheckViolation):
+            cursor.execute(
+                "UPDATE documents_issuedinstrumentversion SET snapshot_sha256 = %s WHERE id = %s",
+                ("4" * 64, artifact.issued_version_id),
+            )
+        with pytest.raises(psycopg.errors.CheckViolation):
+            cursor.execute(
+                "UPDATE documents_generatedartifact SET sha256 = %s WHERE id = %s",
+                ("5" * 64, artifact.pk),
+            )
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            cursor.execute(
+                "UPDATE documents_acceptanceevidence SET manifestation_text = %s WHERE id = %s",
+                ("Mutación", acceptance.pk),
+            )
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            cursor.execute(
+                "DELETE FROM documents_acceptanceevidence WHERE id = %s", (acceptance.pk,)
+            )

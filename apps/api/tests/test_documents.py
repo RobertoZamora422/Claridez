@@ -4,15 +4,21 @@ import hashlib
 import io
 import socket
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
-from typing import BinaryIO
+from threading import Barrier, Lock
+from typing import Any, BinaryIO, cast
 from uuid import UUID, uuid4
 
 import pytest
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from django.utils import timezone
 from pypdf import PdfWriter
 
+from claridez.commercial.services import confirm_reservation
 from claridez.documents.acceptance import (
     MANIFESTATION_VERSION,
     AcceptanceRequestEvidence,
@@ -62,8 +68,10 @@ from claridez.documents.services import (
 )
 from claridez.documents.storage import (
     FilesystemPrivateStorage,
+    PrivateObjectStorage,
     S3PrivateStorage,
     bytes_stream,
+    opaque_evidence_key,
     private_storage,
 )
 from claridez.documents.variables import (
@@ -72,7 +80,11 @@ from claridez.documents.variables import (
     sanitize_template_html,
     validate_variable_schema,
 )
+from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.exceptions import AuthorizationDenied
+from claridez.organizations.models import Membership
+from claridez.organizations.services import add_membership
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 from tests.document_fixtures import DocumentCase, build_document_case
 
@@ -105,6 +117,71 @@ def isolated_document_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     document_settings.cache_clear()
     yield
     document_settings.cache_clear()
+
+
+def test_record_read_requires_document_capability_source_capability_and_real_relationship(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = build_document_case("document-conjunctive-auth")
+    root_id = UUID(str(case.reservation["root_id"]))
+    confirm_reservation(
+        case.owner,
+        case.organization_id,
+        reservation_id=case.reservation["id"],
+        kind="external_deposit",
+        recognized_amount=Decimal("100.00"),
+        reported_at=timezone.now(),
+        reference="Comprobante sintético",
+    )
+    operations_user = User.objects.create_user(
+        email=f"operations-{uuid4()}@example.test",
+        password="Test-only-Password-2026!",
+        status=User.Status.ACTIVE,
+        email_verified_at=timezone.now(),
+    )
+    add_membership(
+        organization_id=case.organization_id,
+        user_id=operations_user.pk,
+        role=Membership.Role.OPERATIONS,
+    )
+    assert (
+        read_record_state(
+            operations_user,
+            case.organization_id,
+            root_reservation_id=root_id,
+        )["status"]
+        == "no_contract_issued"
+    )
+
+    monkeypatch.setattr(
+        "claridez.documents.services.has_document_relationship",
+        lambda _organization_id, _root_id: False,
+    )
+    with pytest.raises(DocumentsError, match="relaci.n operativa") as denied_relation:
+        read_record_state(
+            operations_user,
+            case.organization_id,
+            root_reservation_id=root_id,
+        )
+    assert denied_relation.value.code == "forbidden"
+
+    finance_user = User.objects.create_user(
+        email=f"finance-{uuid4()}@example.test",
+        password="Test-only-Password-2026!",
+        status=User.Status.ACTIVE,
+        email_verified_at=timezone.now(),
+    )
+    add_membership(
+        organization_id=case.organization_id,
+        user_id=finance_user.pk,
+        role=Membership.Role.FINANCE,
+    )
+    with pytest.raises(AuthorizationDenied):
+        read_record_state(
+            finance_user,
+            case.organization_id,
+            root_reservation_id=root_id,
+        )
 
 
 def _published_template(case: DocumentCase) -> tuple[str, str]:
@@ -220,16 +297,225 @@ def test_s3_adapter_requests_own_checksum_encryption_and_conditional_create() ->
     assert client.parameters["ChecksumSHA256"]
 
 
-def test_renderer_refuses_noncanonical_host_and_materiality_requires_review() -> None:
+def _race_storage_writes(storage: PrivateObjectStorage, key: str) -> tuple[list[str], bytes]:
+    barrier = Barrier(2)
+    payloads = (b"first immutable payload", b"second immutable payload")
+
+    def write(content: bytes) -> str:
+        barrier.wait(timeout=10)
+        try:
+            storage.put(
+                key=key,
+                stream=io.BytesIO(content),
+                size_bytes=len(content),
+                sha256=hashlib.sha256(content).hexdigest(),
+                media_type="application/pdf",
+            )
+        except DocumentsError as error:
+            return error.code
+        return "stored"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = sorted(executor.map(write, payloads))
+    with storage.open(key) as stream:
+        winner = stream.read()
+    return outcomes, winner
+
+
+def test_filesystem_create_only_is_atomic_under_concurrency(tmp_path: Path) -> None:
+    outcomes, winner = _race_storage_writes(
+        FilesystemPrivateStorage(tmp_path / "race-objects"), "generated/aa/race"
+    )
+    assert outcomes == ["object_exists", "stored"]
+    assert winner in {b"first immutable payload", b"second immutable payload"}
+
+
+def test_s3_create_only_is_atomic_under_concurrency() -> None:
+    class AtomicClient:
+        def __init__(self) -> None:
+            self.objects: dict[str, bytes] = {}
+            self.lock = Lock()
+
+        def put_object(self, **parameters: object) -> None:
+            key = str(parameters["Key"])
+            content = cast(BinaryIO, parameters["Body"]).read()
+            assert parameters["IfNoneMatch"] == "*"
+            with self.lock:
+                if key in self.objects:
+                    raise ClientError(
+                        {
+                            "Error": {"Code": "PreconditionFailed"},
+                            "ResponseMetadata": {"HTTPStatusCode": 412},
+                        },
+                        "PutObject",
+                    )
+                self.objects[key] = content
+
+        def get_object(self, **parameters: object) -> dict[str, object]:
+            return {"Body": io.BytesIO(self.objects[str(parameters["Key"])])}
+
+    storage = object.__new__(S3PrivateStorage)
+    storage.bucket = "private-documents"
+    storage.sse = "AES256"
+    storage.kms_key = None
+    storage.client = AtomicClient()
+    outcomes, winner = _race_storage_writes(storage, "generated/ab/race")
+    assert outcomes == ["object_exists", "stored"]
+    assert winner in {b"first immutable payload", b"second immutable payload"}
+
+
+def test_render_retry_reconciles_object_written_before_database_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = build_document_case("render-orphan-reconciliation")
+    _, template_version_id = _published_template(case)
+    root_id = UUID(str(case.reservation["root_id"]))
+    record = create_record(case.owner, case.organization_id, root_reservation_id=root_id)
+    instrument = create_instrument(
+        case.owner,
+        case.organization_id,
+        record_id=UUID(record["id"]),
+        instrument_type="main_contract",
+        title="Contrato reconciliable",
+    )
+    content = b"%PDF-1.7\n% orphan reconciliation\n"
+    digest = hashlib.sha256(content).hexdigest()
+    monkeypatch.setattr(
+        "claridez.documents.jobs.render_pdf",
+        lambda _html: RenderedPDF(
+            content,
+            digest,
+            len(content),
+            "WeasyPrint",
+            "69.0",
+            "claridez-render-weasyprint-69.0-debian12-v1",
+        ),
+    )
+    issued = issue_instrument(
+        case.owner,
+        case.organization_id,
+        instrument_id=UUID(instrument["id"]),
+        template_version_id=UUID(template_version_id),
+        idempotency_key=uuid4(),
+        correlation_id="orphan-reconciliation",
+    )
+    version_id = UUID(issued["id"])
+    expected_key = opaque_evidence_key("generated", str(version_id))
+    original_save = GeneratedArtifact.save
+    failed = False
+
+    def fail_first_artifact_save(instance: GeneratedArtifact, *args: Any, **kwargs: Any) -> None:
+        nonlocal failed
+        if instance._state.adding and not failed:
+            failed = True
+            raise RuntimeError("synthetic database failure after object write")
+        original_save(instance, *args, **kwargs)
+
+    monkeypatch.setattr(GeneratedArtifact, "save", fail_first_artifact_save)
+    assert work_once(case.organization_id, worker_id="orphan-worker")
+    storage = private_storage()
+    assert storage.exists(expected_key)
+    with authorized_tenant_scope(
+        case.owner, case.organization_id, Capability.CONTRACTUAL_RECORD_READ
+    ):
+        assert not GeneratedArtifact.objects.filter(issued_version_id=version_id).exists()
+        job = DocumentJob.objects.get(
+            job_type=DocumentJob.Type.RENDER_ISSUED_VERSION, target_id=version_id
+        )
+        assert job.state == DocumentJob.State.RETRY_WAIT
+        job.next_attempt_at = timezone.now()
+        job.save(update_fields=["next_attempt_at"])
+
+    monkeypatch.setattr(GeneratedArtifact, "save", original_save)
+    assert work_once(case.organization_id, worker_id="orphan-worker")
+    assert work_once(case.organization_id, worker_id="orphan-worker")
+    with authorized_tenant_scope(
+        case.owner, case.organization_id, Capability.CONTRACTUAL_RECORD_READ
+    ):
+        artifact = GeneratedArtifact.objects.get(issued_version_id=version_id)
+        assert artifact.storage_key == expected_key
+        assert artifact.sha256 == digest
+    with storage.open(expected_key) as stream:
+        assert stream.read() == content
+
+
+def test_renderer_refuses_noncanonical_host() -> None:
     with pytest.raises(DocumentsError) as rejected:
         render_pdf("<p>contrato</p>")
     assert rejected.value.code == "renderer_environment_not_approved"
+
+
+def test_explicit_review_detects_only_observable_contractual_changes() -> None:
     policy = ExplicitReviewPolicy()
-    unchanged = policy.assess({"quotation": {"total": "1"}}, {"quotation": {"total": "1"}})
-    changed = policy.assess({"quotation": {"total": "1"}}, {"quotation": {"total": "2"}})
+    baseline: dict[str, Any] = {
+        "organization": {
+            "id": "organization-1",
+            "name": "Salón Claridez",
+            "currency": "USD",
+            "timezone_name": "America/Guayaquil",
+        },
+        "counterparty": {
+            "id": "person-1",
+            "full_name": "María Contraparte",
+            "phone": "+593999999999",
+            "email": "maria@example.test",
+            "revision": 1,
+        },
+        "quotation": {"id": "quotation-1", "total": "100.00", "lines": [{"id": "line-1"}]},
+        "reservation": {
+            "organization_id": "organization-1",
+            "event_request_id": "request-1",
+            "root_reservation_id": "reservation-root",
+            "current_reservation_id": "reservation-1",
+            "quotation_version_id": "quotation-1",
+            "venue_id": "venue-1",
+            "space_id": "space-1",
+            "starts_at": "2026-10-01T15:00:00-05:00",
+            "ends_at": "2026-10-01T20:00:00-05:00",
+            "timezone_name": "America/Guayaquil",
+            "status": "confirmed",
+            "cancelled_at": None,
+            "revision": 1,
+            "chain_reservation_ids": ["reservation-1"],
+        },
+        "renderer": {"name": "WeasyPrint", "version": "69.0"},
+        "artifact_sha256": "a" * 64,
+    }
+    unchanged = policy.assess(baseline, deepcopy(baseline))
     assert unchanged.requires_new_issue is False
-    assert changed.status == "review_required"
-    assert changed.requires_new_issue is None
+    assert unchanged.status == "unchanged"
+
+    contractual_change = deepcopy(baseline)
+    contractual_change["quotation"]["total"] = "120.00"
+    changed = policy.assess(baseline, contractual_change)
+    assert changed.changes == ("quotation",)
+
+    internal_metadata = deepcopy(baseline)
+    internal_metadata["counterparty"]["revision"] = 2
+    internal_metadata["reservation"]["revision"] = 9
+    internal_metadata["sources"] = {"trace": "different"}
+    assert policy.assess(baseline, internal_metadata).status == "unchanged"
+
+    technical_render = deepcopy(baseline)
+    technical_render["renderer"] = {"name": "WeasyPrint", "version": "69.0.1"}
+    technical_render["artifact_sha256"] = "b" * 64
+    assert policy.assess(baseline, technical_render).status == "unchanged"
+
+    rescheduled = deepcopy(baseline)
+    rescheduled["reservation"]["current_reservation_id"] = "reservation-2"
+    rescheduled["reservation"]["starts_at"] = "2026-10-02T15:00:00-05:00"
+    rescheduled_assessment = policy.assess(baseline, rescheduled)
+    assert rescheduled_assessment.status == "review_required"
+    assert rescheduled_assessment.requires_new_issue is None
+    assert rescheduled_assessment.requires_new_acceptance is None
+    assert rescheduled_assessment.legal_instrument_outcome is None
+
+    cancelled = deepcopy(baseline)
+    cancelled["reservation"]["status"] = "cancelled"
+    cancelled["reservation"]["cancelled_at"] = "2026-09-01T12:00:00-05:00"
+    cancelled_assessment = policy.assess(baseline, cancelled)
+    assert cancelled_assessment.status == "review_required"
+    assert cancelled_assessment.legal_instrument_outcome is None
 
 
 def test_generated_pdf_is_structurally_validated_and_page_limited() -> None:
@@ -326,6 +612,18 @@ def test_issue_render_integrity_grant_challenge_acceptance_and_replay(
     )
     assert accepted.artifact_id == artifact.pk
     assert accepted.artifact_sha256 == artifact.sha256
+    assert accepted.issued_version_id == UUID(issued["id"])
+    assert accepted.challenge_id == challenge.challenge.pk
+    assert accepted.manifestation_version == MANIFESTATION_VERSION
+    assert accepted.manifestation_text
+    assert accepted.acceptor_projection["asserted_name"] == "María Contraparte"
+    assert accepted.attribution_method == "secure_link_self_assertion"
+    assert accepted.authentication_result["grant_id"] == str(challenge.challenge.grant_id)
+    assert accepted.accepted_at is not None
+    assert accepted.request_id == "req-accept"
+    assert accepted.correlation_id == "corr-accept"
+    assert accepted.ip_address is None
+    assert accepted.user_agent is None
     with pytest.raises(DocumentsError) as replay:
         accept(
             session.token,

@@ -53,7 +53,6 @@ def document_capabilities(actor: User, organization_id: UUID) -> tuple[str, ...]
             Capability.DOCUMENT_TEMPLATE_MANAGE,
             Capability.CONTRACTUAL_RECORD_READ,
             Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
-            Capability.CONTRACTUAL_ACCEPTANCE_READ,
             Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
             Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
             Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
@@ -174,7 +173,7 @@ def _require_record_scope(auth: TenantAuthorization, root_id: UUID) -> None:
 
 def _record_data(record: ContractualRecord, auth: TenantAuthorization) -> dict[str, Any]:
     granted = capabilities_for_role(auth.role)
-    can_read_acceptance = Capability.CONTRACTUAL_ACCEPTANCE_READ in granted
+    can_read_acceptance = Capability.CONTRACTUAL_RECORD_READ in granted
     can_manage_external_access = Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE in granted
     can_manage_external_files = Capability.DOCUMENT_EXTERNAL_FILE_MANAGE in granted
     instruments = []

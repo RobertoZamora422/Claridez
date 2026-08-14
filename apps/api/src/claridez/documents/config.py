@@ -37,6 +37,8 @@ class DocumentSettings(BaseSettings):
     renderer_required_environment: str = "claridez-render-weasyprint-69.0-debian12-v1"
     renderer_environment: str = "host-not-approved"
     token_hmac_key: SecretStr | None = Field(default=None, min_length=32, max_length=512)
+    capture_acceptance_ip_address: bool = False
+    capture_acceptance_user_agent: bool = False
 
     @field_validator("storage_root", mode="after")
     @classmethod

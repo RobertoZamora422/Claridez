@@ -27,11 +27,14 @@ export function ExternalDocumentView({ token }: { token: string | null }) {
     async function load() {
       try {
         if (token) {
-          await externalApi("/api/v1/external/documents/exchange/", {
-            method: "POST",
-            body: JSON.stringify({ token }),
-          });
-          window.history.replaceState({}, "", "/documents/external");
+          try {
+            await externalApi("/api/v1/external/documents/exchange/", {
+              method: "POST",
+              body: JSON.stringify({ token }),
+            });
+          } finally {
+            window.history.replaceState({}, "", "/documents/external");
+          }
         }
         setDocument(await externalApi("/api/v1/external/documents/session/"));
       } catch (caught) {

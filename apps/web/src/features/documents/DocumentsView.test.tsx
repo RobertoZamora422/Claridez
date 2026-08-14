@@ -13,6 +13,7 @@ function json(body: unknown, status = 200): Response {
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -62,6 +63,8 @@ describe("P9 documentos", () => {
   });
 
   it("intercambia el token, limpia la URL y acepta el artefacto exacto", async () => {
+    const grantToken = "g".repeat(64);
+    window.history.replaceState({}, "", `/documents/access#${grantToken}`);
     const replaceState = vi.spyOn(window.history, "replaceState");
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -94,9 +97,11 @@ describe("P9 documentos", () => {
       return Promise.resolve(json({ error: { code: "unexpected" } }, 500));
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(<ExternalDocumentView token={"g".repeat(64)} />);
+    render(<ExternalDocumentView token={grantToken} />);
     expect(await screen.findByRole("heading", { name: "Contrato de evento" })).toBeVisible();
     expect(replaceState).toHaveBeenCalledWith({}, "", "/documents/external");
+    expect(window.location.hash).toBe("");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/external/documents/exchange/");
     expect(screen.getByTitle("Documento: Contrato de evento")).toHaveAttribute(
       "src",
       "/api/v1/external/documents/artifact/",
@@ -114,5 +119,31 @@ describe("P9 documentos", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(4);
     });
+  });
+
+  it("elimina el fragmento aunque el intercambio sea inválido y no persiste el secreto", async () => {
+    const grantToken = "s".repeat(64);
+    window.history.replaceState({}, "", `/documents/access#${grantToken}`);
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      () =>
+        Promise.resolve(
+          json(
+            { error: { code: "not_found", message: "El acceso documental no está disponible." } },
+            404,
+          ),
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ExternalDocumentView token={grantToken} />);
+
+    expect(await screen.findByRole("heading", { name: "Enlace no disponible" })).toBeVisible();
+    expect(replaceState).toHaveBeenCalledWith({}, "", "/documents/external");
+    expect(window.location.pathname).toBe("/documents/external");
+    expect(window.location.hash).toBe("");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/external/documents/exchange/");
+    expect(storageWrite).not.toHaveBeenCalled();
   });
 });

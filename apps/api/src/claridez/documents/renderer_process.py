@@ -15,12 +15,21 @@ def _fetcher(url: str, *_args: object, **_kwargs: object) -> dict[str, object]:
 
 
 def main() -> int:
-    resource.setrlimit(  # type: ignore[attr-defined]
-        resource.RLIMIT_AS,  # type: ignore[attr-defined]
+    resource_api = vars(resource)
+    set_limit = resource_api.get("setrlimit")
+    address_space_limit = resource_api.get("RLIMIT_AS")
+    cpu_limit = resource_api.get("RLIMIT_CPU")
+    if (
+        not callable(set_limit)
+        or not isinstance(address_space_limit, int)
+        or not isinstance(cpu_limit, int)
+    ):
+        raise RuntimeError("the canonical renderer requires POSIX resource limits")
+    set_limit(
+        address_space_limit,
         (512 * 1024 * 1024, 512 * 1024 * 1024),
     )
-    cpu_limit: int = vars(resource)["RLIMIT_CPU"]
-    resource.setrlimit(  # type: ignore[attr-defined]
+    set_limit(
         cpu_limit,
         (20, 20),
     )

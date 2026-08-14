@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from claridez.documents.acceptance import MANIFESTATION_VERSION
 from claridez.documents.jobs import work_once
+from claridez.documents.models import AcceptanceEvidence, ExternalTokenLocator
 from claridez.documents.rendering import RenderedPDF
 from claridez.documents.services import (
     create_external_grant,
@@ -22,8 +23,10 @@ from claridez.documents.services import (
     publish_template_version,
 )
 from claridez.identity.models import User
+from claridez.organizations.capabilities import Capability
 from claridez.organizations.models import Membership
 from claridez.organizations.services import add_membership, create_organization
+from claridez.organizations.tenant_scope import authorized_tenant_scope
 from tests.document_fixtures import PASSWORD, build_document_case
 
 pytestmark = pytest.mark.django_db
@@ -144,6 +147,64 @@ def test_finance_is_deny_by_default_for_documents() -> None:
     assert client.get(f"{base}/templates/").status_code == 403
 
 
+@pytest.mark.parametrize(
+    ("role", "expected"),
+    [
+        (
+            Membership.Role.ADMINISTRATOR,
+            [
+                "document_template:read",
+                "document_template:manage",
+                "contractual_record:read",
+                "contractual_instrument:issue",
+                "document_artifact:download",
+                "document_external_file:manage",
+                "document_external_access:manage",
+                "document_retention:read",
+                "document_retention:manage",
+            ],
+        ),
+        (
+            Membership.Role.COMMERCIAL,
+            [
+                "document_template:read",
+                "contractual_record:read",
+                "contractual_instrument:issue",
+                "document_artifact:download",
+                "document_external_file:manage",
+                "document_external_access:manage",
+            ],
+        ),
+        (
+            Membership.Role.OPERATIONS,
+            ["contractual_record:read", "document_artifact:download"],
+        ),
+        (Membership.Role.FINANCE, []),
+    ],
+)
+def test_document_capability_endpoint_exposes_the_exact_approved_role_matrix(
+    role: Membership.Role,
+    expected: list[str],
+) -> None:
+    case = build_document_case(f"doc-cap-{role.value[:3]}")
+    member = User.objects.create_user(
+        email=f"document-capabilities-{role}-{uuid4()}@example.test",
+        password=PASSWORD,
+        status=User.Status.ACTIVE,
+        email_verified_at=timezone.now(),
+    )
+    add_membership(
+        organization_id=case.organization_id,
+        user_id=member.pk,
+        role=role,
+    )
+    client = Client(enforce_csrf_checks=True)
+    _login(client, member.email)
+    response = client.get(f"/api/v1/organizations/{case.organization_id}/documents/capabilities/")
+    assert response.status_code == 200
+    assert response.json()["capabilities"] == expected
+
+
 def test_external_invalid_tokens_are_opaque_rate_limited_and_not_cached() -> None:
     client = Client()
     response = client.post(
@@ -176,6 +237,7 @@ def test_external_invalid_tokens_are_opaque_rate_limited_and_not_cached() -> Non
 
 def test_external_http_flow_reads_downloads_accepts_and_blocks_replay(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     case = build_document_case("documents-external-http")
     template = create_template(
@@ -241,6 +303,7 @@ def test_external_http_flow_reads_downloads_accepts_and_blocks_replay(
     )
     assert exchanged.status_code == 200
     assert exchanged.json() == {"status": "session_created"}
+    assert grant["token"] not in exchanged.content.decode()
     assert exchanged.cookies["claridez_document_session"]["httponly"] is True
     assert exchanged.cookies["claridez_document_session"]["samesite"] == "Strict"
 
@@ -268,8 +331,9 @@ def test_external_http_flow_reads_downloads_accepts_and_blocks_replay(
         HTTP_X_REQUEST_ID="external-http-challenge",
     )
     assert challenge.status_code == 201
+    challenge_token = challenge.json()["challenge_token"]
     payload = {
-        "challenge_token": challenge.json()["challenge_token"],
+        "challenge_token": challenge_token,
         "manifestation_version": MANIFESTATION_VERSION,
         "affirmative": True,
         "asserted_name": "MarÃ­a Contraparte",
@@ -285,6 +349,19 @@ def test_external_http_flow_reads_downloads_accepts_and_blocks_replay(
     )
     assert accepted.status_code == 201
     assert accepted.json()["artifact_sha256"] == digest
+    with authorized_tenant_scope(
+        case.owner, case.organization_id, Capability.CONTRACTUAL_RECORD_READ
+    ):
+        acceptance = AcceptanceEvidence.objects.get(pk=accepted.json()["acceptance_id"])
+        persisted_hashes = " ".join(
+            ExternalTokenLocator.objects.values_list("token_hmac", flat=True)
+        )
+    assert acceptance.ip_address is None
+    assert acceptance.user_agent is None
+    assert grant["token"] not in persisted_hashes
+    assert challenge_token not in persisted_hashes
+    assert grant["token"] not in caplog.text
+    assert challenge_token not in caplog.text
     replay = client.post(
         "/api/v1/external/documents/accept/",
         data=json.dumps(payload),

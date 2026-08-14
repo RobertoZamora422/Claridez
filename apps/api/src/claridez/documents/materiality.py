@@ -3,6 +3,40 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+_MISSING = object()
+_CONTRACTUAL_PATHS = (
+    ("organization", "id"),
+    ("organization", "name"),
+    ("organization", "currency"),
+    ("organization", "timezone_name"),
+    ("counterparty", "id"),
+    ("counterparty", "full_name"),
+    ("counterparty", "phone"),
+    ("counterparty", "email"),
+    ("quotation",),
+    ("reservation", "organization_id"),
+    ("reservation", "event_request_id"),
+    ("reservation", "root_reservation_id"),
+    ("reservation", "current_reservation_id"),
+    ("reservation", "quotation_version_id"),
+    ("reservation", "venue_id"),
+    ("reservation", "space_id"),
+    ("reservation", "starts_at"),
+    ("reservation", "ends_at"),
+    ("reservation", "timezone_name"),
+    ("reservation", "status"),
+    ("reservation", "cancelled_at"),
+)
+
+
+def _path_value(snapshot: dict[str, Any], path: tuple[str, ...]) -> Any:
+    value: Any = snapshot
+    for component in path:
+        if not isinstance(value, dict) or component not in value:
+            return _MISSING
+        value = value[component]
+    return value
+
 
 @dataclass(frozen=True, slots=True)
 class MaterialityAssessment:
@@ -26,14 +60,10 @@ class ExplicitReviewPolicy:
     def assess(
         self, previous_snapshot: dict[str, Any], current_snapshot: dict[str, Any]
     ) -> MaterialityAssessment:
-        fields = (
-            "quotation",
-            "reservation",
-            "organization",
-            "counterparty",
-        )
         changes = tuple(
-            field for field in fields if previous_snapshot.get(field) != current_snapshot.get(field)
+            ".".join(path)
+            for path in _CONTRACTUAL_PATHS
+            if _path_value(previous_snapshot, path) != _path_value(current_snapshot, path)
         )
         return MaterialityAssessment(
             policy_version=self.version,

@@ -50,7 +50,6 @@ class Capability(StrEnum):
     DOCUMENT_TEMPLATE_MANAGE = "document_template:manage"
     CONTRACTUAL_RECORD_READ = "contractual_record:read"
     CONTRACTUAL_INSTRUMENT_ISSUE = "contractual_instrument:issue"
-    CONTRACTUAL_ACCEPTANCE_READ = "contractual_acceptance:read"
     DOCUMENT_ARTIFACT_DOWNLOAD = "document_artifact:download"
     DOCUMENT_EXTERNAL_FILE_MANAGE = "document_external_file:manage"
     DOCUMENT_EXTERNAL_ACCESS_MANAGE = "document_external_access:manage"
@@ -101,7 +100,6 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_TEMPLATE_MANAGE,
                 Capability.CONTRACTUAL_RECORD_READ,
                 Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
-                Capability.CONTRACTUAL_ACCEPTANCE_READ,
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
                 Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
@@ -149,7 +147,6 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_TEMPLATE_MANAGE,
                 Capability.CONTRACTUAL_RECORD_READ,
                 Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
-                Capability.CONTRACTUAL_ACCEPTANCE_READ,
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
                 Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
@@ -182,7 +179,6 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_TEMPLATE_READ,
                 Capability.CONTRACTUAL_RECORD_READ,
                 Capability.CONTRACTUAL_INSTRUMENT_ISSUE,
-                Capability.CONTRACTUAL_ACCEPTANCE_READ,
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
                 Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,

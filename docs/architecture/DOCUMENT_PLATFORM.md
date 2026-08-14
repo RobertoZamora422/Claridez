@@ -51,6 +51,11 @@ La elección productiva entre S3, R2, B2 u otro servicio compatible sigue abiert
 debe demostrar operaciones create-only, cifrado, recuperación/versionado, lifecycle sin destruir
 evidencia protegida, backup y restauración.
 
+Los adaptadores filesystem y S3-compatible tratan la colisión como un conflicto create-only
+atómico: nunca truncan, concatenan ni sustituyen el objeto ganador. En filesystem se escribe y
+sincroniza un temporal exclusivo y se publica con un enlace atómico; en S3 se exige la precondición
+`If-None-Match: *` y se reconocen `409/412` como colisión controlada.
+
 ### Coherencia y recuperación
 
 Una emisión usa key determinista por UUID de versión: si el proceso cae después de escribir el
@@ -70,6 +75,23 @@ El runbook de backup/restauración debe operar como una unidad:
 6. conservar el backup y la evidencia del ensayo según la política de retención aplicable.
 
 No existe proceso de disposición física en P9. La verificación no repara sobrescribiendo.
+
+## Materialidad y privacidad de aceptación
+
+`explicit-review-v1` compara únicamente campos contractuales autorizados del snapshot. Un cambio
+observable produce `review_required`, sin decidir validez, nueva emisión, nueva aceptación, adenda,
+terminación ni efectos sobre P8. Revisiones internas, procedencia técnica, renderer, metadata y
+bytes diferentes sin cambio semántico no constituyen materialidad contractual por sí solos.
+
+La evidencia de aceptación conserva siempre versión emitida, artefacto y SHA-256 exactos,
+manifestación/versionado, contraparte, challenge, atribución, tiempos y correlación. IP y
+user-agent son campos opcionales; su captura requiere habilitar por separado una política explícita
+y está desactivada de forma predeterminada.
+
+La migración documental final protege con triggers PostgreSQL la ausencia de borrado físico en las
+22 tablas privadas. Los registros históricos append-only y las versiones estrictamente inmutables
+conservan además sus guards de actualización y privilegios mínimos; las máquinas de estado siguen
+mutando únicamente mediante sus transiciones controladas.
 
 ## Uploads y malware
 

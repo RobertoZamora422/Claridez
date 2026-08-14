@@ -160,7 +160,8 @@ Una aceptación exitosa será append-only y quedará vinculada permanentemente a
 - grant y challenge utilizados;
 - método y resultado de autenticación o atribución;
 - instante de presentación, instante de recepción del servidor y zona aplicable;
-- IP y user-agent minimizados conforme a política;
+- IP y user-agent opcionales, minimizados y capturados solo cuando una política explícita lo
+  habilite; la política predeterminada no los captura y su ausencia no invalida la aceptación;
 - identificadores de correlación y solicitud;
 - versión del mecanismo de aceptación y demás evidencia expresamente aprobada.
 
@@ -218,13 +219,15 @@ La matriz inicial será:
 | `document_template:manage` | Sí | Sí | No | No | No |
 | `contractual_record:read` | Sí | Sí | Sí | Sí, con propósito operativo y relación existente | No |
 | `contractual_instrument:issue` | Sí | Sí | Sí | No | No |
-| `contractual_acceptance:read` | Sí | Sí | Sí | No | No |
-| `contractual_artifact:download` | Sí | Sí | Sí | Sí, con propósito operativo y relación existente | No |
+| `document_artifact:download` | Sí | Sí | Sí | Sí, con propósito operativo y relación existente | No |
+| `document_external_file:manage` | Sí | Sí | Sí | No | No |
 | `document_external_access:manage` | Sí | Sí | Sí | No | No |
-| `document_file:manage` | Sí | Sí | Sí | No | No |
+| `document_retention:read` | Sí | Sí | No | No | No |
 | `document_retention:manage` | Sí | Sí | No | No | No |
 
-Para Operaciones, `contractual_record:read` y `contractual_artifact:download` exigirán además
+La evidencia de aceptación forma parte de la proyección protegida por `contractual_record:read`;
+no existe una capability redundante de aceptación. Para Operaciones, `contractual_record:read` y
+`document_artifact:download` exigirán además
 `operation:read`, una relación real `EventPreparation → Reservation` dentro de la misma raíz y un
 propósito operativo permitido. Esa relación limita alcance; no concede la capability documental.
 Finanzas permanece deny-by-default para todo P9 hasta que P10 o una etapa posterior apruebe su

@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .acceptance import AcceptanceRequestEvidence, accept
+from .config import document_settings
 from .errors import DocumentsError
 from .external_access import (
     create_acceptance_challenge,
@@ -180,6 +181,7 @@ class ExternalAcceptanceView(ExternalAPIView):
             )
         try:
             _rate_limit(request)
+            evidence_policy = document_settings()
             evidence = accept(
                 _session_token(request),
                 challenge_token=serializer.validated_data["challenge_token"],
@@ -187,8 +189,16 @@ class ExternalAcceptanceView(ExternalAPIView):
                 affirmative=serializer.validated_data["affirmative"],
                 evidence=AcceptanceRequestEvidence(
                     asserted_name=serializer.validated_data["asserted_name"],
-                    ip_address=request.META.get("REMOTE_ADDR"),
-                    user_agent=request.headers.get("User-Agent", ""),
+                    ip_address=(
+                        request.META.get("REMOTE_ADDR")
+                        if evidence_policy.capture_acceptance_ip_address
+                        else None
+                    ),
+                    user_agent=(
+                        request.headers.get("User-Agent", "")
+                        if evidence_policy.capture_acceptance_user_agent
+                        else None
+                    ),
                     request_id=request.headers.get("X-Request-ID", ""),
                     correlation_id=request.headers.get("X-Correlation-ID", ""),
                     timezone_name=serializer.validated_data["timezone"],

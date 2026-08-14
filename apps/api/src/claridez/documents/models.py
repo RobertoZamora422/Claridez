@@ -486,7 +486,8 @@ class AcceptanceEvidence(TenantModel):
     accepted_at = models.DateTimeField()
     timezone_name = models.CharField(max_length=64)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=500, blank=True)
+    # NULL records that privacy policy deliberately did not capture this optional evidence.
+    user_agent = models.CharField(max_length=500, null=True, blank=True)  # noqa: DJ001
     request_id = models.CharField(max_length=128)
     correlation_id = models.CharField(max_length=128)
 
