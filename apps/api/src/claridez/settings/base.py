@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "claridez.crm.apps.CrmConfig",
     "claridez.operations.apps.OperationsConfig",
     "claridez.documents.apps.DocumentsConfig",
+    "claridez.receivables.apps.ReceivablesConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -121,6 +122,10 @@ SPECTACULAR_SETTINGS = {
         ),
         "IssuedInstrumentVersionState": ("claridez.documents.models.IssuedInstrumentVersion.State"),
         "ExternalDocumentFileState": "claridez.documents.models.ExternalFile.State",
+        "ReceivablesPaymentMethod": "claridez.receivables.models.ReceivedPayment.Method",
+        "ReceivablesAdjustmentDirection": (
+            "claridez.receivables.models.ReceivableAdjustment.Direction"
+        ),
     },
 }
 

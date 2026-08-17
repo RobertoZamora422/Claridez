@@ -117,13 +117,19 @@ P9 incorpora `claridez.documents` como autoridad de expedientes, instrumentos, v
 artefactos, aceptación, archivos externos, acceso externo y retención; usa renderer canónico,
 almacenamiento privado sustituible, ClamAV y ledger durable de jobs PostgreSQL conforme a ADR 0017
 y ADR 0018. La disposición física no existe y finanzas permanece sin capacidades documentales.
+P10 incorpora `claridez.receivables` como autoridad exclusiva de obligaciones por cobrar,
+calendarios operativos de vencimientos, pagos externos declarados, aplicaciones, ajustes,
+reversos, devoluciones registradas, recibos lógicos, saldo derivado y antigüedad conforme a ADR
+0019. La primera confirmación de una raíz crea exactamente una obligación mediante coordinación
+transaccional neutral; scheduling no importa receivables. Los hechos financieros son append-only,
+tenant-aware e idempotentes y Claridez no custodia fondos ni ejecuta reembolsos.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P10 o etapas posteriores.
+- Módulos o pantallas de P11 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
@@ -134,6 +140,10 @@ especificación 5.2, las operaciones funcionales P6 de ADR 0014, las operaciones
 CRM aprobadas por ADR 0015 y las operaciones P8 de agenda y reservas aprobadas por ADR 0016.
 También están aprobadas las operaciones internas y externas de P9 bajo `/api/v1` conforme a ADR
 0017–0018; el acceso externo es un intercambio acotado, no un portal completo.
+P10 aprueba consultas de cartera, obligación, calendario, movimientos, pagos, estado de cuenta,
+antigüedad y recibos, además de comandos explícitos para pago, aplicación, calendario, ajuste,
+reverso, devolución y recibo. No existe CRUD financiero genérico, `DELETE` ni `PATCH` libre sobre
+hechos consumados.
 PostgreSQL local se publica solo sobre loopback. Django normal usa
 `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
@@ -147,6 +157,8 @@ sobre las tablas operativas, sedes, espacios, catálogo, people ni CRM. Interacc
 aliases, consentimiento e historiales son append-only; las tareas solo admiten actualización
 controlada. `claridez_app` tampoco tiene `DELETE` sobre tablas documentales; P9 no expone
 capability, endpoint, acción web, job ni servicio de destrucción física.
+`claridez_app` tampoco tiene `DELETE` ni `TRUNCATE` sobre tablas financieras; movimientos,
+comandos idempotentes y recibos consumados se corrigen exclusivamente con nuevos hechos.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.
@@ -168,7 +180,8 @@ modelo de amenazas se conservan como evidencia histórica; no constituyen códig
 - OWASP ASVS es una referencia y fuente progresiva de checklists, no una certificación ya alcanzada.
 - La autorización debe denegar por defecto cuando una decisión no esté definida.
 - Los logs futuros no deben contener secretos ni datos sensibles innecesarios.
-- Las operaciones financieras futuras deberán evitar números de punto flotante y preservar trazabilidad; sus reglas concretas requieren especificación.
+- Las operaciones financieras de P10 usan `numeric(18,2)`, `Decimal`, cuantización `0.01` y
+  `ROUND_HALF_UP`; la moneda histórica no cambia y P10 no convierte divisas.
 
 ## 11. Cambios arquitectónicos y ADR
 

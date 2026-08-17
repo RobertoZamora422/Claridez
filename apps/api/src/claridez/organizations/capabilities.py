@@ -55,6 +55,15 @@ class Capability(StrEnum):
     DOCUMENT_EXTERNAL_ACCESS_MANAGE = "document_external_access:manage"
     DOCUMENT_RETENTION_READ = "document_retention:read"
     DOCUMENT_RETENTION_MANAGE = "document_retention:manage"
+    RECEIVABLES_READ = "receivables:read"
+    RECEIVABLES_READ_SUMMARY = "receivables:read_summary"
+    RECEIVABLES_MANAGE_SCHEDULE = "receivables:manage_schedule"
+    RECEIVABLES_RECORD_PAYMENT = "receivables:record_payment"
+    RECEIVABLES_APPLY_PAYMENT = "receivables:apply_payment"
+    RECEIVABLES_RECORD_ADJUSTMENT = "receivables:record_adjustment"
+    RECEIVABLES_REVERSE_MOVEMENT = "receivables:reverse_movement"
+    RECEIVABLES_RECORD_REFUND = "receivables:record_refund"
+    RECEIVABLES_ISSUE_RECEIPT = "receivables:issue_receipt"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -105,6 +114,15 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
                 Capability.DOCUMENT_RETENTION_READ,
                 Capability.DOCUMENT_RETENTION_MANAGE,
+                Capability.RECEIVABLES_READ,
+                Capability.RECEIVABLES_READ_SUMMARY,
+                Capability.RECEIVABLES_MANAGE_SCHEDULE,
+                Capability.RECEIVABLES_RECORD_PAYMENT,
+                Capability.RECEIVABLES_APPLY_PAYMENT,
+                Capability.RECEIVABLES_RECORD_ADJUSTMENT,
+                Capability.RECEIVABLES_REVERSE_MOVEMENT,
+                Capability.RECEIVABLES_RECORD_REFUND,
+                Capability.RECEIVABLES_ISSUE_RECEIPT,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -152,6 +170,15 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
                 Capability.DOCUMENT_RETENTION_READ,
                 Capability.DOCUMENT_RETENTION_MANAGE,
+                Capability.RECEIVABLES_READ,
+                Capability.RECEIVABLES_READ_SUMMARY,
+                Capability.RECEIVABLES_MANAGE_SCHEDULE,
+                Capability.RECEIVABLES_RECORD_PAYMENT,
+                Capability.RECEIVABLES_APPLY_PAYMENT,
+                Capability.RECEIVABLES_RECORD_ADJUSTMENT,
+                Capability.RECEIVABLES_REVERSE_MOVEMENT,
+                Capability.RECEIVABLES_RECORD_REFUND,
+                Capability.RECEIVABLES_ISSUE_RECEIPT,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -182,6 +209,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
                 Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
+                Capability.RECEIVABLES_READ_SUMMARY,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -213,6 +241,15 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.VENUE_READ,
                 Capability.CATALOG_READ,
                 Capability.CATALOG_PRICE_READ,
+                Capability.RECEIVABLES_READ,
+                Capability.RECEIVABLES_READ_SUMMARY,
+                Capability.RECEIVABLES_MANAGE_SCHEDULE,
+                Capability.RECEIVABLES_RECORD_PAYMENT,
+                Capability.RECEIVABLES_APPLY_PAYMENT,
+                Capability.RECEIVABLES_RECORD_ADJUSTMENT,
+                Capability.RECEIVABLES_REVERSE_MOVEMENT,
+                Capability.RECEIVABLES_RECORD_REFUND,
+                Capability.RECEIVABLES_ISSUE_RECEIPT,
             }
         ),
     }

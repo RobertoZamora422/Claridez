@@ -409,5 +409,52 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
             "/api/v1/organizations/{organization_id}/documents/retention/policies/"
             "{policy_id}/activate/"
         ): {"post"},
+        "/api/v1/organizations/{organization_id}/receivables/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/receivables/portfolio/": {"get"},
+        "/api/v1/organizations/{organization_id}/receivables/aging/": {"get"},
+        "/api/v1/organizations/{organization_id}/receivables/roots/{root_id}/summary/": {"get"},
+        "/api/v1/organizations/{organization_id}/receivables/obligations/{obligation_id}/": {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/obligations/"
+            "{obligation_id}/schedule/"
+        ): {"get", "post"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/obligations/"
+            "{obligation_id}/statement/"
+        ): {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/obligations/"
+            "{obligation_id}/movements/"
+        ): {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/obligations/"
+            "{obligation_id}/adjustments/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/receivables/payments/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/receivables/payments/{payment_id}/": {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/payments/"
+            "{payment_id}/applications/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/receivables/payments/{payment_id}/refunds/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/receivables/payments/{payment_id}/receipts/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/receivables/payments/{payment_id}/evidence/"): {
+            "get",
+            "post",
+        },
+        (
+            "/api/v1/organizations/{organization_id}/receivables/payments/"
+            "{payment_id}/evidence/{evidence_id}/download/"
+        ): {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/receivables/movements/"
+            "{target_kind}/{target_id}/reverse/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/receivables/receipts/{receipt_id}/": {"get"},
+        ("/api/v1/organizations/{organization_id}/receivables/receipts/{receipt_id}/pdf/"): {"get"},
     }
     assert organization_paths == expected_paths

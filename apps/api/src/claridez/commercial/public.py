@@ -209,6 +209,13 @@ def accepted_schedule_evidence(
     )
 
 
+def accepted_quotation_snapshot(
+    authorization: TenantAuthorization, quotation_version_id: UUID
+) -> AcceptedQuotationProjection:
+    """Snapshot económico aceptado para consumidores tipados, sin ORM compartido."""
+    return accepted_quotation_for_documents(authorization, quotation_version_id)
+
+
 def set_request_schedule_status(
     authorization: TenantAuthorization,
     event_request_id: UUID,
@@ -345,6 +352,7 @@ __all__ = (
     "OpportunityProjection",
     "accepted_schedule_evidence",
     "accepted_quotation_for_documents",
+    "accepted_quotation_snapshot",
     "confirmed_evidence_for_people",
     "interest_evidence_for_people",
     "opportunities_for_crm",

@@ -6,8 +6,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from django.db import DatabaseError, transaction
-from django.db.models import F
+from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from claridez.catalog.services import create_event_type, list_event_types
@@ -41,6 +40,26 @@ from claridez.organizations.services import (
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 
 PASSWORD = "correct-horse-battery-staple-commercial-42"
+
+
+def _set_hold_expired_for_test(reservation_id: UUID | str) -> None:
+    """Mueve el reloj del fixture sin fabricar una revisión de agenda."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "ALTER TABLE public.commercial_reservation "
+            "DISABLE TRIGGER commercial_reservation_transition"
+        )
+        cursor.execute(
+            "UPDATE public.commercial_reservation "
+            "SET hold_expires_at = transaction_timestamp() - interval '1 second' "
+            "WHERE id = %s",
+            (reservation_id,),
+        )
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        cursor.execute(
+            "ALTER TABLE public.commercial_reservation "
+            "ENABLE TRIGGER commercial_reservation_transition"
+        )
 
 
 def _user(email: str) -> User:
@@ -252,7 +271,7 @@ def test_quote_totals_snapshots_and_issued_rows_are_immutable() -> None:
         ).update(total=Decimal("1.00"))
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() -> None:
     owner, creation = _owner("expiry")
     organization_id = creation.organization.pk
@@ -261,11 +280,7 @@ def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() 
     _, provisional = _accepted(owner, organization_id, event_request["id"])
 
     with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
-        Reservation.objects.filter(pk=provisional["id"]).update(
-            # Debe preceder inequÃ­vocamente al transaction_timestamp() del test.
-            hold_expires_at=timezone.now() - timedelta(days=1),
-            revision=F("revision") + 1,
-        )
+        _set_hold_expired_for_test(provisional["id"])
     agenda = list_availability(
         owner,
         organization_id,
@@ -285,7 +300,7 @@ def test_expiration_is_idempotent_releases_slot_and_returns_request_to_quoted() 
         )
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_expiration_before_failed_confirmation_is_persisted() -> None:
     owner, creation = _owner("expiry-confirm")
     organization_id = creation.organization.pk
@@ -293,10 +308,7 @@ def test_expiration_before_failed_confirmation_is_persisted() -> None:
     event_request = _request(owner, organization_id, person["id"])
     _, provisional = _accepted(owner, organization_id, event_request["id"])
     with authorized_tenant_scope(owner, organization_id, Capability.SALES_MANAGE):
-        Reservation.objects.filter(pk=provisional["id"]).update(
-            hold_expires_at=timezone.now() - timedelta(seconds=1),
-            revision=F("revision") + 1,
-        )
+        _set_hold_expired_for_test(provisional["id"])
 
     with pytest.raises(CommercialError) as expired:
         confirm_reservation(

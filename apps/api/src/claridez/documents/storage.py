@@ -71,8 +71,18 @@ class FilesystemPrivateStorage:
     def _path(self, key: str) -> Path:
         if not key or "\\" in key or key.startswith("/") or ".." in key.split("/"):
             raise DocumentsError("invalid_storage_key", "La clave de almacenamiento no es válida.")
-        target = (self.root / Path(*key.split("/"))).resolve()
-        if self.root not in target.parents:
+        # Windows puede anteponer el namespace extendido ``\\?\`` mientras dos
+        # hilos crean los mismos directorios. Normalizar ambos lados conserva el
+        # guardián de escape sin clasificar esa carrera como una clave inválida.
+        resolved_root = self.root.resolve()
+        target = (resolved_root / Path(*key.split("/"))).resolve()
+        root_name = os.path.normcase(str(resolved_root)).removeprefix("\\\\?\\")
+        target_name = os.path.normcase(str(target)).removeprefix("\\\\?\\")
+        try:
+            contained = os.path.commonpath((root_name, target_name)) == root_name
+        except ValueError:
+            contained = False
+        if not contained:
             raise DocumentsError("invalid_storage_key", "La clave de almacenamiento no es válida.")
         return target
 

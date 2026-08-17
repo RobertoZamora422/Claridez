@@ -7,8 +7,9 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from claridez.application.reservation_confirmation import confirm_reservation
 from claridez.identity.models import User
-from claridez.scheduling.public import cancel_command, confirm_command
+from claridez.scheduling.public import cancel_command
 
 
 def confirm_reservation_with_operations(
@@ -22,7 +23,7 @@ def confirm_reservation_with_operations(
     reference: str = "",
     waiver_reason: str = "",
 ) -> dict[str, Any]:
-    return confirm_command(
+    return confirm_reservation(
         actor,
         organization_reference,
         reservation_id=reservation_id,

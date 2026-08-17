@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 14 de agosto de 2026
+- **Fecha de corte:** 17 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -426,7 +426,8 @@ un despliegue. El mecanismo base es aceptación electrónica propia, no firma ac
 
 **Identificador y nombre:** P10 — Pagos de clientes, saldos y cartera.
 
-**Estado:** Pendiente de implementación; ADR 0019 aceptado el 14 de agosto de 2026.
+**Estado:** Completada y validada localmente el 17 de agosto de 2026. No implica CI remota,
+staging, producción, despliegue ni cutover de un entorno destino.
 
 **Objetivo:** Controlar el dinero que cada salón recibe de sus clientes y el saldo de cada evento.
 
@@ -443,11 +444,27 @@ fail-closed, integridad, reversos, concurrencia y migración de evidencia histó
 **Resultado visible:** Finanzas conoce qué debía cobrarse, qué recibió el salón, qué se aplicó y qué
 saldo queda por cliente y evento.
 
-**Criterio verificable de finalización:** `Decimal` y redondeo probados, saldo canónico sin edición
-destructiva, reintentos idempotentes, recibo verificable, permisos por rol y dos tenants.
+**Criterio verificable de finalización:** `claridez.receivables` crea exactamente una obligación
+por primera confirmación de raíz, copia el snapshot de la cotización aceptada y coordina anticipo
+o waiver en una sola transacción sin dependencia scheduling→receivables. `Decimal`, redondeo,
+moneda, calendarios versionados parciales, pago/aplicación, excedente sin aplicar, ajustes,
+reversos completos, devoluciones externas, recibos lógicos, estado de cuenta y seis buckets de
+antigüedad quedan probados. El saldo es reconstruible y ningún movimiento consumado admite
+edición o borrado. Idempotencia persistida, locks ordenados, constraints diferidos, guardianes,
+privilegios mínimos y `ENABLE` + `FORCE RLS` resisten retries, bulk, SQL directo y carreras con dos
+tenants. La migración desde P9 crea obligaciones para raíces confirmadas, convierte solo
+constancias 5.1 coherentes como `legacy_5_1_confirmation/internal_report`, conserva waivers sin
+pago y no inventa vencimientos. La API usa comandos explícitos y la web responsive separa la
+superficie financiera completa del resumen comercial. La puerta local cerró con 207 pruebas API
+no integración, 81 de integración PostgreSQL y 25 frontend; OpenAPI, migraciones, formato, lint,
+tipos, builds y auditorías completaron correctamente. El navegador real validó Cartera a 390×844
+sin desbordamiento horizontal.
 
-**Riesgos principales:** Doble registro, sobreasignación concurrente, confundir constancia con pago
-real o mezclar cartera del salón con suscripción SaaS.
+**Riesgos principales:** Un despliegue futuro necesita preflight, respaldo, ventana y validación
+del backfill reales. Penalidades, pérdida de anticipos, deber jurídico de devolver, créditos,
+aplicación de excedentes a otros eventos, efecto contractual de revisar vencimientos y retención
+jurídica definitiva siguen abiertas y fallan cerradamente. P10 no incluye costos, gastos,
+contabilidad, conciliación, facturación electrónica, FX ni ejecución bancaria.
 
 **Siguiente etapa:** P11 — Costos, gastos, flujo y rentabilidad.
 

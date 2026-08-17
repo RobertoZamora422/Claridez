@@ -89,6 +89,8 @@ export function AgendaView({
   timeZone: string;
   capabilities: Set<string>;
 }) {
+  const canRecordDeposit =
+    capabilities.has("receivables:record_payment") && capabilities.has("receivables:apply_payment");
   const [view, setView] = useState<CalendarView>("week");
   const [anchorDate, setAnchorDate] = useState(toInputDate(new Date()));
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -106,6 +108,7 @@ export function AgendaView({
   const [blockScope, setBlockScope] = useState<"spaces" | "venue">("spaces");
   const [depositAmount, setDepositAmount] = useState("");
   const [depositReference, setDepositReference] = useState("");
+  const [depositMethod, setDepositMethod] = useState("bank_transfer");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -265,11 +268,13 @@ export function AgendaView({
 
   const confirmHold = () => {
     if (!selected) return Promise.resolve();
-    const waiver = capabilities.has("reservation:waive_deposit") && !depositAmount;
+    const waiver =
+      capabilities.has("reservation:waive_deposit") && (!canRecordDeposit || !depositAmount);
     return run(
       () =>
         api(`/api/v1/organizations/${organizationId}/reservations/${selected.id}/confirm/`, {
           method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify(
             waiver
               ? { kind: "waiver", waiver_reason: reason }
@@ -278,6 +283,7 @@ export function AgendaView({
                   recognized_amount: depositAmount,
                   reported_at: new Date().toISOString(),
                   reference: depositReference,
+                  payment_method: depositMethod,
                 },
           ),
         }),
@@ -576,15 +582,17 @@ export function AgendaView({
                     )}
                   </dl>
                   <div className="schedule-actions">
-                    {selected.type === "hold" && capabilities.has("reservation:confirm") && (
-                      <button
-                        onClick={() => {
-                          setMode("confirm");
-                        }}
-                      >
-                        Confirmar
-                      </button>
-                    )}
+                    {selected.type === "hold" &&
+                      capabilities.has("reservation:confirm") &&
+                      (canRecordDeposit || capabilities.has("reservation:waive_deposit")) && (
+                        <button
+                          onClick={() => {
+                            setMode("confirm");
+                          }}
+                        >
+                          Confirmar
+                        </button>
+                      )}
                     {selected.type !== "block" &&
                       selected.is_blocking &&
                       capabilities.has("reservation:reschedule") && (
@@ -724,32 +732,54 @@ export function AgendaView({
 
               {mode === "confirm" && selected && (
                 <div className="schedule-form">
-                  <label>
-                    Monto recibido
-                    <input
-                      inputMode="decimal"
-                      value={depositAmount}
-                      onChange={(event) => {
-                        setDepositAmount(event.target.value);
-                      }}
-                      placeholder={
-                        capabilities.has("reservation:waive_deposit")
-                          ? "Vacío para excepción"
-                          : "0.00"
-                      }
-                    />
-                  </label>
-                  {depositAmount ? (
-                    <label>
-                      Referencia
-                      <input
-                        value={depositReference}
-                        onChange={(event) => {
-                          setDepositReference(event.target.value);
-                        }}
-                      />
-                    </label>
-                  ) : (
+                  {canRecordDeposit ? (
+                    <>
+                      <label>
+                        Monto recibido externamente
+                        <input
+                          inputMode="decimal"
+                          value={depositAmount}
+                          onChange={(event) => {
+                            setDepositAmount(event.target.value);
+                          }}
+                          placeholder={
+                            capabilities.has("reservation:waive_deposit")
+                              ? "Vacío para excepción"
+                              : "0.00"
+                          }
+                        />
+                      </label>
+                      {depositAmount ? (
+                        <>
+                          <label>
+                            Método
+                            <select
+                              value={depositMethod}
+                              onChange={(event) => {
+                                setDepositMethod(event.target.value);
+                              }}
+                            >
+                              <option value="cash">Efectivo</option>
+                              <option value="bank_transfer">Transferencia bancaria</option>
+                              <option value="card_external">Tarjeta externa</option>
+                              <option value="check">Cheque</option>
+                              <option value="other">Otro medio externo</option>
+                            </select>
+                          </label>
+                          <label>
+                            Referencia
+                            <input
+                              value={depositReference}
+                              onChange={(event) => {
+                                setDepositReference(event.target.value);
+                              }}
+                            />
+                          </label>
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {!canRecordDeposit || !depositAmount ? (
                     <label>
                       Razón de excepción
                       <textarea
@@ -759,7 +789,12 @@ export function AgendaView({
                         }}
                       />
                     </label>
-                  )}
+                  ) : null}
+                  {!canRecordDeposit ? (
+                    <p className="muted">
+                      Tu rol puede confirmar solo mediante waiver; no puede registrar pagos.
+                    </p>
+                  ) : null}
                   <button
                     className="button"
                     disabled={

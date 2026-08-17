@@ -13,8 +13,12 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from claridez.application.reservation_confirmation import (
+    confirm_reservation as confirm_reservation_with_receivables,
+)
 from claridez.identity.models import User
 from claridez.organizations.exceptions import AuthorizationDenied, TenantAccessDenied
+from claridez.receivables.errors import ReceivablesError
 from claridez.scheduling.public import SchedulingError
 
 from .errors import CommercialError
@@ -35,7 +39,6 @@ from .services import (
     cancel_reservation,
     close_event_request,
     commercial_capabilities,
-    confirm_reservation,
     create_event_request,
     create_person,
     create_quotation,
@@ -77,6 +80,8 @@ def _respond(operation: Callable[[], Any], *, created: bool = False) -> Response
     except CommercialError as error:
         return _error(error.code, error.message, status=error.status)
     except SchedulingError as error:
+        return _error(error.code, error.message, status=error.status)
+    except ReceivablesError as error:
         return _error(error.code, error.message, status=error.status)
     return Response(_json_safe(result), status=201 if created else 200)
 
@@ -505,6 +510,15 @@ class ReservationDetailView(CommercialAPIView):
 class ReservationConfirmView(CommercialAPIView):
     @extend_schema(
         request=ReservationConfirmSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="Idempotency-Key",
+                type=UUID,
+                location=OpenApiParameter.HEADER,
+                required=True,
+                description="UUID estable y obligatorio para reintentos de confirmación.",
+            )
+        ],
         responses={200: SUCCESS, 400: ERROR, 403: ERROR, 409: ERROR},
         tags=["Reservas"],
     )
@@ -516,8 +530,16 @@ class ReservationConfirmView(CommercialAPIView):
         if (error := _validated(serializer)) is not None:
             return error
         data = serializer.validated_data
+        try:
+            idempotency_key = UUID(request.headers.get("Idempotency-Key", ""))
+        except (ValueError, AttributeError):
+            return _error(
+                "invalid_idempotency_key",
+                "Se requiere una Idempotency-Key UUID válida.",
+                status=400,
+            )
         return _respond(
-            lambda: confirm_reservation(
+            lambda: confirm_reservation_with_receivables(
                 actor,
                 organization_id,
                 reservation_id=reservation_id,
@@ -526,6 +548,9 @@ class ReservationConfirmView(CommercialAPIView):
                 reported_at=data.get("reported_at"),
                 reference=str(data.get("reference", "")),
                 waiver_reason=str(data.get("waiver_reason", "")),
+                payment_method=str(data.get("payment_method", "legacy_unspecified")),
+                observation=str(data.get("observation", "")),
+                idempotency_key=idempotency_key,
             )
         )
 

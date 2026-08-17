@@ -7,12 +7,14 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from claridez.application.reservation_confirmation import (
+    confirm_reservation as confirm_reservation_command,
+)
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 from claridez.scheduling.public import (
     cancel_command,
-    confirm_command,
     expire_overdue_for_organization,
     read_command,
 )
@@ -59,7 +61,7 @@ def confirm_reservation(
     waiver_reason: str = "",
 ) -> dict[str, Any]:
     return scheduling_call(
-        confirm_command,
+        confirm_reservation_command,
         actor,
         organization_reference,
         reservation_id=reservation_id,

@@ -1774,6 +1774,126 @@ dd {
   display: block;
 }
 
+.receivables-page {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.receivables-metrics,
+.aging-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.receivables-metrics article,
+.aging-grid article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dbe7e5;
+  border-radius: 14px;
+  background: #fff;
+}
+.receivables-metrics span,
+.aging-grid span,
+.aging-grid small {
+  color: #64748b;
+}
+.receivables-metrics strong,
+.aging-grid strong {
+  overflow-wrap: anywhere;
+  color: #0f3d3a;
+  font-size: 1.25rem;
+}
+.aging-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.receivables-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.7fr);
+  gap: 20px;
+  align-items: start;
+}
+.obligation-list {
+  display: grid;
+  gap: 10px;
+}
+.obligation-list > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #dbe7e5;
+  border-radius: 12px;
+  color: inherit;
+  background: #fff;
+  text-align: left;
+}
+.obligation-list > button[aria-pressed="true"] {
+  border-color: #0f766e;
+  background: #f0fdfa;
+}
+.obligation-list > button span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.obligation-list > button span:last-child {
+  justify-items: end;
+}
+.obligation-list small {
+  color: #64748b;
+}
+.receivable-detail {
+  min-width: 0;
+}
+.movement-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.movement-table table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+.movement-table th,
+.movement-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+.receipt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+.receipt-list h3 {
+  width: 100%;
+  margin: 0;
+}
+.financial-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.financial-actions .command-box {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.financial-actions label {
+  min-width: 0;
+}
+
 @media (max-width: 980px) {
   .auth-layout {
     grid-template-columns: 1fr;
@@ -1853,6 +1973,14 @@ dd {
   }
   .management-grid {
     grid-template-columns: 1fr;
+  }
+  .receivables-layout,
+  .financial-actions {
+    grid-template-columns: 1fr;
+  }
+  .receivables-metrics,
+  .aging-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .crm-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1948,6 +2076,16 @@ dd {
   .crm-metrics,
   .crm-opportunities > button {
     grid-template-columns: 1fr;
+  }
+  .receivables-metrics,
+  .aging-grid {
+    grid-template-columns: 1fr;
+  }
+  .obligation-list > button {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .obligation-list > button span:last-child {
+    justify-items: start;
   }
   .crm-search {
     display: grid;

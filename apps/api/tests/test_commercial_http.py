@@ -4,6 +4,7 @@ import json
 from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode
+from uuid import uuid4
 
 import pytest
 from django.test import Client
@@ -34,6 +35,7 @@ def _post(client: Client, path: str, payload: dict[str, Any], token: str) -> Any
         data=json.dumps(payload),
         content_type="application/json",
         HTTP_X_CSRFTOKEN=token,
+        HTTP_IDEMPOTENCY_KEY=str(uuid4()),
     )
 
 

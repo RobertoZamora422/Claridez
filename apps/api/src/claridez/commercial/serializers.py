@@ -112,4 +112,17 @@ class ReservationConfirmSerializer(serializers.Serializer[dict[str, object]]):
     )
     reported_at = serializers.DateTimeField(required=False, allow_null=True)
     reference = serializers.CharField(max_length=300, required=False, allow_blank=True)
+    payment_method = serializers.ChoiceField(
+        choices=[
+            "cash",
+            "bank_transfer",
+            "card_external",
+            "check",
+            "other",
+            "legacy_unspecified",
+        ],
+        required=False,
+        default="legacy_unspecified",
+    )
+    observation = serializers.CharField(max_length=1000, required=False, allow_blank=True)
     waiver_reason = serializers.CharField(max_length=500, required=False, allow_blank=True)

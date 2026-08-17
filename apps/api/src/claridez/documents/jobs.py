@@ -22,8 +22,12 @@ from .models import (
     ExternalFile,
     ExternalFileEvent,
     GeneratedArtifact,
+    GeneratedDomainArtifact,
     IssuedInstrumentVersion,
     MalwareScanAttempt,
+    PrivateDomainFile,
+    PrivateDomainFileEvent,
+    PrivateDomainScanAttempt,
 )
 from .rendering import render_pdf
 from .storage import bytes_stream, opaque_evidence_key, private_storage
@@ -335,15 +339,251 @@ def _verify(job: DocumentJob) -> str:
     return "succeeded"
 
 
+@transaction.atomic
+def _finalize_domain_upload(job: DocumentJob) -> str:
+    row = PrivateDomainFile.objects.select_for_update().get(
+        organization_id=job.organization_id, pk=job.target_id
+    )
+    terminal = {
+        PrivateDomainFile.State.PENDING_SCAN,
+        PrivateDomainFile.State.CLEAN,
+        PrivateDomainFile.State.INFECTED,
+        PrivateDomainFile.State.REJECTED,
+        PrivateDomainFile.State.SCAN_ERROR,
+    }
+    if row.state in terminal:
+        return "succeeded"
+    if row.state != PrivateDomainFile.State.UPLOADING:
+        raise DocumentsError("invalid_file_state", "El upload no puede finalizarse.")
+    try:
+        with private_storage().open(row.storage_key) as stream:
+            content = stream.read(document_settings().max_upload_bytes + 1)
+    except DocumentsError:
+        return "retry"
+    now = timezone.now()
+    if len(content) != row.size_bytes or hashlib.sha256(content).hexdigest() != row.sha256:
+        row.state = PrivateDomainFile.State.REJECTED
+        row.validation_detail = "upload_integrity_mismatch"
+        row.save(update_fields=["state", "validation_detail", "updated_at"])
+        PrivateDomainFileEvent.objects.create(
+            organization_id=job.organization_id,
+            domain_file=row,
+            from_state=PrivateDomainFile.State.UPLOADING,
+            to_state=row.state,
+            reason="upload_integrity_mismatch",
+            occurred_at=now,
+        )
+        return "dead"
+    try:
+        validated = validate_upload(
+            display_name=row.display_name,
+            declared_media_type=row.declared_media_type,
+            stream=io.BytesIO(content),
+        )
+    except DocumentsError as error:
+        row.state = PrivateDomainFile.State.REJECTED
+        row.validation_detail = error.code
+        row.save(update_fields=["state", "validation_detail", "updated_at"])
+        PrivateDomainFileEvent.objects.create(
+            organization_id=job.organization_id,
+            domain_file=row,
+            from_state=PrivateDomainFile.State.UPLOADING,
+            to_state=row.state,
+            reason="structural_validation_failed",
+            detail=error.code,
+            occurred_at=now,
+        )
+        return "dead"
+    row.detected_media_type = validated.media_type
+    row.state = PrivateDomainFile.State.QUARANTINED
+    row.save(update_fields=["detected_media_type", "state", "updated_at"])
+    PrivateDomainFileEvent.objects.create(
+        organization_id=job.organization_id,
+        domain_file=row,
+        from_state=PrivateDomainFile.State.UPLOADING,
+        to_state=row.state,
+        reason="upload_stored",
+        occurred_at=now,
+    )
+    row.state = PrivateDomainFile.State.PENDING_SCAN
+    row.save(update_fields=["state", "updated_at"])
+    PrivateDomainFileEvent.objects.create(
+        organization_id=job.organization_id,
+        domain_file=row,
+        from_state=PrivateDomainFile.State.QUARANTINED,
+        to_state=row.state,
+        reason="validation_passed",
+        occurred_at=now,
+    )
+    enqueue_job(
+        organization_id=job.organization_id,
+        job_type=DocumentJob.Type.SCAN_DOMAIN_FILE,
+        target_id=row.pk,
+        idempotency_key=f"scan-domain:{row.pk}",
+        correlation_id=job.correlation_id,
+    )
+    return "succeeded"
+
+
+@transaction.atomic
+def _scan_domain_file(job: DocumentJob) -> str:
+    row = PrivateDomainFile.objects.select_for_update().get(
+        organization_id=job.organization_id, pk=job.target_id
+    )
+    if row.state in {
+        PrivateDomainFile.State.CLEAN,
+        PrivateDomainFile.State.INFECTED,
+        PrivateDomainFile.State.REJECTED,
+    }:
+        return "succeeded"
+    if row.state not in {
+        PrivateDomainFile.State.PENDING_SCAN,
+        PrivateDomainFile.State.SCAN_ERROR,
+    }:
+        raise DocumentsError("invalid_file_state", "El archivo no puede analizarse.")
+    started = timezone.now()
+    with private_storage().open(row.storage_key) as stream:
+        outcome = malware_scanner().scan(stream)
+    finished = timezone.now()
+    PrivateDomainScanAttempt.objects.create(
+        organization_id=job.organization_id,
+        domain_file=row,
+        attempt=row.scan_attempts.count() + 1,
+        scanner_name=outcome.scanner_name,
+        scanner_version=outcome.scanner_version,
+        signatures_version=outcome.signatures_version,
+        result=outcome.result,
+        malware_name=outcome.malware_name,
+        detail=outcome.detail[:500],
+        started_at=started,
+        finished_at=finished,
+    )
+    previous = row.state
+    if outcome.result == ScanResult.CLEAN:
+        row.state = PrivateDomainFile.State.CLEAN
+        row.available_at = finished
+    elif outcome.result == ScanResult.INFECTED:
+        row.state = PrivateDomainFile.State.INFECTED
+    elif outcome.result == ScanResult.UNSUPPORTED:
+        row.state = PrivateDomainFile.State.REJECTED
+    else:
+        row.state = PrivateDomainFile.State.SCAN_ERROR
+    row.validation_detail = outcome.detail[:500]
+    row.save(update_fields=["state", "available_at", "validation_detail", "updated_at"])
+    PrivateDomainFileEvent.objects.create(
+        organization_id=job.organization_id,
+        domain_file=row,
+        from_state=previous,
+        to_state=row.state,
+        reason="malware_scan",
+        detail=outcome.detail[:500],
+        occurred_at=finished,
+    )
+    return "retry" if row.state == PrivateDomainFile.State.SCAN_ERROR else "succeeded"
+
+
+@transaction.atomic
+def _render_domain_artifact(job: DocumentJob) -> str:
+    artifact = GeneratedDomainArtifact.objects.select_for_update().get(
+        organization_id=job.organization_id, pk=job.target_id
+    )
+    if artifact.state == GeneratedDomainArtifact.State.AVAILABLE:
+        return "succeeded"
+    if artifact.state != GeneratedDomainArtifact.State.PENDING_RENDER:
+        raise DocumentsError("invalid_artifact_state", "El artefacto no puede renderizarse.")
+    rendered = render_pdf(str(artifact.render_payload.get("html", "")))
+    key = opaque_evidence_key("generated", str(artifact.pk))
+    storage = private_storage()
+    if storage.exists(key):
+        with storage.open(key) as existing:
+            content = existing.read()
+        if hashlib.sha256(content).hexdigest() != rendered.sha256:
+            raise DocumentsError("object_collision", "La evidencia existente no coincide.")
+    else:
+        storage.put(
+            key=key,
+            stream=bytes_stream(rendered.content),
+            size_bytes=rendered.size_bytes,
+            sha256=rendered.sha256,
+            media_type="application/pdf",
+        )
+    artifact.storage_key = key
+    artifact.sha256 = rendered.sha256
+    artifact.size_bytes = rendered.size_bytes
+    artifact.renderer_name = rendered.renderer_name
+    artifact.renderer_version = rendered.renderer_version
+    artifact.render_environment = rendered.environment
+    artifact.stored_at = timezone.now()
+    artifact.state = GeneratedDomainArtifact.State.AVAILABLE
+    artifact.save(
+        update_fields=[
+            "storage_key",
+            "sha256",
+            "size_bytes",
+            "renderer_name",
+            "renderer_version",
+            "render_environment",
+            "stored_at",
+            "state",
+            "updated_at",
+        ]
+    )
+    enqueue_job(
+        organization_id=job.organization_id,
+        job_type=DocumentJob.Type.VERIFY_DOMAIN_ARTIFACT,
+        target_id=artifact.pk,
+        idempotency_key=f"verify-domain:{artifact.pk}",
+        correlation_id=job.correlation_id,
+    )
+    return "succeeded"
+
+
+@transaction.atomic
+def _verify_domain_artifact(job: DocumentJob) -> str:
+    artifact = GeneratedDomainArtifact.objects.select_for_update().get(
+        organization_id=job.organization_id, pk=job.target_id
+    )
+    if artifact.storage_key is None or artifact.size_bytes is None:
+        raise DocumentsError("artifact_not_available", "El artefacto no está disponible.")
+    try:
+        with private_storage().open(artifact.storage_key) as stream:
+            content = stream.read()
+    except DocumentsError:
+        artifact.state = GeneratedDomainArtifact.State.INTEGRITY_FAILED
+        artifact.save(update_fields=["state", "updated_at"])
+        return "dead"
+    if (
+        len(content) != artifact.size_bytes
+        or hashlib.sha256(content).hexdigest() != artifact.sha256
+    ):
+        artifact.state = GeneratedDomainArtifact.State.INTEGRITY_FAILED
+        artifact.save(update_fields=["state", "updated_at"])
+        return "dead"
+    artifact.verified_at = timezone.now()
+    artifact.save(update_fields=["verified_at", "updated_at"])
+    return "succeeded"
+
+
 HANDLERS = {
     DocumentJob.Type.FINALIZE_EXTERNAL_UPLOAD: _finalize_upload,
+    DocumentJob.Type.FINALIZE_DOMAIN_UPLOAD: _finalize_domain_upload,
     DocumentJob.Type.RENDER_ISSUED_VERSION: _render,
+    DocumentJob.Type.RENDER_DOMAIN_ARTIFACT: _render_domain_artifact,
     DocumentJob.Type.SCAN_EXTERNAL_FILE: _scan,
+    DocumentJob.Type.SCAN_DOMAIN_FILE: _scan_domain_file,
     DocumentJob.Type.VERIFY_ARTIFACT: _verify,
+    DocumentJob.Type.VERIFY_DOMAIN_ARTIFACT: _verify_domain_artifact,
 }
 
 
 def _mark_render_terminal_failure(job: DocumentJob) -> None:
+    if job.job_type == DocumentJob.Type.RENDER_DOMAIN_ARTIFACT:
+        GeneratedDomainArtifact.objects.filter(
+            organization_id=job.organization_id,
+            pk=job.target_id,
+            state=GeneratedDomainArtifact.State.PENDING_RENDER,
+        ).update(state=GeneratedDomainArtifact.State.RENDER_FAILED)
+        return
     if job.job_type != DocumentJob.Type.RENDER_ISSUED_VERSION:
         return
     IssuedInstrumentVersion.objects.filter(

@@ -29,7 +29,12 @@ from .models import (
     ScheduleEvent,
     SpaceSchedulePolicy,
 )
-from .public import ReservationProjection, ScheduleChangeProjection
+from .public import (
+    ConfirmationReadiness,
+    ConfirmedReservationProjection,
+    ReservationProjection,
+    ScheduleChangeProjection,
+)
 from .temporal import (
     LocalInterval,
     calendar_bounds,
@@ -426,13 +431,12 @@ def _confirm_locked(
     waiver_reason: str = "",
 ) -> dict[str, Any]:
     now = _transaction_now()
-    evidence = commercial_port.accepted_schedule_evidence(auth, row.quotation_version_id)
     if kind == Reservation.ConfirmationKind.EXTERNAL_DEPOSIT:
         if recognized_amount is None or reported_at is None:
             raise invalid("El monto y la fecha informada son obligatorios.")
         amount = money(recognized_amount)
-        if amount <= 0 or amount > evidence.total:
-            raise invalid("El monto reconocido debe ser mayor que cero y no superar el total.")
+        if amount <= 0:
+            raise invalid("El monto reconocido debe ser mayor que cero.")
         if reported_at.tzinfo is None:
             raise invalid("La fecha informada debe incluir zona horaria.")
         row.recognized_deposit_amount = amount
@@ -478,63 +482,57 @@ def _confirm_locked(
     allocation.source_revision = row.revision
     allocation.source_event = event
     allocation.save(update_fields=["source_revision", "source_event", "updated_at"])
-    commercial_port.set_request_schedule_status(auth, row.event_request_id, status="confirmed")
-    try:
-        operations_port.initialize_from_accepted_snapshot(
-            reservation_projection(row),
-            actor_membership_id=auth.membership_id,
-            occurred_at=now,
-        )
-    except operations_port.OperationsError as error:
-        raise conflict(error.code, error.message) from error
     row.refresh_from_db()
     return reservation_data(row)
 
 
-def confirm_reservation(
-    actor: User,
-    organization_reference: UUID | str,
-    *,
+def prepare_confirmation(
+    auth: TenantAuthorization, reservation_id: UUID | str
+) -> ConfirmationReadiness:
+    candidate = _get_reservation(auth.organization_id, reservation_id)
+    lock_spaces(auth.organization_id, (candidate.space_id,))
+    expire_for_space(auth, candidate.space_id)
+    row = _get_reservation(auth.organization_id, reservation_id, lock=True)
+    if row.status == Reservation.Status.CONFIRMED:
+        return ConfirmationReadiness("already_confirmed", reservation_projection(row))
+    if row.status == Reservation.Status.EXPIRED or row.hold_expires_at <= _transaction_now():
+        expire_for_space(auth, row.space_id)
+        row.refresh_from_db()
+        return ConfirmationReadiness("expired", reservation_projection(row))
+    if row.status != Reservation.Status.PROVISIONAL:
+        raise conflict("invalid_transition", "La reserva ya no puede confirmarse.")
+    return ConfirmationReadiness("ready", reservation_projection(row))
+
+
+def confirm_prepared(
+    auth: TenantAuthorization,
     reservation_id: UUID | str,
+    *,
     kind: str,
     recognized_amount: Decimal | None = None,
     reported_at: datetime | None = None,
     reference: str = "",
     waiver_reason: str = "",
-) -> dict[str, Any]:
-    expired = False
-    result: dict[str, Any] | None = None
-    with authorized_tenant_scope(
-        actor, organization_reference, Capability.RESERVATION_CONFIRM
-    ) as auth:
-        candidate = _get_reservation(auth.organization_id, reservation_id)
-        lock_spaces(auth.organization_id, (candidate.space_id,))
-        expire_for_space(auth, candidate.space_id)
-        row = _get_reservation(auth.organization_id, reservation_id, lock=True)
-        if row.status == Reservation.Status.CONFIRMED:
-            return reservation_data(row)
-        if row.status == Reservation.Status.EXPIRED:
-            expired = True
-        elif row.status != Reservation.Status.PROVISIONAL:
-            raise conflict("invalid_transition", "La reserva ya no puede confirmarse.")
-        elif row.hold_expires_at <= _transaction_now():
-            expire_for_space(auth, row.space_id)
-            expired = True
-        else:
-            result = _confirm_locked(
-                auth,
-                row,
-                kind=kind,
-                recognized_amount=recognized_amount,
-                reported_at=reported_at,
-                reference=reference,
-                waiver_reason=waiver_reason,
-            )
-    if expired:
-        raise conflict("hold_expired", "La reserva provisional venció.")
-    if result is None:
-        raise conflict("schedule_integrity_conflict", "La confirmación no produjo un resultado.")
-    return result
+) -> ConfirmedReservationProjection:
+    row = _get_reservation(auth.organization_id, reservation_id, lock=True)
+    if row.status != Reservation.Status.PROVISIONAL:
+        raise conflict("invalid_transition", "La reserva ya no puede confirmarse.")
+    data = _confirm_locked(
+        auth,
+        row,
+        kind=kind,
+        recognized_amount=recognized_amount,
+        reported_at=reported_at,
+        reference=reference,
+        waiver_reason=waiver_reason,
+    )
+    event_id = _event_id(row.pk, ScheduleEvent.Kind.RESERVATION_CONFIRMED)
+    return ConfirmedReservationProjection(
+        reservation=reservation_projection(row),
+        confirmation_event_id=event_id,
+        confirmation_source_id=row.pk,
+        data=data,
+    )
 
 
 def cancel_reservation(

@@ -31,6 +31,20 @@ class ReservationProjection:
 
 
 @dataclass(frozen=True, slots=True)
+class ConfirmationReadiness:
+    state: str
+    reservation: ReservationProjection
+
+
+@dataclass(frozen=True, slots=True)
+class ConfirmedReservationProjection:
+    reservation: ReservationProjection
+    confirmation_event_id: UUID
+    confirmation_source_id: UUID
+    data: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class ScheduleChangeProjection:
     event_request_id: UUID
     event_id: UUID
@@ -64,35 +78,51 @@ class ContractualScheduleProjection:
 def contractual_schedule(
     authorization: TenantAuthorization, root_reservation_id: UUID
 ) -> ContractualScheduleProjection:
+    return contractual_schedules(authorization, (root_reservation_id,))[root_reservation_id]
+
+
+def contractual_schedules(
+    authorization: TenantAuthorization, root_reservation_ids: tuple[UUID, ...]
+) -> dict[UUID, ContractualScheduleProjection]:
+    """Proyecta varias raices con una sola consulta tenant-aware."""
     from .models import Reservation
 
-    chain = tuple(
+    requested = tuple(dict.fromkeys(root_reservation_ids))
+    if not requested:
+        return {}
+    chains: dict[UUID, list[Reservation]] = {root_id: [] for root_id in requested}
+    for row in (
         Reservation.objects.select_related("space")
         .filter(
             organization_id=authorization.organization_id,
-            root_id=root_reservation_id,
+            root_id__in=requested,
         )
-        .order_by("created_at", "id")
-    )
-    if not chain or chain[0].root_id != root_reservation_id:
-        raise SchedulingError("not_found", "La raíz de reserva no está disponible.", status=404)
-    current = chain[-1]
-    return ContractualScheduleProjection(
-        organization_id=current.organization_id,
-        event_request_id=current.event_request_id,
-        root_reservation_id=current.root_id,
-        current_reservation_id=current.pk,
-        quotation_version_id=current.quotation_version_id,
-        venue_id=current.space.venue_id,
-        space_id=current.space_id,
-        starts_at=current.event_interval.lower,
-        ends_at=current.event_interval.upper,
-        timezone_name=current.event_timezone,
-        status=current.status,
-        revision=current.revision,
-        cancelled_at=current.cancelled_at,
-        chain_reservation_ids=tuple(row.pk for row in chain),
-    )
+        .order_by("root_id", "created_at", "id")
+    ):
+        chains[row.root_id].append(row)
+    projections: dict[UUID, ContractualScheduleProjection] = {}
+    for root_id in requested:
+        chain = chains[root_id]
+        if not chain or chain[0].root_id != root_id:
+            raise SchedulingError("not_found", "La raíz de reserva no está disponible.", status=404)
+        current = chain[-1]
+        projections[root_id] = ContractualScheduleProjection(
+            organization_id=current.organization_id,
+            event_request_id=current.event_request_id,
+            root_reservation_id=current.root_id,
+            current_reservation_id=current.pk,
+            quotation_version_id=current.quotation_version_id,
+            venue_id=current.space.venue_id,
+            space_id=current.space_id,
+            starts_at=current.event_interval.lower,
+            ends_at=current.event_interval.upper,
+            timezone_name=current.event_timezone,
+            status=current.status,
+            revision=current.revision,
+            cancelled_at=current.cancelled_at,
+            chain_reservation_ids=tuple(row.pk for row in chain),
+        )
+    return projections
 
 
 def expire_overdue_for_organization(authorization: TenantAuthorization) -> int:
@@ -208,10 +238,35 @@ def materialize_venue_blocks_for_space(authorization: TenantAuthorization, space
     return implementation(authorization, space_id)
 
 
-def confirm_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    from .services import confirm_reservation
+def prepare_confirmation(
+    authorization: TenantAuthorization, reservation_id: UUID
+) -> ConfirmationReadiness:
+    from .services import prepare_confirmation as implementation
 
-    return confirm_reservation(*args, **kwargs)
+    return implementation(authorization, reservation_id)
+
+
+def confirm_prepared(
+    authorization: TenantAuthorization,
+    reservation_id: UUID,
+    *,
+    kind: str,
+    recognized_amount: Any = None,
+    reported_at: datetime | None = None,
+    reference: str = "",
+    waiver_reason: str = "",
+) -> ConfirmedReservationProjection:
+    from .services import confirm_prepared as implementation
+
+    return implementation(
+        authorization,
+        reservation_id,
+        kind=kind,
+        recognized_amount=recognized_amount,
+        reported_at=reported_at,
+        reference=reference,
+        waiver_reason=waiver_reason,
+    )
 
 
 def cancel_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -234,6 +289,8 @@ def legacy_availability_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 __all__ = (
     "ReservationProjection",
+    "ConfirmationReadiness",
+    "ConfirmedReservationProjection",
     "ContractualScheduleProjection",
     "ScheduleChangeProjection",
     "SchedulingError",
@@ -241,7 +298,8 @@ __all__ = (
     "contractual_schedule",
     "close_provisional_hold",
     "cancel_command",
-    "confirm_command",
+    "confirm_prepared",
+    "prepare_confirmation",
     "create_hold_from_accepted",
     "current_reservation_for_request",
     "expire_overdue_for_organization",

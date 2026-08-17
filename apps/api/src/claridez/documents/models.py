@@ -670,9 +670,16 @@ class RetentionEvent(TenantModel):
 class DocumentJob(TenantModel):
     class Type(models.TextChoices):
         FINALIZE_EXTERNAL_UPLOAD = "finalize_external_upload", "Finalización de upload"
+        FINALIZE_DOMAIN_UPLOAD = "finalize_domain_upload", "Finalización de upload de dominio"
         RENDER_ISSUED_VERSION = "render_issued_version", "Render de emisión"
+        RENDER_DOMAIN_ARTIFACT = "render_domain_artifact", "Render de artefacto de dominio"
         SCAN_EXTERNAL_FILE = "scan_external_file", "Análisis de archivo"
+        SCAN_DOMAIN_FILE = "scan_domain_file", "Análisis de archivo de dominio"
         VERIFY_ARTIFACT = "verify_artifact", "Verificación de integridad"
+        VERIFY_DOMAIN_ARTIFACT = (
+            "verify_domain_artifact",
+            "Verificación de artefacto de dominio",
+        )
 
     class State(models.TextChoices):
         QUEUED = "queued", "En cola"
@@ -740,4 +747,145 @@ class DocumentJobAttempt(TenantModel):
                 fields=["organization", "job", "attempt"],
                 name="documents_jobattempt_job_attempt_uq",
             ),
+        ]
+
+
+class PrivateDomainFile(TenantModel):
+    """Binario privado genérico; su semántica permanece en el dominio llamador."""
+
+    class State(models.TextChoices):
+        UPLOADING = "uploading", "Subiendo"
+        QUARANTINED = "quarantined", "En cuarentena"
+        PENDING_SCAN = "pending_scan", "Pendiente de análisis"
+        CLEAN = "clean", "Limpio"
+        INFECTED = "infected", "Infectado"
+        REJECTED = "rejected", "Rechazado"
+        SCAN_ERROR = "scan_error", "Error de análisis"
+        INTEGRITY_FAILED = "integrity_failed", "Integridad fallida"
+
+    owner_domain = models.CharField(max_length=32)
+    owner_id = models.UUIDField()
+    purpose = models.CharField(max_length=40)
+    display_name = models.CharField(max_length=240)
+    storage_key = models.CharField(max_length=240, unique=True)
+    declared_media_type = models.CharField(max_length=80)
+    detected_media_type = models.CharField(max_length=80, blank=True)
+    extension = models.CharField(max_length=12)
+    sha256 = models.CharField(max_length=64)
+    size_bytes = models.PositiveBigIntegerField()
+    state = models.CharField(max_length=20, choices=State.choices)
+    validation_detail = models.CharField(max_length=500, blank=True)
+    uploaded_by_membership = models.ForeignKey(
+        "organizations.Membership",
+        on_delete=models.PROTECT,
+        related_name="uploaded_private_domain_files",
+        db_index=False,
+    )
+    available_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="documents_domainfile_org_id_uq"
+            ),
+            models.CheckConstraint(
+                condition=Q(size_bytes__gt=0), name="documents_domainfile_size_positive"
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "owner_domain", "owner_id", "purpose"],
+                name="documents_domainfile_owner_idx",
+            )
+        ]
+
+
+class PrivateDomainFileEvent(TenantModel):
+    domain_file = models.ForeignKey(
+        PrivateDomainFile, on_delete=models.PROTECT, related_name="events", db_index=False
+    )
+    from_state = models.CharField(max_length=20, blank=True)
+    to_state = models.CharField(max_length=20, choices=PrivateDomainFile.State.choices)
+    reason = models.CharField(max_length=80)
+    detail = models.CharField(max_length=500, blank=True)
+    occurred_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["occurred_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="documents_domainfile_event_org_id_uq"
+            )
+        ]
+
+
+class PrivateDomainScanAttempt(TenantModel):
+    domain_file = models.ForeignKey(
+        PrivateDomainFile,
+        on_delete=models.PROTECT,
+        related_name="scan_attempts",
+        db_index=False,
+    )
+    attempt = models.PositiveIntegerField()
+    scanner_name = models.CharField(max_length=64)
+    scanner_version = models.CharField(max_length=80, blank=True)
+    signatures_version = models.CharField(max_length=120, blank=True)
+    result = models.CharField(max_length=20, choices=MalwareScanAttempt.Result.choices)
+    malware_name = models.CharField(max_length=200, blank=True)
+    detail = models.CharField(max_length=500, blank=True)
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="documents_domainscan_org_id_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "domain_file", "attempt"],
+                name="documents_domainscan_attempt_uq",
+            ),
+        ]
+
+
+class GeneratedDomainArtifact(TenantModel):
+    class State(models.TextChoices):
+        PENDING_RENDER = "pending_render", "Pendiente de render"
+        AVAILABLE = "available", "Disponible"
+        RENDER_FAILED = "render_failed", "Render fallido"
+        INTEGRITY_FAILED = "integrity_failed", "Integridad fallida"
+
+    owner_domain = models.CharField(max_length=32)
+    owner_id = models.UUIDField()
+    purpose = models.CharField(max_length=40)
+    source_snapshot_sha256 = models.CharField(max_length=64)
+    render_payload = models.JSONField()
+    storage_key = models.CharField(max_length=240, unique=True, null=True, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True)
+    size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    media_type = models.CharField(max_length=80, default="application/pdf")
+    renderer_name = models.CharField(max_length=64, blank=True)
+    renderer_version = models.CharField(max_length=32, blank=True)
+    render_environment = models.CharField(max_length=128, blank=True)
+    state = models.CharField(max_length=20, choices=State.choices, default=State.PENDING_RENDER)
+    stored_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="documents_domainartifact_org_id_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "owner_domain", "owner_id", "purpose"],
+                name="documents_domainartifact_owner_purpose_uq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "owner_domain", "owner_id"],
+                name="docs_domainartifact_owner_idx",
+            )
         ]

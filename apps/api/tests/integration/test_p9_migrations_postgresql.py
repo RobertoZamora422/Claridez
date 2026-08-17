@@ -73,6 +73,6 @@ def test_p9_document_migrations_are_immediately_reapplicable() -> None:
         with connection.cursor() as cursor:
             cursor.execute("SELECT count(*) FROM django_migrations WHERE app = 'documents'")
             count = cursor.fetchone()
-        assert count is not None and count[0] == 8
+        assert count is not None and count[0] == 10
     finally:
         _restore_head()

@@ -15,7 +15,12 @@ export function ReservationActions({
   capabilities: Set<string>;
   onChanged: () => Promise<void>;
 }) {
-  const [kind, setKind] = useState<"external_deposit" | "waiver">("external_deposit");
+  const canDeposit =
+    capabilities.has("receivables:record_payment") && capabilities.has("receivables:apply_payment");
+  const canWaive = capabilities.has("reservation:waive_deposit");
+  const [kind, setKind] = useState<"external_deposit" | "waiver">(
+    canDeposit ? "external_deposit" : "waiver",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function run(operation: () => Promise<unknown>) {
@@ -40,82 +45,104 @@ export function ReservationActions({
         <StatusBadge value={reservation.status} />
       </header>
       {error && <Notice>{error}</Notice>}
-      {reservation.status === "provisional" && capabilities.has("reservation:confirm") && (
-        <form
-          className="command-box"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            void run(() =>
-              api(
-                `/api/v1/organizations/${organizationId}/reservations/${reservation.id}/confirm/`,
-                {
-                  method: "POST",
-                  body: JSON.stringify(
-                    kind === "external_deposit"
-                      ? {
-                          kind,
-                          recognized_amount: formText(form, "recognized_amount"),
-                          reported_at: new Date(formText(form, "reported_at")).toISOString(),
-                          reference: formText(form, "reference"),
-                        }
-                      : { kind, waiver_reason: formText(form, "waiver_reason") },
-                  ),
-                },
-              ),
-            );
-          }}
-        >
-          <h3>Confirmar reserva</h3>
-          <p>Claridez registra una constancia operativa; no procesa el pago.</p>
-          {capabilities.has("reservation:waive_deposit") && (
-            <div className="segmented">
-              <button
-                type="button"
-                aria-pressed={kind === "external_deposit"}
-                onClick={() => {
-                  setKind("external_deposit");
-                }}
-              >
-                Anticipo externo
-              </button>
-              <button
-                type="button"
-                aria-pressed={kind === "waiver"}
-                onClick={() => {
-                  setKind("waiver");
-                }}
-              >
-                Excepción
-              </button>
-            </div>
-          )}
-          {kind === "external_deposit" ? (
-            <div className="form-grid">
+      {reservation.status === "provisional" &&
+        capabilities.has("reservation:confirm") &&
+        !canDeposit &&
+        !canWaive && (
+          <Notice>
+            El anticipo debe registrarlo un rol autorizado de Finanzas, Administración o Propiedad.
+          </Notice>
+        )}
+      {reservation.status === "provisional" &&
+        capabilities.has("reservation:confirm") &&
+        (canDeposit || canWaive) && (
+          <form
+            className="command-box"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void run(() =>
+                api(
+                  `/api/v1/organizations/${organizationId}/reservations/${reservation.id}/confirm/`,
+                  {
+                    method: "POST",
+                    headers: { "Idempotency-Key": crypto.randomUUID() },
+                    body: JSON.stringify(
+                      kind === "external_deposit"
+                        ? {
+                            kind,
+                            recognized_amount: formText(form, "recognized_amount"),
+                            reported_at: new Date(formText(form, "reported_at")).toISOString(),
+                            reference: formText(form, "reference"),
+                            payment_method: formText(form, "payment_method"),
+                          }
+                        : { kind, waiver_reason: formText(form, "waiver_reason") },
+                    ),
+                  },
+                ),
+              );
+            }}
+          >
+            <h3>Confirmar reserva</h3>
+            <p>Claridez registra un pago externo declarado; no procesa ni concilia los fondos.</p>
+            {canDeposit && canWaive && (
+              <div className="segmented">
+                <button
+                  type="button"
+                  aria-pressed={kind === "external_deposit"}
+                  onClick={() => {
+                    setKind("external_deposit");
+                  }}
+                >
+                  Anticipo externo
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={kind === "waiver"}
+                  onClick={() => {
+                    setKind("waiver");
+                  }}
+                >
+                  Excepción
+                </button>
+              </div>
+            )}
+            {kind === "external_deposit" ? (
+              <div className="form-grid">
+                <label>
+                  Monto reconocido USD
+                  <input name="recognized_amount" type="number" min="0.01" step="0.01" required />
+                </label>
+                <label>
+                  Fecha y hora informada
+                  <input name="reported_at" type="datetime-local" required />
+                </label>
+                <label className="span-two">
+                  Referencia o nota
+                  <input name="reference" required />
+                </label>
+                <label>
+                  Método
+                  <select name="payment_method">
+                    <option value="cash">Efectivo</option>
+                    <option value="bank_transfer">Transferencia bancaria</option>
+                    <option value="card_external">Tarjeta externa</option>
+                    <option value="check">Cheque</option>
+                    <option value="other">Otro medio externo</option>
+                  </select>
+                </label>
+              </div>
+            ) : (
               <label>
-                Monto reconocido USD
-                <input name="recognized_amount" type="number" min="0.01" step="0.01" required />
+                Razón de la excepción
+                <textarea name="waiver_reason" required rows={3} />
               </label>
-              <label>
-                Fecha y hora informada
-                <input name="reported_at" type="datetime-local" required />
-              </label>
-              <label className="span-two">
-                Referencia o nota
-                <input name="reference" required />
-              </label>
-            </div>
-          ) : (
-            <label>
-              Razón de la excepción
-              <textarea name="waiver_reason" required rows={3} />
-            </label>
-          )}
-          <button className="button button--primary" disabled={busy}>
-            Confirmar reserva
-          </button>
-        </form>
-      )}
+            )}
+            <button className="button button--primary" disabled={busy}>
+              Confirmar reserva
+            </button>
+          </form>
+        )}
       {reservation.confirmed_at && (
         <div className="evidence">
           <h3>

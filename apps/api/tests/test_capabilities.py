@@ -165,6 +165,22 @@ EXPECTED_MATRIX = {
     },
 }
 
+P10_CAPABILITIES = {
+    Capability.RECEIVABLES_READ,
+    Capability.RECEIVABLES_READ_SUMMARY,
+    Capability.RECEIVABLES_MANAGE_SCHEDULE,
+    Capability.RECEIVABLES_RECORD_PAYMENT,
+    Capability.RECEIVABLES_APPLY_PAYMENT,
+    Capability.RECEIVABLES_RECORD_ADJUSTMENT,
+    Capability.RECEIVABLES_REVERSE_MOVEMENT,
+    Capability.RECEIVABLES_RECORD_REFUND,
+    Capability.RECEIVABLES_ISSUE_RECEIPT,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(P10_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P10_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.FINANCE].update(P10_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.COMMERCIAL].add(Capability.RECEIVABLES_READ_SUMMARY)
+
 
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
@@ -212,6 +228,15 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "document_external_access:manage",
         "document_retention:read",
         "document_retention:manage",
+        "receivables:read",
+        "receivables:read_summary",
+        "receivables:manage_schedule",
+        "receivables:record_payment",
+        "receivables:apply_payment",
+        "receivables:record_adjustment",
+        "receivables:reverse_movement",
+        "receivables:record_refund",
+        "receivables:issue_receipt",
     }
 
 

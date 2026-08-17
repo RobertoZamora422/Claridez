@@ -8,6 +8,17 @@ from uuid import UUID
 
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .domain_assets import (
+    GeneratedArtifactProjection,
+    PrivateFileProjection,
+    download_payment_support,
+    download_receipt_pdf,
+    list_payment_supports,
+    receipt_pdf_status,
+    receive_payment_support,
+    request_receipt_pdf,
+)
+from .errors import DocumentsError as DocumentsPortError
 from .models import AcceptanceEvidence, ContractualRecord, GeneratedArtifact
 
 
@@ -68,4 +79,16 @@ def documentary_status(
     )
 
 
-__all__ = ("DocumentaryStatusProjection", "documentary_status")
+__all__ = (
+    "DocumentaryStatusProjection",
+    "DocumentsPortError",
+    "GeneratedArtifactProjection",
+    "PrivateFileProjection",
+    "documentary_status",
+    "download_payment_support",
+    "download_receipt_pdf",
+    "list_payment_supports",
+    "receipt_pdf_status",
+    "receive_payment_support",
+    "request_receipt_pdf",
+)

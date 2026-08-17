@@ -64,6 +64,8 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(json({ capabilities: ["availability:read"] }));
       if (url.endsWith("/documents/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/receivables/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -178,6 +180,12 @@ describe("flujo comercial de Claridez", () => {
         );
       if (url.endsWith("/documents/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/receivables/capabilities/"))
+        return Promise.resolve(
+          json({
+            capabilities: ["receivables:record_payment", "receivables:apply_payment"],
+          }),
+        );
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -422,6 +430,12 @@ describe("flujo comercial de Claridez", () => {
         );
       if (url.endsWith("/documents/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/receivables/capabilities/"))
+        return Promise.resolve(
+          json({
+            capabilities: ["receivables:record_payment", "receivables:apply_payment"],
+          }),
+        );
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))

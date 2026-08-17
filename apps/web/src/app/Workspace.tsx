@@ -8,12 +8,20 @@ import { ConfigurationView } from "../features/configuration/ConfigurationView";
 import { CRMView } from "../features/crm/CRMView";
 import { DocumentsView } from "../features/documents/DocumentsView";
 import { OperationsView } from "../features/operations/OperationsView";
+import { ReceivablesView } from "../features/receivables/ReceivablesView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
 
 type Page =
-  "agenda" | "crm" | "requests" | "operations" | "catalog" | "documents" | "configuration";
+  | "agenda"
+  | "crm"
+  | "requests"
+  | "operations"
+  | "receivables"
+  | "catalog"
+  | "documents"
+  | "configuration";
 
 export function Workspace({
   user,
@@ -54,6 +62,9 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/documents/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/receivables/capabilities/`,
+      ),
     ])
       .then(
         ([
@@ -64,6 +75,7 @@ export function Workspace({
           crmBody,
           scheduleBody,
           documentsBody,
+          receivablesBody,
         ]) => {
           setCapabilities(
             new Set([
@@ -73,6 +85,7 @@ export function Workspace({
               ...crmBody.capabilities,
               ...scheduleBody.capabilities,
               ...documentsBody.capabilities,
+              ...receivablesBody.capabilities,
             ]),
           );
           setTimeZone(settingsBody.settings.timezone);
@@ -131,6 +144,17 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">✓</span>Operación
+              </button>
+            ) : null}
+            {capabilities.has("receivables:read") ? (
+              <button
+                aria-current={page === "receivables" ? "page" : undefined}
+                onClick={() => {
+                  setPage("receivables");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">$</span>Cartera
               </button>
             ) : null}
             {capabilities.has("catalog:read") ? (
@@ -227,6 +251,17 @@ export function Workspace({
             Operación
           </button>
         ) : null}
+        {capabilities.has("receivables:read") ? (
+          <button
+            aria-current={page === "receivables" ? "page" : undefined}
+            onClick={() => {
+              setPage("receivables");
+              setSelectedRequest(null);
+            }}
+          >
+            Cartera
+          </button>
+        ) : null}
         {capabilities.has("catalog:read") ? (
           <button
             aria-current={page === "catalog" ? "page" : undefined}
@@ -290,6 +325,8 @@ export function Workspace({
             canManage={capabilities.has("operation:manage")}
             canExecute={capabilities.has("operation:execute")}
           />
+        ) : page === "receivables" ? (
+          <ReceivablesView organizationId={organization.id} capabilities={capabilities} />
         ) : page === "catalog" ? (
           <CatalogView
             organizationId={organization.id}

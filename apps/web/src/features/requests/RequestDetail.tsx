@@ -121,6 +121,73 @@ function ReservationDocumentStatus({
   );
 }
 
+function CommercialReceivableSummary({
+  organizationId,
+  reservation,
+}: {
+  organizationId: string;
+  reservation: Reservation;
+}) {
+  const [summary, setSummary] = useState<{
+    currency: string;
+    original_total: string;
+    applied_total: string;
+    balance: string;
+    derived_status: string;
+  } | null>(null);
+  const [error, setError] = useState("");
+  const rootId = reservation.root_id ?? reservation.id;
+  const load = useCallback(async () => {
+    try {
+      setSummary(
+        await api(`/api/v1/organizations/${organizationId}/receivables/roots/${rootId}/summary/`),
+      );
+    } catch (caught) {
+      setError(
+        reservation.status === "provisional"
+          ? "La obligación nacerá cuando esta raíz se confirme."
+          : message(caught),
+      );
+    }
+  }, [organizationId, reservation.status, rootId]);
+  useInitialLoad(load);
+  return (
+    <section className="panel" aria-labelledby="commercial-balance-title">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Resumen autorizado</p>
+          <h2 id="commercial-balance-title">Estado de cobro</h2>
+        </div>
+        {summary ? <StatusBadge value={summary.derived_status} /> : null}
+      </div>
+      {summary ? (
+        <dl className="details">
+          <div>
+            <dt>Total</dt>
+            <dd>
+              {summary.original_total} {summary.currency}
+            </dd>
+          </div>
+          <div>
+            <dt>Aplicado</dt>
+            <dd>
+              {summary.applied_total} {summary.currency}
+            </dd>
+          </div>
+          <div>
+            <dt>Saldo</dt>
+            <dd>
+              {summary.balance} {summary.currency}
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="muted">{error || "Consultando resumen financiero…"}</p>
+      )}
+    </section>
+  );
+}
+
 export function RequestDetail({
   organizationId,
   requestId,
@@ -262,6 +329,12 @@ export function RequestDetail({
             capabilities={capabilities}
             onChanged={load}
           />
+          {capabilities.has("receivables:read_summary") ? (
+            <CommercialReceivableSummary
+              organizationId={organizationId}
+              reservation={reservation}
+            />
+          ) : null}
           {capabilities.has("contractual_record:read") ? (
             <ReservationDocumentStatus organizationId={organizationId} reservation={reservation} />
           ) : null}

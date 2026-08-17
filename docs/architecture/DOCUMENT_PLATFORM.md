@@ -1,11 +1,18 @@
-# Plataforma documental de P9
+# Plataforma privada de documentos y artefactos
 
-- **Etapa:** P9 — Contratos, documentos y aceptación
-- **Fecha de verificación local:** 13 de agosto de 2026
-- **Decisiones rectoras:** ADR 0017 y ADR 0018
+- **Etapas:** P9 — Contratos, documentos y aceptación; extensión genérica de P10
+- **Fecha de verificación local:** 14 de agosto de 2026
+- **Decisiones rectoras:** ADR 0017, ADR 0018 y frontera de integración de ADR 0019
 
 Este documento registra la operación sustituible de render, almacenamiento privado, análisis de
-malware y jobs. No selecciona infraestructura productiva ni amplía la semántica contractual.
+malware y jobs. No selecciona infraestructura productiva ni amplía la semántica contractual o
+financiera.
+
+P10 reutiliza esta plataforma mediante DTO y puertos estrechos para comprobantes externos y PDF
+de recibos. `PrivateDomainFile` y `GeneratedDomainArtifact` son contenedores técnicos genéricos:
+conservan tenant, dominio/tipo, referencia opaca, hash, estado y procedencia, pero no importan ORM
+de receivables ni crean expedientes, instrumentos, pagos, aplicaciones, recibos lógicos o saldo.
+La autoridad económica permanece siempre en `claridez.receivables`.
 
 ## Entorno canónico de emisión
 
@@ -111,8 +118,9 @@ procedencia, SHA-256, verificación de integridad y autorización independientes
 `DocumentJob` es un ledger PostgreSQL tenant-aware. El worker usa `FOR UPDATE SKIP LOCKED`, lease,
 at-least-once, idempotencia por tipo/clave, backoff acotado, máximo de intentos, estado `dead` y
 `DocumentJobAttempt` append-only. Atiende finalización de upload, render, scan y verificación de
-integridad. Una caída tras el claim recupera el lease vencido; repetir un efecto no duplica
-artefactos ni evidencia.
+integridad tanto contractual como genérica (`finalize_domain_upload`, `scan_domain_file`,
+`render_domain_artifact` y `verify_domain_artifact`). Una caída tras el claim recupera el lease
+vencido; repetir un efecto no duplica artefactos ni evidencia.
 
 El perfil `documents` de Compose inicia ClamAV y el worker canónico; Django web solo encola el
 trabajo pesado.
