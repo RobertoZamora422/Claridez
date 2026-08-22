@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 17 de agosto de 2026
+- **Fecha de corte:** 22 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -458,7 +458,13 @@ pago y no inventa vencimientos. La API usa comandos explícitos y la web respons
 superficie financiera completa del resumen comercial. La puerta local cerró con 207 pruebas API
 no integración, 81 de integración PostgreSQL y 25 frontend; OpenAPI, migraciones, formato, lint,
 tipos, builds y auditorías completaron correctamente. El navegador real validó Cartera a 390×844
-sin desbordamiento horizontal.
+sin desbordamiento horizontal. El cierre focalizado del 22 de agosto eliminó del coordinador
+neutral los imports y modelos ORM internos de `receivables`: idempotencia, pago de confirmación,
+obligación, aplicación y finalización se consumen exclusivamente desde `receivables.public`, que
+devuelve proyecciones inmutables con identificadores y valores escalares. Un guard AST impide
+imports productivos externos distintos del puerto público. `npm run check:all` volvió a pasar con
+208 pruebas API no integración, 81 de integración PostgreSQL y 25 frontend, sin cambios de
+migración ni contrato OpenAPI.
 
 **Riesgos principales:** Un despliegue futuro necesita preflight, respaldo, ventana y validación
 del backfill reales. Penalidades, pérdida de anticipos, deber jurídico de devolver, créditos,

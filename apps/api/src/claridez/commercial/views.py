@@ -18,7 +18,7 @@ from claridez.application.reservation_confirmation import (
 )
 from claridez.identity.models import User
 from claridez.organizations.exceptions import AuthorizationDenied, TenantAccessDenied
-from claridez.receivables.errors import ReceivablesError
+from claridez.receivables.public import ReceivablesError
 from claridez.scheduling.public import SchedulingError
 
 from .errors import CommercialError

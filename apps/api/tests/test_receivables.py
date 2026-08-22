@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -66,6 +68,28 @@ from claridez.scheduling.models import Reservation
 from claridez.scheduling.services import cancel_reservation, reschedule_reservation
 
 PASSWORD = "correct-horse-battery-staple-receivables-42"
+
+
+def test_p10_cross_module_consumers_use_only_the_public_port() -> None:
+    packages = Path(__file__).resolve().parents[1] / "src" / "claridez"
+    violations: list[str] = []
+    for module in packages.rglob("*.py"):
+        if "receivables" in module.relative_to(packages).parts:
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        imports: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imports.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                imports.add(node.module)
+        for imported in sorted(imports):
+            if imported.startswith("claridez.receivables") and imported != (
+                "claridez.receivables.public"
+            ):
+                violations.append(f"{module.relative_to(packages)}: {imported}")
+
+    assert violations == []
 
 
 def _login(client: Client, user: User) -> str:
@@ -397,8 +421,8 @@ def test_reschedule_and_cancel_preserve_the_same_financial_history() -> None:
     "failure_target",
     [
         "claridez.scheduling.public.confirm_prepared",
-        "claridez.application.reservation_confirmation.create_obligation_authorized",
-        "claridez.application.reservation_confirmation.apply_payment_authorized",
+        "claridez.receivables.public.create_or_get_confirmation_obligation",
+        "claridez.receivables.public.apply_confirmation_payment",
         "claridez.operations.public.initialize_from_accepted_snapshot",
     ],
     ids=["scheduling", "obligation", "application", "commercial-operations"],

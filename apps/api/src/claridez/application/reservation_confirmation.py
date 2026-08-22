@@ -10,16 +10,6 @@ from uuid import UUID, uuid5
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import authorized_tenant_scope
-from claridez.receivables.errors import conflict as financial_conflict
-from claridez.receivables.models import ReceivedPayment
-from claridez.receivables.money import amount
-from claridez.receivables.services import (
-    apply_payment_authorized,
-    command_replay,
-    complete_command,
-    create_obligation_authorized,
-    record_payment_authorized,
-)
 
 CONFIRMATION_NAMESPACE = UUID("4a50764d-0e97-5f68-b060-101572103532")
 
@@ -30,9 +20,7 @@ def _key(value: UUID | str | None, *, organization_id: UUID, reservation_id: UUI
     try:
         return UUID(str(value))
     except (TypeError, ValueError, AttributeError):
-        raise financial_conflict(
-            "invalid_idempotency_key", "La clave de idempotencia no es válida."
-        ) from None
+        raise ValueError("invalid_idempotency_key") from None
 
 
 def confirm_reservation(
@@ -45,7 +33,7 @@ def confirm_reservation(
     reported_at: datetime | None = None,
     reference: str = "",
     waiver_reason: str = "",
-    payment_method: str = ReceivedPayment.Method.LEGACY_UNSPECIFIED,
+    payment_method: str = "legacy_unspecified",
     observation: str = "",
     idempotency_key: UUID | str | None = None,
 ) -> dict[str, Any]:
@@ -53,6 +41,7 @@ def confirm_reservation(
     # en dependencias de carga entre los dominios propietarios.
     import claridez.commercial.public as commercial_port
     import claridez.operations.public as operations_port
+    import claridez.receivables.public as receivables_port
     import claridez.scheduling.public as scheduling_port
 
     try:
@@ -66,11 +55,14 @@ def confirm_reservation(
     with authorized_tenant_scope(
         actor, organization_reference, Capability.RESERVATION_CONFIRM
     ) as authorization:
-        key = _key(
-            idempotency_key,
-            organization_id=authorization.organization_id,
-            reservation_id=canonical_reservation_id,
-        )
+        try:
+            key = _key(
+                idempotency_key,
+                organization_id=authorization.organization_id,
+                reservation_id=canonical_reservation_id,
+            )
+        except ValueError:
+            raise receivables_port.invalid_confirmation_idempotency_key() from None
         payload = (
             {"reservation_id": canonical_reservation_id, "compatibility": True}
             if idempotency_key is None
@@ -85,9 +77,8 @@ def confirm_reservation(
                 "observation": observation.strip(),
             }
         )
-        replay = command_replay(
+        replay = receivables_port.replay_reservation_confirmation_command(
             authorization,
-            command_type="confirm_reservation",
             idempotency_key=key,
             payload=payload,
         )
@@ -100,13 +91,11 @@ def confirm_reservation(
             result = scheduling_port.reservation_for_commercial(
                 authorization, canonical_reservation_id
             )
-            complete_command(
+            receivables_port.complete_reservation_confirmation_command(
                 authorization,
-                command_type="confirm_reservation",
                 idempotency_key=key,
                 payload=payload,
-                result_type="reservation",
-                result_reference=readiness.reservation.id,
+                reservation_id=readiness.reservation.id,
             )
         else:
             quotation = commercial_port.accepted_quotation_snapshot(
@@ -116,21 +105,13 @@ def confirm_reservation(
             if kind == "external_deposit":
                 authorization.require(Capability.RECEIVABLES_RECORD_PAYMENT)
                 authorization.require(Capability.RECEIVABLES_APPLY_PAYMENT)
-                if recognized_amount is None or reported_at is None:
-                    raise financial_conflict(
-                        "invalid_confirmation_deposit",
-                        "El monto y la fecha reportada del anticipo son obligatorios.",
-                    )
-                try:
-                    recognized = amount(recognized_amount)
-                except ValueError as error:
-                    raise financial_conflict("invalid_confirmation_deposit", str(error)) from error
-                if recognized <= 0 or recognized > quotation.total:
-                    raise financial_conflict(
-                        "invalid_confirmation_deposit",
-                        "El anticipo debe ser mayor que cero y no superar el total aceptado.",
-                    )
-                payment = record_payment_authorized(
+                recognized = receivables_port.validate_confirmation_deposit(
+                    recognized_amount,
+                    reported_at,
+                    accepted_total=quotation.total,
+                )
+                assert reported_at is not None
+                payment = receivables_port.record_confirmation_payment(
                     authorization,
                     counterparty_person_id=quotation.person_id,
                     amount_value=recognized,
@@ -139,8 +120,6 @@ def confirm_reservation(
                     method=payment_method,
                     reference=reference,
                     observation=observation,
-                    provenance=ReceivedPayment.Provenance.CONFIRMATION_DEPOSIT,
-                    evidence_level=ReceivedPayment.EvidenceLevel.INTERNAL_REPORT,
                     idempotency_key=uuid5(key, "payment"),
                     root_reservation_id=readiness.reservation.root_id,
                     event_request_id=readiness.reservation.event_request_id,
@@ -155,7 +134,7 @@ def confirm_reservation(
                 reference=payment.reference if payment is not None else "",
                 waiver_reason=waiver_reason,
             )
-            obligation = create_obligation_authorized(
+            obligation = receivables_port.create_or_get_confirmation_obligation(
                 authorization,
                 confirmed.reservation,
                 quotation,
@@ -163,10 +142,10 @@ def confirm_reservation(
                 confirmation_source_id=confirmed.confirmation_source_id,
             )
             if payment is not None:
-                apply_payment_authorized(
+                receivables_port.apply_confirmation_payment(
                     authorization,
-                    payment_id=payment.pk,
-                    obligation_id=obligation.pk,
+                    payment_id=payment.payment_id,
+                    obligation_id=obligation.obligation_id,
                     amount_value=payment.amount,
                     idempotency_key=uuid5(key, "application"),
                 )
@@ -183,13 +162,11 @@ def confirm_reservation(
                 raise scheduling_port.SchedulingError(
                     error.code, error.message, status=error.status
                 ) from error
-            complete_command(
+            receivables_port.complete_reservation_confirmation_command(
                 authorization,
-                command_type="confirm_reservation",
                 idempotency_key=key,
                 payload=payload,
-                result_type="reservation",
-                result_reference=confirmed.reservation.id,
+                reservation_id=confirmed.reservation.id,
             )
             result = confirmed.data
     if expired:

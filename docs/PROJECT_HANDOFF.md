@@ -1,6 +1,6 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 17 de agosto de 2026
+- **Fecha de corte:** 22 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P10 está cerrada localmente bajo ADR 0019
 - **Siguiente etapa:** P11 — Costos, gastos, flujo y rentabilidad; pendiente de autorización
   explícita
@@ -158,7 +158,10 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   primera confirmación y copia moneda, subtotal, descuentos, total, versión y términos estructurados
   existentes de la `QuotationVersion` aceptada. Un coordinador neutral ejecuta pago de anticipo,
   confirmación, obligación, aplicación y consecuencias P8 en una transacción; waiver confirma y
-  crea obligación sin inventar pago. Reprogramar conserva la raíz y cancelar solo marca revisión.
+  crea obligación sin inventar pago. Ese coordinador consume P10 exclusivamente mediante
+  `claridez.receivables.public`: el puerto encapsula idempotencia, validación y registro del pago,
+  creación/obtención de obligación, aplicación y finalización, y devuelve DTO congelados sin ORM ni
+  `.pk` externos. Reprogramar conserva la raíz y cancelar solo marca revisión.
 - El calendario de cobranza es operativo, parcial y versionado; nunca deduce vencimientos de fecha
   de evento, confirmación, aceptación o documento. La antigüedad conserva días exactos y clasifica
   vigente, 1–30, 31–60, 61–90, más de 90 y sin vencimiento con fecha local organizacional.
@@ -187,6 +190,18 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   `sqlparse` a 0.6.0 y `git diff --check` fue correcto. La
   validación real de Cartera a 390×844 observó 390 px de viewport y 375 px de contenido, sin
   desbordamiento horizontal. Todo es evidencia local; no afirma CI remota nueva ni despliegue.
+- El cierre focalizado P10 del 22 de agosto retiró de `claridez.application` los imports directos de
+  `receivables.errors`, `models`, `money` y `services`, y corrigió el import de error en la vista
+  comercial para usar el puerto público. Un guard AST rechaza futuras dependencias productivas
+  externas distintas de `claridez.receivables.public`. Las pruebas dirigidas cerraron con 20 casos
+  API/capabilities y 8 casos PostgreSQL P10; `npm run check:all` pasó con 208 pruebas API no
+  integración, 81 de integración PostgreSQL y 25 frontend, además de migraciones sin cambios,
+  formato, lint, tipos, OpenAPI y builds correctos. No cambió la ruta, payload, capabilities,
+  transacción, locks, guardianes, migraciones ni frontend visible.
+- La auditoría web del cierre focalizado no encontró vulnerabilidades. `pip-audit` sí reportó
+  `PYSEC-2026-3717` para Django 5.2.16, con corrección indicada en 5.2.17 o 6.0.8; la actualización
+  de dependencia queda fuera de este ajuste de frontera y requiere un cambio separado con su
+  verificación deliberada.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
