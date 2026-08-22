@@ -198,10 +198,10 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   integración, 81 de integración PostgreSQL y 25 frontend, además de migraciones sin cambios,
   formato, lint, tipos, OpenAPI y builds correctos. No cambió la ruta, payload, capabilities,
   transacción, locks, guardianes, migraciones ni frontend visible.
-- La auditoría web del cierre focalizado no encontró vulnerabilidades. `pip-audit` sí reportó
-  `PYSEC-2026-3717` para Django 5.2.16, con corrección indicada en 5.2.17 o 6.0.8; la actualización
-  de dependencia queda fuera de este ajuste de frontera y requiere un cambio separado con su
-  verificación deliberada.
+- El cierre de seguridad posterior actualizó exclusivamente Django de 5.2.16 a 5.2.17, sin
+  upgrades colaterales en `uv.lock`. `npm run check:all` completó con 208 pruebas API, 25 pruebas
+  frontend y 81 pruebas de integración PostgreSQL aprobadas; `npm run audit` no encontró
+  vulnerabilidades en Python ni en el workspace web.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
