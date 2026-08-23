@@ -140,6 +140,7 @@ class CashMovementCreateSerializer(serializers.Serializer[dict[str, object]]):
     source_id = serializers.UUIDField()
     original_outflow_id = serializers.UUIDField(required=False, allow_null=True)
     amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    expense_attributions = ExpenseAllocationSerializer(many=True, required=False, default=list)
     economic_date = serializers.DateField()
     reason = serializers.CharField(max_length=500)
     evidence_reference = serializers.CharField(max_length=300)
@@ -148,6 +149,7 @@ class CashMovementCreateSerializer(serializers.Serializer[dict[str, object]]):
 class CashCorrectionCreateSerializer(serializers.Serializer[dict[str, object]]):
     direction = serializers.ChoiceField(choices=DirectCostCorrection.Direction.choices)
     amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    expense_attributions = ExpenseAllocationSerializer(many=True, required=False, default=list)
     economic_date = serializers.DateField()
     reason = serializers.CharField(max_length=500)
 

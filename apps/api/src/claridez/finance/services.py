@@ -48,6 +48,8 @@ from .money import amount, currency, json_value, payload_hash, positive_amount
 
 ZERO = Decimal("0.00")
 HUNDRED = Decimal("100.00")
+AttributionKey = tuple[str, UUID | None, UUID | None]
+NormalizedAttribution = tuple[str, UUID | None, UUID | None, Decimal]
 FORBIDDEN_RECOGNITION_TERMS = (
     "cancel",
     "penal",
@@ -941,6 +943,54 @@ def _normalized_allocations(
     return result
 
 
+def _normalized_cash_attributions(
+    authorization: TenantAuthorization,
+    source_kind: str,
+    attributions: list[dict[str, object]],
+    *,
+    expected_amount: Decimal,
+) -> list[NormalizedAttribution]:
+    if source_kind == OperatingCashMovement.SourceKind.DIRECT_COST:
+        if attributions:
+            raise invalid("La caja de un costo directo no admite atribuciones de gasto.")
+        return []
+    if source_kind != OperatingCashMovement.SourceKind.EXPENSE:
+        raise invalid("El tipo de origen de caja no es válido.")
+    normalized = _normalized_allocations(
+        authorization, attributions, expected_amount=expected_amount
+    )
+    keys = [(scope, root_id, venue_id) for scope, root_id, venue_id, _ in normalized]
+    if len(keys) != len(set(keys)):
+        raise invalid("Una atribución de caja no puede repetir el mismo alcance.")
+    return normalized
+
+
+def _attribution_json(attributions: list[NormalizedAttribution]) -> list[dict[str, object]]:
+    return [
+        {
+            "scope": scope,
+            "root_reservation_id": None if root_id is None else str(root_id),
+            "venue_id": None if venue_id is None else str(venue_id),
+            "amount": format(attributed, ".2f"),
+        }
+        for scope, root_id, venue_id, attributed in attributions
+    ]
+
+
+def _attribution_map(value: object) -> dict[AttributionKey, Decimal]:
+    result: dict[AttributionKey, Decimal] = {}
+    for raw in cast(list[dict[str, object]], value):
+        root_value = raw.get("root_reservation_id")
+        venue_value = raw.get("venue_id")
+        key = (
+            str(raw["scope"]),
+            None if root_value is None else UUID(str(root_value)),
+            None if venue_value is None else UUID(str(venue_value)),
+        )
+        result[key] = result.get(key, ZERO) + amount(cast(Any, raw["amount"]))
+    return result
+
+
 def _create_expense(
     authorization: TenantAuthorization,
     *,
@@ -1142,6 +1192,38 @@ def _expense_effective(row: ExpenseOccurrence) -> Decimal:
     return row.amount + (corrections["increases"] or ZERO) - (corrections["decreases"] or ZERO)
 
 
+def _expense_scope_capacities(row: ExpenseOccurrence) -> dict[AttributionKey, Decimal]:
+    result: defaultdict[AttributionKey, Decimal] = defaultdict(lambda: ZERO)
+    for allocation in row.allocations.all():
+        result[(allocation.scope, allocation.root_reservation_id, allocation.venue_id)] += (
+            allocation.amount
+        )
+    for correction in row.corrections.all():
+        key = (correction.scope, correction.root_reservation_id, correction.venue_id)
+        result[key] += _signed(correction.direction, correction.amount)
+    return dict(result)
+
+
+def _expense_scope_cash_net(
+    organization_id: UUID, expense_id: UUID
+) -> dict[AttributionKey, Decimal]:
+    result: defaultdict[AttributionKey, Decimal] = defaultdict(lambda: ZERO)
+    rows = OperatingCashMovement.objects.prefetch_related("corrections").filter(
+        organization_id=organization_id,
+        source_kind=OperatingCashMovement.SourceKind.EXPENSE,
+        source_id=expense_id,
+    )
+    for movement in rows:
+        sign = (
+            Decimal("1.00")
+            if movement.direction == OperatingCashMovement.Direction.OUTFLOW
+            else Decimal("-1.00")
+        )
+        for key, attributed in _cash_effective_attributions(movement).items():
+            result[key] += sign * attributed
+    return dict(result)
+
+
 def correct_expense(
     actor: User,
     organization_reference: UUID | str,
@@ -1195,6 +1277,9 @@ def correct_expense(
         if direction not in ExpenseOccurrenceCorrection.Direction.values:
             raise invalid("La dirección no es válida.")
         normalized = _positive(amount_value)
+        normalized_allocation = _normalized_allocations(
+            authorization, [allocation_payload], expected_amount=normalized
+        )[0]
         current_amount = _expense_effective(target)
         if direction == ExpenseOccurrenceCorrection.Direction.DECREASE:
             if normalized > current_amount:
@@ -1211,9 +1296,16 @@ def correct_expense(
                     "cash_exceeds_source",
                     "La corrección dejaría la salida neta por encima del gasto vigente.",
                 )
-        normalized_allocation = _normalized_allocations(
-            authorization, [allocation_payload], expected_amount=normalized
-        )[0]
+            scope_key = normalized_allocation[:3]
+            scope_capacity = _expense_scope_capacities(target).get(scope_key, ZERO)
+            scope_cash = _expense_scope_cash_net(authorization.organization_id, target.pk).get(
+                scope_key, ZERO
+            )
+            if scope_capacity - normalized < scope_cash:
+                raise conflict(
+                    "cash_exceeds_allocation",
+                    "La corrección dejaría la caja por encima de su asignación explícita.",
+                )
         row = ExpenseOccurrenceCorrection.objects.create(
             organization_id=authorization.organization_id,
             expense_occurrence=target,
@@ -1365,6 +1457,25 @@ def _cash_effective(row: OperatingCashMovement) -> Decimal:
     return row.amount + (totals["increases"] or ZERO) - (totals["decreases"] or ZERO)
 
 
+def _cash_effective_attributions(
+    row: OperatingCashMovement,
+) -> dict[AttributionKey, Decimal]:
+    result = _attribution_map(row.expense_attributions)
+    for correction in row.corrections.all():
+        sign = Decimal("1.00") if correction.direction == "increase" else Decimal("-1.00")
+        for key, attributed in _attribution_map(correction.expense_attributions).items():
+            result[key] = result.get(key, ZERO) + sign * attributed
+    return result
+
+
+def _recovered_attributions(row: OperatingCashMovement) -> dict[AttributionKey, Decimal]:
+    result: defaultdict[AttributionKey, Decimal] = defaultdict(lambda: ZERO)
+    for recovery in row.recoveries.prefetch_related("corrections").all():
+        for key, attributed in _cash_effective_attributions(recovery).items():
+            result[key] += attributed
+    return dict(result)
+
+
 def _source_cash_net(organization_id: UUID, source_kind: str, source_id: UUID) -> Decimal:
     result = ZERO
     for row in OperatingCashMovement.objects.filter(
@@ -1386,6 +1497,7 @@ def record_cash_movement(
     source_id: UUID | str,
     original_outflow_id: UUID | str | None,
     amount_value: Decimal | int | str,
+    expense_attributions: list[dict[str, object]],
     economic_date: date,
     reason: str,
     evidence_reference: str,
@@ -1401,6 +1513,7 @@ def record_cash_movement(
         "source_id": source_uuid,
         "original_outflow_id": outflow_uuid,
         "amount": amount_value,
+        "expense_attributions": expense_attributions,
         "economic_date": economic_date,
         "reason": reason,
         "evidence_reference": evidence_reference,
@@ -1424,6 +1537,31 @@ def record_cash_movement(
         source_amount, source_currency = _source_amount(
             authorization, source_kind, source_uuid, lock=True
         )
+        normalized_attributions = _normalized_cash_attributions(
+            authorization,
+            source_kind,
+            expense_attributions,
+            expected_amount=normalized,
+        )
+        attribution_values = _attribution_json(normalized_attributions)
+        expense: ExpenseOccurrence | None = None
+        if source_kind == OperatingCashMovement.SourceKind.EXPENSE:
+            expense = (
+                ExpenseOccurrence.objects.prefetch_related("allocations", "corrections")
+                .filter(organization_id=authorization.organization_id, pk=source_uuid)
+                .first()
+            )
+            if expense is None:
+                raise unavailable("El gasto")
+            capacities = _expense_scope_capacities(expense)
+            if any(
+                capacities.get((scope, root_id, venue_id), ZERO) <= ZERO
+                for scope, root_id, venue_id, _ in normalized_attributions
+            ):
+                raise conflict(
+                    "cash_allocation_not_available",
+                    "La atribución de caja no corresponde a una asignación vigente del gasto.",
+                )
         original: OperatingCashMovement | None = None
         if direction == OperatingCashMovement.Direction.OUTFLOW:
             if outflow_uuid is not None:
@@ -1437,11 +1575,22 @@ def record_cash_movement(
                     "cash_exceeds_source",
                     "La salida neta excedería el costo o gasto vigente.",
                 )
+            if expense is not None:
+                scope_cash = _expense_scope_cash_net(authorization.organization_id, expense.pk)
+                for scope, root_id, venue_id, attributed in normalized_attributions:
+                    key = (scope, root_id, venue_id)
+                    if scope_cash.get(key, ZERO) + attributed > capacities[key]:
+                        raise conflict(
+                            "cash_exceeds_allocation",
+                            "La salida excedería su asignación explícita de gasto.",
+                        )
         else:
             if outflow_uuid is None:
                 raise invalid("Una recuperación requiere la salida P11 original.")
             try:
-                original = OperatingCashMovement.objects.get(
+                original = OperatingCashMovement.objects.prefetch_related(
+                    "corrections", "recoveries__corrections"
+                ).get(
                     organization_id=authorization.organization_id,
                     pk=outflow_uuid,
                     direction=OperatingCashMovement.Direction.OUTFLOW,
@@ -1456,6 +1605,18 @@ def record_cash_movement(
                     "recovery_exceeds_outflow",
                     "La recuperación excedería la salida P11 vigente.",
                 )
+            if expense is not None:
+                original_attributions = _cash_effective_attributions(original)
+                recovered_attributions = _recovered_attributions(original)
+                for scope, root_id, venue_id, attributed in normalized_attributions:
+                    key = (scope, root_id, venue_id)
+                    if recovered_attributions.get(
+                        key, ZERO
+                    ) + attributed > original_attributions.get(key, ZERO):
+                        raise conflict(
+                            "recovery_exceeds_attribution",
+                            "La recuperación excedería la atribución original de caja.",
+                        )
         row = OperatingCashMovement.objects.create(
             organization_id=authorization.organization_id,
             direction=direction,
@@ -1463,6 +1624,7 @@ def record_cash_movement(
             source_id=source_uuid,
             original_outflow=original,
             amount=normalized,
+            expense_attributions=attribution_values,
             currency=source_currency,
             economic_date=economic_date,
             registration_period=_registration_period(authorization, economic_date),
@@ -1489,6 +1651,7 @@ def correct_cash_movement(
     cash_movement_id: UUID | str,
     direction: str,
     amount_value: Decimal | int | str,
+    expense_attributions: list[dict[str, object]],
     economic_date: date,
     reason: str,
     idempotency_key: UUID,
@@ -1498,6 +1661,7 @@ def correct_cash_movement(
         "cash_movement_id": target_id,
         "direction": direction,
         "amount": amount_value,
+        "expense_attributions": expense_attributions,
         "economic_date": economic_date,
         "reason": reason,
     }
@@ -1526,12 +1690,19 @@ def correct_cash_movement(
             target_reference.source_id,
             lock=True,
         )
-        target = OperatingCashMovement.objects.get(
-            organization_id=authorization.organization_id, pk=target_reference.pk
-        )
+        target = OperatingCashMovement.objects.prefetch_related(
+            "corrections", "recoveries__corrections"
+        ).get(organization_id=authorization.organization_id, pk=target_reference.pk)
         if direction not in CashMovementCorrection.Direction.values:
             raise invalid("La dirección de corrección no es válida.")
         normalized = _positive(amount_value)
+        normalized_attributions = _normalized_cash_attributions(
+            authorization,
+            target.source_kind,
+            expense_attributions,
+            expected_amount=normalized,
+        )
+        attribution_values = _attribution_json(normalized_attributions)
         effective = _cash_effective(target)
         if direction == CashMovementCorrection.Direction.DECREASE and normalized > effective:
             raise conflict("cash_below_zero", "La corrección dejaría el movimiento bajo cero.")
@@ -1547,6 +1718,68 @@ def correct_cash_movement(
                     "recovery_exceeds_outflow",
                     "La corrección dejaría la recuperación por encima de la salida.",
                 )
+        if target.source_kind == OperatingCashMovement.SourceKind.EXPENSE:
+            base_attributions = _attribution_map(target.expense_attributions)
+            current_attributions = _cash_effective_attributions(target)
+            for scope, root_id, venue_id, attributed in normalized_attributions:
+                key = (scope, root_id, venue_id)
+                if key not in base_attributions:
+                    raise conflict(
+                        "cash_attribution_mismatch",
+                        "La corrección debe conservar una atribución del movimiento original.",
+                    )
+                if (
+                    direction == CashMovementCorrection.Direction.DECREASE
+                    and attributed > current_attributions.get(key, ZERO)
+                ):
+                    raise conflict(
+                        "cash_attribution_below_zero",
+                        "La corrección dejaría una atribución de caja bajo cero.",
+                    )
+            if target.direction == OperatingCashMovement.Direction.OUTFLOW:
+                recovered_attributions = _recovered_attributions(target)
+                if direction == CashMovementCorrection.Direction.DECREASE:
+                    for scope, root_id, venue_id, attributed in normalized_attributions:
+                        key = (scope, root_id, venue_id)
+                        if current_attributions.get(
+                            key, ZERO
+                        ) - attributed < recovered_attributions.get(key, ZERO):
+                            raise conflict(
+                                "recovery_exceeds_attribution",
+                                "La corrección dejaría una recuperación sobre su atribución.",
+                            )
+                else:
+                    expense = ExpenseOccurrence.objects.prefetch_related(
+                        "allocations", "corrections"
+                    ).get(
+                        organization_id=authorization.organization_id,
+                        pk=target.source_id,
+                    )
+                    capacities = _expense_scope_capacities(expense)
+                    scope_cash = _expense_scope_cash_net(authorization.organization_id, expense.pk)
+                    for scope, root_id, venue_id, attributed in normalized_attributions:
+                        key = (scope, root_id, venue_id)
+                        if scope_cash.get(key, ZERO) + attributed > capacities.get(key, ZERO):
+                            raise conflict(
+                                "cash_exceeds_allocation",
+                                "La corrección excedería la asignación explícita del gasto.",
+                            )
+            elif direction == CashMovementCorrection.Direction.INCREASE:
+                original = cast(OperatingCashMovement, target.original_outflow)
+                original = OperatingCashMovement.objects.prefetch_related(
+                    "corrections", "recoveries__corrections"
+                ).get(pk=original.pk, organization_id=authorization.organization_id)
+                original_attributions = _cash_effective_attributions(original)
+                recovered_attributions = _recovered_attributions(original)
+                for scope, root_id, venue_id, attributed in normalized_attributions:
+                    key = (scope, root_id, venue_id)
+                    if recovered_attributions.get(
+                        key, ZERO
+                    ) + attributed > original_attributions.get(key, ZERO):
+                        raise conflict(
+                            "recovery_exceeds_attribution",
+                            "La corrección excedería la atribución original recuperable.",
+                        )
         if direction == CashMovementCorrection.Direction.INCREASE:
             source_amount, _ = _source_amount(
                 authorization, target.source_kind, target.source_id, lock=True
@@ -1572,6 +1805,7 @@ def correct_cash_movement(
             cash_movement=target,
             direction=direction,
             amount=normalized,
+            expense_attributions=attribution_values,
             currency=target.currency,
             economic_date=economic_date,
             registration_period=_registration_period(authorization, economic_date),
@@ -1875,15 +2109,30 @@ def _classify_p10(
     if economic is None:
         return None
     close = getattr(economic, "close_snapshot", None)
-    if close is None or source.registered_at <= close.closed_at:
+    if close is None or _p10_source_in_close(source, close):
         return economic, False
     for candidate in periods:
         if candidate.starts_on < economic.ends_on:
             continue
         candidate_close = getattr(candidate, "close_snapshot", None)
-        if candidate_close is None or source.registered_at <= candidate_close.closed_at:
+        if candidate_close is None or _p10_source_in_close(source, candidate_close):
             return candidate, True
     return None
+
+
+def _p10_source_in_close(
+    source: receivables_port.FinanceCashContributionProjection,
+    close: PeriodCloseSnapshot,
+) -> bool:
+    references = cast(
+        list[dict[str, object]],
+        cast(dict[str, object], close.snapshot).get("p10_source_references", []),
+    )
+    return any(
+        str(reference.get("source_kind")) == source.source_kind
+        and str(reference.get("source_id")) == str(source.source_id)
+        for reference in references
+    )
 
 
 def _overview_authorized(
@@ -2101,9 +2350,72 @@ def _overview_authorized(
         .filter(organization_id=authorization.organization_id)
     )
     cost_map = {row.pk: row for row in costs}
+
+    def apply_cash_slice(
+        *,
+        root_id: UUID | None,
+        venue_id: UUID | None,
+        effect: Decimal,
+        economic_date: date,
+    ) -> None:
+        if not _fact_in_filter(
+            root_id=root_id,
+            venue_id=venue_id,
+            root_filter=root_filter,
+            venue_filter=venue_filter,
+        ):
+            return
+        target = prior if selected is not None and _is_prior(selected, economic_date) else ordinary
+        target["p11_cash"] += effect
+        if root_id is not None:
+            event_buckets[root_id]["p11_cash"] += effect
+
     for cash in cash_rows:
-        source_root: UUID | None
-        source_venue: UUID | None
+        sign = Decimal("-1.00") if cash.direction == "outflow" else Decimal("1.00")
+        if cash.source_kind == OperatingCashMovement.SourceKind.EXPENSE:
+            if selected is None:
+                for (
+                    (_scope, attribution_root, attribution_venue),
+                    attributed,
+                ) in _cash_effective_attributions(cash).items():
+                    apply_cash_slice(
+                        root_id=attribution_root,
+                        venue_id=attribution_venue,
+                        effect=sign * attributed,
+                        economic_date=cash.economic_date,
+                    )
+            else:
+                if cash.registration_period_id == selected.pk:
+                    for (
+                        (_scope, attribution_root, attribution_venue),
+                        attributed,
+                    ) in _attribution_map(cash.expense_attributions).items():
+                        apply_cash_slice(
+                            root_id=attribution_root,
+                            venue_id=attribution_venue,
+                            effect=sign * attributed,
+                            economic_date=cash.economic_date,
+                        )
+                for cash_correction in cash.corrections.all():
+                    if cash_correction.registration_period_id != selected.pk:
+                        continue
+                    correction_sign = (
+                        Decimal("1.00")
+                        if cash_correction.direction == "increase"
+                        else Decimal("-1.00")
+                    )
+                    for (
+                        (_scope, attribution_root, attribution_venue),
+                        attributed,
+                    ) in _attribution_map(cash_correction.expense_attributions).items():
+                        apply_cash_slice(
+                            root_id=attribution_root,
+                            venue_id=attribution_venue,
+                            effect=sign * correction_sign * attributed,
+                            economic_date=cash_correction.economic_date,
+                        )
+            continue
+
         if cash.source_kind == OperatingCashMovement.SourceKind.DIRECT_COST:
             source_cost = cost_map.get(cash.source_id)
             source_root = None if source_cost is None else source_cost.root_reservation_id
@@ -2111,34 +2423,30 @@ def _overview_authorized(
         else:
             source_root = None
             source_venue = None
-        if not _fact_in_filter(
-            root_id=source_root,
-            venue_id=source_venue,
-            root_filter=root_filter,
-            venue_filter=venue_filter,
-        ):
-            continue
-        sign = Decimal("-1.00") if cash.direction == "outflow" else Decimal("1.00")
         if selected is None:
-            effect = sign * _cash_effective(cash)
-            ordinary["p11_cash"] += effect
-            if source_root is not None:
-                event_buckets[source_root]["p11_cash"] += effect
+            apply_cash_slice(
+                root_id=source_root,
+                venue_id=source_venue,
+                effect=sign * _cash_effective(cash),
+                economic_date=cash.economic_date,
+            )
         elif cash.registration_period_id == selected.pk:
-            effect = sign * cash.amount
-            target = prior if _is_prior(selected, cash.economic_date) else ordinary
-            target["p11_cash"] += effect
-            if source_root is not None:
-                event_buckets[source_root]["p11_cash"] += effect
+            apply_cash_slice(
+                root_id=source_root,
+                venue_id=source_venue,
+                effect=sign * cash.amount,
+                economic_date=cash.economic_date,
+            )
         if selected is not None:
             for cash_correction in cash.corrections.all():
                 if cash_correction.registration_period_id != selected.pk:
                     continue
-                effect = sign * _signed(cash_correction.direction, cash_correction.amount)
-                target = prior if _is_prior(selected, cash_correction.economic_date) else ordinary
-                target["p11_cash"] += effect
-                if source_root is not None:
-                    event_buckets[source_root]["p11_cash"] += effect
+                apply_cash_slice(
+                    root_id=source_root,
+                    venue_id=source_venue,
+                    effect=sign * _signed(cash_correction.direction, cash_correction.amount),
+                    economic_date=cash_correction.economic_date,
+                )
 
     presented = {key: ordinary[key] + prior[key] for key in ordinary}
     events: list[dict[str, object]] = []
@@ -2147,9 +2455,9 @@ def _overview_authorized(
         started_at = None if event_execution is None else event_execution.execution_started_at
         baseline = None
         if started_at is not None:
-            eligible = [plan for plan in plan_by_root[root_id] if plan.published_at <= started_at]
-            if eligible:
-                baseline = eligible[-1]
+            revisions = plan_by_root[root_id]
+            if revisions:
+                baseline = revisions[-1]
         baseline_amount = (
             ZERO if baseline is None else sum((line.amount for line in baseline.lines.all()), ZERO)
         )
@@ -2319,6 +2627,24 @@ def _overview_authorized(
                 "original_outflow_id": row.original_outflow_id,
                 "amount": row.amount,
                 "effective_amount": _cash_effective(row),
+                "expense_attributions": row.expense_attributions,
+                "effective_expense_attributions": _attribution_json(
+                    [
+                        (*key, attributed)
+                        for key, attributed in _cash_effective_attributions(row).items()
+                    ]
+                ),
+                "corrections": [
+                    {
+                        "id": correction.pk,
+                        "direction": correction.direction,
+                        "amount": correction.amount,
+                        "expense_attributions": correction.expense_attributions,
+                        "economic_date": correction.economic_date,
+                        "registration_period_id": correction.registration_period_id,
+                    }
+                    for correction in row.corrections.all()
+                ],
                 "currency": row.currency,
                 "economic_date": row.economic_date,
                 "registration_period_id": row.registration_period_id,
@@ -2492,14 +2818,28 @@ def export_rows(
     organization_reference: UUID | str,
     *,
     period_id: UUID | str | None = None,
+    root_reservation_id: UUID | str | None = None,
+    venue_id: UUID | str | None = None,
 ) -> tuple[tuple[str, ...], ...]:
     with authorized_tenant_scope(
         actor, organization_reference, Capability.FINANCE_EXPORT
     ) as authorization:
         period_uuid = None if period_id is None else _uuid(period_id, "El periodo")
-        data = _overview_authorized(authorization, period_id=period_uuid)
+        root_uuid = (
+            None
+            if root_reservation_id is None
+            else _uuid(root_reservation_id, "La raíz de reserva")
+        )
+        venue_uuid = None if venue_id is None else _uuid(venue_id, "La sede")
+        data = _overview_authorized(
+            authorization,
+            period_id=period_uuid,
+            root_filter=root_uuid,
+            venue_filter=venue_uuid,
+        )
         rows: list[tuple[str, ...]] = [
             (
+                "row_type",
                 "root_reservation_id",
                 "venue_id",
                 "recognized_revenue",
@@ -2511,10 +2851,26 @@ def export_rows(
                 "currency",
             )
         ]
+        presented = cast(dict[str, object], data["presented"])
+        rows.append(
+            (
+                "scope_total",
+                "" if root_uuid is None else str(root_uuid),
+                "" if venue_uuid is None else str(venue_uuid),
+                format(cast(Decimal, presented["recognized_revenue"]), ".2f"),
+                format(cast(Decimal, presented["direct_cost"]), ".2f"),
+                format(cast(Decimal, presented["variable_expense"]), ".2f"),
+                format(cast(Decimal, presented["recurring_expense"]), ".2f"),
+                format(cast(Decimal, presented["operating_result"]), ".2f"),
+                format(cast(Decimal, presented["net_cash_flow"]), ".2f"),
+                str(data["currency"]),
+            )
+        )
         for event in cast(list[dict[str, object]], data["events"]):
             metrics = cast(dict[str, object], event["metrics"])
             rows.append(
                 (
+                    "event",
                     str(event["root_reservation_id"]),
                     str(event.get("recognized_venue_id") or ""),
                     format(cast(Decimal, metrics["recognized_revenue"]), ".2f"),

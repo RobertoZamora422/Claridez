@@ -61,6 +61,16 @@ interface FinancialFact {
   economic_date: string;
   description?: string;
   reason?: string;
+  allocations?: MoneyAttribution[];
+  expense_attributions?: MoneyAttribution[];
+  effective_expense_attributions?: MoneyAttribution[];
+}
+
+interface MoneyAttribution {
+  scope: "business" | "venue" | "event";
+  root_reservation_id: string | null;
+  venue_id: string | null;
+  amount: string;
 }
 
 interface Evidence {
@@ -125,6 +135,24 @@ function command(path: string, body: object = {}) {
   });
 }
 
+function financeQuery(periodId: string, rootId: string, venueId: string) {
+  const query = new URLSearchParams();
+  if (periodId) query.set("period_id", periodId);
+  if (rootId) query.set("root_reservation_id", rootId);
+  if (venueId) query.set("venue_id", venueId);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
+function attributionKey(attribution: MoneyAttribution, index: number) {
+  return [
+    attribution.scope,
+    attribution.root_reservation_id ?? "no-root",
+    attribution.venue_id ?? "no-venue",
+    String(index),
+  ].join("-");
+}
+
 function categoryOptions(categories: Category[], kind?: Category["kind"]) {
   return categories
     .filter((category) => kind === undefined || category.kind === kind)
@@ -146,6 +174,8 @@ export function FinanceView({
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [evidenceContext, setEvidenceContext] = useState<EvidenceContext | null>(null);
   const [periodId, setPeriodId] = useState("");
+  const [rootId, setRootId] = useState("");
+  const [venueId, setVenueId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -158,7 +188,7 @@ export function FinanceView({
       const [finance, context] = await Promise.all([
         canRead
           ? api<FinanceOverview>(
-              `/api/v1/organizations/${organizationId}/finance/overview/${periodId ? `?period_id=${encodeURIComponent(periodId)}` : ""}`,
+              `/api/v1/organizations/${organizationId}/finance/overview/${financeQuery(periodId, rootId, venueId)}`,
             )
           : Promise.resolve(null),
         capabilities.has("finance:submit_evidence")
@@ -174,7 +204,7 @@ export function FinanceView({
     } finally {
       setLoading(false);
     }
-  }, [canRead, capabilities, organizationId, periodId]);
+  }, [canRead, capabilities, organizationId, periodId, rootId, venueId]);
 
   useInitialLoad(load);
 
@@ -218,7 +248,7 @@ export function FinanceView({
           {canRead ? (
             <a
               className="button button--secondary"
-              href={`/api/v1/organizations/${organizationId}/finance/export/${periodId ? `?period_id=${encodeURIComponent(periodId)}` : ""}`}
+              href={`/api/v1/organizations/${organizationId}/finance/export/${financeQuery(periodId, rootId, venueId)}`}
             >
               Exportar CSV
             </a>
@@ -250,6 +280,26 @@ export function FinanceView({
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              Raíz estable
+              <input
+                value={rootId}
+                onChange={(event) => {
+                  setRootId(event.target.value.trim());
+                }}
+                placeholder="UUID opcional"
+              />
+            </label>
+            <label>
+              Sede histórica
+              <input
+                value={venueId}
+                onChange={(event) => {
+                  setVenueId(event.target.value.trim());
+                }}
+                placeholder="UUID opcional"
+              />
             </label>
             <button className="button button--secondary" onClick={() => void load()}>
               Aplicar
@@ -1064,6 +1114,32 @@ function CashForm({
   busy: boolean;
   run: Runner;
 }) {
+  const sourceOptions = [
+    ...costs.map((item) => ({
+      value: `outflow:direct_cost:${item.id}:`,
+      label: `Salida · costo · ${item.description ?? item.id} · ${item.effective_amount}`,
+    })),
+    ...expenses.map((item) => ({
+      value: `outflow:expense:${item.id}:`,
+      label: `Salida · gasto · ${item.description ?? item.id} · ${item.effective_amount}`,
+    })),
+    ...movements
+      .filter((item) => item.direction === "outflow")
+      .map((item) => ({
+        value: `recovery:${item.source_kind ?? ""}:${item.source_id ?? ""}:${item.id}`,
+        label: `Recuperación · salida ${item.id} · ${item.effective_amount}`,
+      })),
+  ];
+  const [selectedSource, setSelectedSource] = useState(sourceOptions[0]?.value ?? "");
+  const [selectedDirection, selectedKind, selectedSourceId, selectedOutflowId] =
+    selectedSource.split(":");
+  const attributionTargets =
+    selectedKind !== "expense"
+      ? []
+      : selectedDirection === "outflow"
+        ? (expenses.find((item) => item.id === selectedSourceId)?.allocations ?? [])
+        : (movements.find((item) => item.id === selectedOutflowId)
+            ?.effective_expense_attributions ?? []);
   return (
     <form
       className="command-box"
@@ -1074,6 +1150,10 @@ function CashForm({
           form,
           "source",
         ).split(":");
+        const expenseAttributions = attributionTargets.flatMap((attribution, index) => {
+          const attributed = formText(form, "attribution-" + String(index));
+          return attributed === "" ? [] : [{ ...attribution, amount: attributed }];
+        });
         void run(
           () =>
             command(`/api/v1/organizations/${organizationId}/finance/cash-movements/`, {
@@ -1082,6 +1162,7 @@ function CashForm({
               source_id: sourceId,
               original_outflow_id: originalOutflowId === "" ? null : originalOutflowId,
               amount: formText(form, "amount"),
+              expense_attributions: expenseAttributions,
               economic_date: formText(form, "date"),
               reason: formText(form, "reason"),
               evidence_reference: formText(form, "evidence"),
@@ -1093,29 +1174,33 @@ function CashForm({
       <h2>Registrar caja P11</h2>
       <label>
         Origen exacto
-        <select name="source">
-          {costs.map((item) => (
-            <option key={item.id} value={`outflow:direct_cost:${item.id}:`}>
-              Salida · costo · {item.description} · {item.effective_amount}
+        <select
+          name="source"
+          value={selectedSource}
+          onChange={(event) => {
+            setSelectedSource(event.target.value);
+          }}
+        >
+          {sourceOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
-          {expenses.map((item) => (
-            <option key={item.id} value={`outflow:expense:${item.id}:`}>
-              Salida · gasto · {item.description} · {item.effective_amount}
-            </option>
-          ))}
-          {movements
-            .filter((item) => item.direction === "outflow")
-            .map((item) => (
-              <option
-                key={`recovery-${item.id}`}
-                value={`recovery:${item.source_kind ?? ""}:${item.source_id ?? ""}:${item.id}`}
-              >
-                Recuperación · salida {item.id} · {item.effective_amount}
-              </option>
-            ))}
         </select>
       </label>
+      {attributionTargets.length ? (
+        <fieldset>
+          <legend>Atribución monetaria explícita</legend>
+          <p className="muted">Distribuye el importe sin prorrateos automáticos.</p>
+          {attributionTargets.map((attribution, index) => (
+            <label key={attributionKey(attribution, index)}>
+              {attribution.scope} · {attribution.root_reservation_id ?? "sin raíz"} ·{" "}
+              {attribution.venue_id ?? "sin sede"} · disponible {attribution.amount}
+              <input name={"attribution-" + String(index)} inputMode="decimal" placeholder="0.00" />
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       <label>
         Importe USD
         <input name="amount" required />
@@ -1188,6 +1273,17 @@ function CorrectionsForm({
         }))
       : []),
   ];
+  const [selectedTargetValue, setSelectedTargetValue] = useState(
+    targets[0] ? `${targets[0].kind}:${targets[0].item.id}` : "",
+  );
+  const [selectedTargetKind, selectedTargetId] = selectedTargetValue.split(":");
+  const selectedTarget = targets.find(
+    ({ kind, item }) => kind === selectedTargetKind && item.id === selectedTargetId,
+  );
+  const correctionAttributions =
+    selectedTargetKind === "cash" && selectedTarget?.item.source_kind === "expense"
+      ? (selectedTarget.item.effective_expense_attributions ?? [])
+      : [];
   return (
     <form
       className="command-box"
@@ -1203,6 +1299,10 @@ function CorrectionsForm({
           economic_date: formText(form, "date"),
           reason: formText(form, "reason"),
         };
+        const expenseAttributions = correctionAttributions.flatMap((attribution, index) => {
+          const attributed = formText(form, "correction-attribution-" + String(index));
+          return attributed === "" ? [] : [{ ...attribution, amount: attributed }];
+        });
         const path =
           kind === "cost"
             ? `direct-costs/${id}/corrections/`
@@ -1222,7 +1322,9 @@ function CorrectionsForm({
                   root_reservation_id: root === "" ? null : root,
                   venue_id: venue === "" ? null : venue,
                 }
-              : common;
+              : kind === "cash"
+                ? { ...common, expense_attributions: expenseAttributions }
+                : common;
         void run(
           () => command(`/api/v1/organizations/${organizationId}/finance/${path}`, body),
           "Corrección tipada registrada.",
@@ -1232,7 +1334,14 @@ function CorrectionsForm({
       <h2>Registrar corrección tipada</h2>
       <label>
         Hecho exacto
-        <select name="target" required>
+        <select
+          name="target"
+          required
+          value={selectedTargetValue}
+          onChange={(event) => {
+            setSelectedTargetValue(event.target.value);
+          }}
+        >
           {targets.map(({ kind, item, label }) => (
             <option key={`${kind}-${item.id}`} value={`${kind}:${item.id}`}>
               {label} · {item.effective_amount}
@@ -1240,6 +1349,23 @@ function CorrectionsForm({
           ))}
         </select>
       </label>
+      {correctionAttributions.length ? (
+        <fieldset>
+          <legend>Atribución monetaria de la corrección</legend>
+          <p className="muted">Corrige únicamente porciones del movimiento original.</p>
+          {correctionAttributions.map((attribution, index) => (
+            <label key={attributionKey(attribution, index)}>
+              {attribution.scope} · {attribution.root_reservation_id ?? "sin raíz"} ·{" "}
+              {attribution.venue_id ?? "sin sede"} · vigente {attribution.amount}
+              <input
+                name={"correction-attribution-" + String(index)}
+                inputMode="decimal"
+                placeholder="0.00"
+              />
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       <label>
         Dirección
         <select name="direction">

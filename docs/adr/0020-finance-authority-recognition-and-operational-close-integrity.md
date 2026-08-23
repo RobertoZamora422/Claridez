@@ -82,10 +82,13 @@ registrar hechos tardíos sin reabrir periodos cerrados.
 
 1. Los planes de costo directo son revisiones publicadas append-only con líneas monetarias
    explícitas. No se derivan de catálogo.
-2. La última revisión publicada antes o al alcanzar `execution_started` se convierte en baseline
-   inmutable para la variación del evento.
-3. Publicar una revisión se serializa contra la preparación operativa concreta. Si la ejecución ya
-   comenzó, la publicación falla; si la publicación gana la carrera, queda incluida en la baseline.
+2. La última revisión que ganó la serialización antes de `execution_started` se convierte en
+   baseline inmutable para la variación del evento. `published_at` conserva la fecha declarada del
+   hecho, pero no permite determinar ni retrotraer esa elegibilidad.
+3. Publicar una revisión bloquea y vuelve a comprobar la preparación operativa concreta. Una vez
+   iniciado el evento no puede insertarse ninguna revisión nueva, aunque declare un `published_at`
+   anterior. Si la publicación adquiere primero el lock, confirma la siguiente revisión y luego
+   gana la carrera, esa revisión exacta queda incluida; si el inicio gana, toda inserción falla.
 4. Este es el único lock externo ordinario requerido por P11: protege la invariante transversal de
    baseline. No establece un orden global de scheduling para las demás escrituras financieras.
 5. Después de iniciar ejecución, los importes conocidos son costos reales o correcciones tipadas;
@@ -113,9 +116,16 @@ registrar hechos tardíos sin reabrir periodos cerrados.
    o una recuperación vinculada a una salida P11 exacta.
 2. La salida neta no puede exceder el costo o gasto vigente; la recuperación neta no puede exceder
    la salida vinculada.
-3. Caja P11 no crea cuentas bancarias, saldos iniciales, transferencias, conciliación ni CRUD de
+3. Una salida contra un gasto con asignaciones declara importes monetarios por scopes exactos de la
+   ocurrencia. Deben sumar exactamente el movimiento y cada scope respeta el saldo de su
+   asignación; no hay porcentajes, prorrateos ni drivers implícitos.
+4. La recuperación conserva las atribuciones de la salida recuperada y toda corrección declara la
+   atribución que incrementa o reduce. Los límites se recomprueban bajo un lock determinista del
+   gasto y el overview/CSV agregan esa caja por raíz, sede y periodo sin perder la reconciliación
+   global.
+5. Caja P11 no crea cuentas bancarias, saldos iniciales, transferencias, conciliación ni CRUD de
    movimientos generales.
-4. Las correcciones son tipadas contra un movimiento P11 exacto y no admiten objetivos de P10.
+6. Las correcciones son tipadas contra un movimiento P11 exacto y no admiten objetivos de P10.
 
 ### 8. Presupuestos
 
@@ -135,11 +145,17 @@ registrar hechos tardíos sin reabrir periodos cerrados.
 4. Un cierre es un snapshot append-only e irreversible. El periodo no se reabre, no se actualiza ni
    se recalcula retrospectivamente.
 5. El snapshot conserva fórmulas, totales ordinarios, ajustes de periodos anteriores, cutoffs,
-   referencias e hashes de las contribuciones P10 utilizadas. No crea un índice espejo P10.
-6. Las fuentes P10 se clasifican determinísticamente por identificador, fecha económica, fecha de
-   registro y cutoffs de cierres. Solo una futura invariante demostrada mediante otro ADR podría
-   autorizar materialización persistente de una fuente externa.
-7. La rentabilidad de vida del evento incorpora después hechos tardíos con su etiqueta económica;
+   referencias exactas e hashes de las contribuciones P10 realmente visibles y utilizadas por esa
+   transacción de cierre. No crea un índice espejo P10.
+6. Una fuente P10 pertenece a un cierre solo si su pareja exacta de tipo e identificador consta en
+   las referencias de ese snapshot. `registered_at <= closed_at` o un timestamp anterior al cutoff
+   no prueba inclusión. Una transacción P10 iniciada antes del cierre pero confirmada después se
+   registra en el primer periodo posterior aplicable como ajuste de periodo anterior.
+7. Las fuentes P10 se clasifican determinísticamente por identificador, fecha económica y fecha de
+   registro, y por pertenencia exacta a las referencias de cierres previos. Solo una futura
+   invariante demostrada mediante otro ADR podría autorizar materialización persistente de una
+   fuente externa.
+8. La rentabilidad de vida del evento incorpora después hechos tardíos con su etiqueta económica;
    el snapshot de un cierre permanece fijo. La reconciliación explica la diferencia.
 
 ### 10. Reconocimiento y correcciones
@@ -187,15 +203,17 @@ ordinaria, ajustes de periodos anteriores y total presentado.
    `DELETE` ni `TRUNCATE`.
 5. Los comandos monetarios son idempotentes por organización, tipo, UUID y hash de payload.
 6. Los locks internos se adquieren en orden determinista: periodos por inicio/id, agregado fuente
-   por tipo/id, asignaciones/objetivos y finalmente movimiento o corrección. Se usan locks externos
-   solo para la baseline descrita en la sección 5.
+   por tipo/id, gasto y sus scopes para caja atribuida, asignaciones/objetivos y finalmente
+   movimiento o corrección. Se usan locks externos solo para la baseline descrita en la sección 5.
 
 ### 13. Migración
 
 1. P11 se instala vacío sobre P10 final. No existe backfill de costos, gastos, ingresos reconocidos,
    presupuestos o caja P11 porque P10 no contiene esos hechos.
 2. La migración añade puertos y estructuras P11 sin copiar filas de `receivables` ni catálogo.
-3. Debe probarse instalación desde cero y migración desde P10 final, seguidas de RLS, privilegios,
+3. La migración correctiva añade la atribución de caja sin inventar un prorrateo histórico: falla
+   cerradamente si encuentra movimientos P11 de gasto preexistentes sin esa procedencia explícita.
+4. Debe probarse instalación desde cero y migración desde P10 final, seguidas de RLS, privilegios,
    guardianes, dos tenants, ORM, bulk, SQL directo, concurrencia e idempotencia.
 
 ## Aspectos provisionales
@@ -217,12 +235,28 @@ ordinaria, ajustes de periodos anteriores y total presentado.
 
 ## Validación observada
 
-La instalación limpia y la migración P10-final→P11 aplicaron `finance.0001`–`0004`; el rollback y
-la reaplicación fueron deterministas. `npm run check:all` aprobó 216 pruebas API no integración, 86
-de integración PostgreSQL y 27 frontend, además de migraciones, RLS/privilegios, tipos, OpenAPI y
-builds. Las pruebas P11 cubren dos tenants, ORM/bulk/SQL directo, concurrencia, idempotencia,
-reprogramación entre sedes, baseline antes/después de inicio, hechos tardíos, cierres y redondeo.
-La evidencia es local y no presume CI remota, despliegue ni cutover de un entorno destino.
+El cierre correctivo del 23 de agosto de 2026 sincronizó 88 paquetes Python y 253 npm, sin
+vulnerabilidades npm observadas. El reset protegido y la instalación limpia aplicaron
+`finance.0001`–`0005`; el rollback hasta P10 final y la reaplicación al head fueron deterministas.
+La puerta aprobó 217 pruebas API no integración con 76% de cobertura, 28 frontend y una repetición
+completa de 91 integraciones PostgreSQL, además de locks, migraciones sin cambios, RLS/privilegios,
+formatos, lint, tipos, OpenAPI sin warnings y builds. La primera pasada de integración terminó
+90/91 por un deadlock transitorio en la carrera P8 hold↔block; esa prueba aprobó aislada y las 91
+aprobaron después en el mismo orden completo, sin cambios P8.
+
+Las pruebas correctivas cubren SQL retrodatado, ORM/bulk/SQL con `claridez_app`, publicación contra
+`execution_started`, pago y devolución P10 sin confirmar durante un cierre, atribuciones de caja de
+gasto divididas entre eventos/sedes, salida parcial, recuperación, corrección, filtros y
+reconciliación CSV. La evidencia es local, no incluye navegador manual y no presume CI remota,
+despliegue ni cutover de un entorno destino.
+
+La base de pruebas migrada confirmó `claridez_app = SELECT, INSERT` y ausencia de
+`UPDATE/DELETE/TRUNCATE` sobre finance. Una comprobación adicional de `claridez_local` después de
+`tools/local_database.py prepare` observó `(SELECT, INSERT, UPDATE, DELETE, no TRUNCATE)`: el helper
+local vuelve a conceder privilegios que la migración había revocado. Los triggers append-only aún
+rechazan cambios, pero ese entorno no reproduce privilegio mínimo. El hallazgo no se corrigió por
+quedar fuera de los tres defectos focalizados y debe resolverse antes de usar esa base como
+evidencia de privilegios efectivos.
 
 ## Alternativas consideradas
 

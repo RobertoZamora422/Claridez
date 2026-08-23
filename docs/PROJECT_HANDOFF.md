@@ -1,6 +1,6 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 22 de agosto de 2026
+- **Fecha de corte:** 23 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P11 está cerrada localmente bajo ADR 0020
 - **Siguiente etapa:** P12 — Proveedores, recursos e inventario; pendiente de autorización
   explícita
@@ -212,34 +212,48 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   caja se clasifica desde sus contribuciones tipadas; el ingreso base solo nace cuando operations
   evidencia `execution_completed`. Los pagos no se convierten en ingreso y finance no copia
   movimientos de receivables ni crea un ledger paralelo.
-- La revisión publicada vigente al primer `execution_started` se captura como baseline inmutable.
-  `operations.public` expone DTO congelado de inicio/finalización y permite lock externo solo para
-  esa invariante transversal; finance usa advisory locks propios y deterministas para sus demás
-  comandos. La proyección económica comercial excluye PII, notas y detalle innecesario.
+- La última revisión que ganó realmente el lock de la preparación antes de `execution_started` se
+  captura como baseline inmutable. PostgreSQL rechaza toda inserción posterior, aunque use
+  `published_at` retrodatado y llegue por ORM, bulk o SQL con `claridez_app`. `operations.public`
+  expone DTO congelado de inicio/finalización y permite lock externo solo para esa invariante;
+  finance usa advisory locks propios y deterministas para sus demás comandos. La proyección
+  económica comercial excluye PII, notas y detalle innecesario.
 - `root_reservation_id` conserva la identidad estable ante reprogramaciones. Cada costo real y cada
   asignación de gasto a evento congela el `venue_id` de su hecho económico; una reprogramación
   posterior no los traslada. El ingreso se atribuye a la sede de la reserva que alcanzó
   `execution_completed`.
 - Periodos cerrados no se reabren ni reescriben. Los hechos tardíos conservan fecha económica y se
-  registran en el siguiente periodo abierto como ajuste explícito de periodo anterior. Los cierres
-  guardan cutoffs, referencias y hashes de fuentes P10 clasificadas por identificador, fecha
-  económica y fecha de registro, sin `SourcePeriodRegistration` ni índice espejo.
+  registran en el siguiente periodo abierto como ajuste explícito de periodo anterior. Una fuente
+  P10 pertenece al snapshot solo si su tipo e identificador exactos quedaron en sus referencias;
+  un timestamp anterior no prueba inclusión. Los cierres conservan cutoffs, referencias y hashes,
+  sin `SourcePeriodRegistration` ni índice espejo.
 - Gastos manuales y recurrentes comparten `ExpenseOccurrence` con procedencia explícita;
   asignaciones, costos, caja, reconocimiento y correcciones son hechos tipados. Los ajustes de
   reconocimiento no implementan penalidades, anticipos perdidos, créditos ni deber de devolución.
   No existe dependencia de catálogo, libro mayor, cuenta bancaria, FX ni contabilidad formal.
+- La caja de un gasto conserva importes explícitos por cada scope asignado; no prorratea. Salidas,
+  recuperaciones y correcciones recomprueban suma exacta y límites por scope bajo un lock interno
+  del gasto. Overview y CSV conservan raíz/sede/periodo y reconcilian con el flujo global.
 - P11 añade doce capabilities. Propietario, administrador y finanzas reciben la matriz completa;
   operaciones solo `finance:submit_evidence`; comercial no recibe acceso financiero. Las 20 tablas
   privadas usan FKs tenant-aware, `ENABLE` + `FORCE RLS`, privilegios mínimos e inmutabilidad; la
   API solo expone consultas y comandos explícitos, sin `DELETE`, `PATCH` libre ni CRUD de hechos.
-- La instalación limpia observada sincronizó 88 paquetes Python con el lock y 253 paquetes npm;
-  `npm ci` reportó cero vulnerabilidades. El reset protegido y la migración desde cero aplicaron
-  todo el historial hasta `finance.0004`; tres pruebas dirigidas confirmaron P9→P10, SQL directo y
-  P10-final→P11/rollback/reaplicación. La puerta final `npm run check:all` aprobó 216 pruebas API no
-  integración con 76% de cobertura, 27 frontend y 86 de integración PostgreSQL, además de locks,
-  migraciones sin cambios, formato, lint, mypy sobre 299 archivos, TypeScript, OpenAPI sin warnings
-  y build Vite. La evidencia es local; no incluye navegador manual, CI remota, despliegue ni
-  cutover de un entorno destino.
+- El cierre correctivo del 23 de agosto sincronizó 88 paquetes Python con el lock y 253 paquetes
+  npm; `npm ci` reportó cero vulnerabilidades. El reset protegido y la migración desde cero
+  aplicaron todo el historial hasta `finance.0005`; la prueba P10-final→P11 confirmó
+  rollback/reaplicación. La puerta aprobó 217 pruebas API no integración con 76% de cobertura, 28
+  frontend y una repetición completa de 91 integraciones PostgreSQL, además de locks, migraciones
+  sin cambios, formato, lint, mypy sobre 300 archivos, TypeScript, OpenAPI sin warnings y build
+  Vite. La primera pasada integró 90/91 por un deadlock transitorio P8 hold↔block; la prueba aislada
+  y la repetición completa 91/91 pasaron sin cambios P8. Las nuevas pruebas observaron SQL
+  retrodatado, carrera publicación↔inicio, commits P10 tardíos de pago/devolución y caja de gasto
+  multievento/multisede con salida, recuperación, corrección, filtros y CSV. La evidencia es local;
+  no incluye navegador manual, CI remota, despliegue ni cutover de un entorno destino.
+- La base de pruebas migrada confirmó que `claridez_app` carece de `UPDATE`, `DELETE` y `TRUNCATE`
+  sobre finance. En `claridez_local`, una consulta posterior a `tools/local_database.py prepare`
+  devolvió `(SELECT, INSERT, UPDATE, DELETE, no TRUNCATE)`: ese helper vuelve a conceder privilegios
+  revocados por las migraciones. Los triggers append-only todavía rechazan cambios, pero el mínimo
+  privilegio local queda pendiente; no se corrigió por estar fuera de los tres defectos autorizados.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y

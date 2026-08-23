@@ -495,6 +495,7 @@ class OperatingCashMovement(TenantModel):
         blank=True,
     )
     amount = models.DecimalField(max_digits=18, decimal_places=2)
+    expense_attributions = models.JSONField(default=list)
     currency = models.CharField(max_length=3)
     economic_date = models.DateField()
     registration_period = models.ForeignKey(
@@ -531,6 +532,7 @@ class CashMovementCorrection(TenantModel):
     )
     direction = models.CharField(max_length=12, choices=Direction.choices)
     amount = models.DecimalField(max_digits=18, decimal_places=2)
+    expense_attributions = models.JSONField(default=list)
     currency = models.CharField(max_length=3)
     economic_date = models.DateField()
     registration_period = models.ForeignKey(

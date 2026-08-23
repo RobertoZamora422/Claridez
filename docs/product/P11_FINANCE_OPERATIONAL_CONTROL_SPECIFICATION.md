@@ -24,10 +24,12 @@ conciliación, libro mayor, impuestos, nómina, facturación electrónica ni con
 ### 3.1 Preparar y congelar costo planificado
 
 1. Finanzas publica una revisión con raíz, sede, moneda, razón y líneas de categoría/importe.
-2. La publicación bloquea la preparación concreta y comprueba que no haya iniciado.
-3. La última revisión publicada antes o al inicio es la baseline del evento.
-4. Después del inicio, otra publicación falla. Los importes posteriores se registran como reales o
-   correcciones tipadas.
+2. La publicación bloquea la preparación concreta y vuelve a comprobar que no haya iniciado.
+3. La última revisión que realmente ganó esa serialización antes del inicio es la baseline del
+   evento; `published_at` no permite retrotraer la elegibilidad.
+4. Después del inicio, toda inserción de revisión falla incluso por bulk o SQL directo y aunque
+   declare una fecha anterior. Los importes posteriores se registran como reales o correcciones
+   tipadas.
 
 ### 3.2 Registrar costo directo real
 
@@ -55,8 +57,13 @@ por categoría. El presupuesto no altera resultados ni caja y no se publica sobr
 
 1. Una salida enlaza un costo o gasto real exacto.
 2. Una recuperación enlaza una salida P11 exacta.
-3. Los límites netos se comprueban bajo locks deterministas.
-4. Una corrección enlaza el movimiento exacto. No se aceptan objetivos P10 ni movimientos libres.
+3. Para un gasto asignado, la salida declara importes monetarios por scopes exactos; suman el
+   movimiento y respetan cada asignación sin porcentaje, prorrateo o driver implícito.
+4. Una recuperación conserva la atribución recuperada y una corrección declara la porción que
+   incrementa o reduce. Los límites netos se comprueban bajo locks deterministas del gasto.
+5. Overview y CSV conservan esas atribuciones al filtrar por raíz, sede y periodo y reconcilian con
+   el flujo global.
+6. Una corrección enlaza el movimiento exacto. No se aceptan objetivos P10 ni movimientos libres.
 
 ### 3.6 Ajustar reconocimiento
 
@@ -68,11 +75,14 @@ cerradamente. El ajuste no altera P10 ni caja.
 
 1. Los periodos son meses completos no solapados.
 2. El cierre calcula la respuesta backend, separa operación ordinaria y ajustes anteriores, fija
-   cutoff/hash/referencias P10 y guarda un snapshot inmutable.
+   cutoff/hash y las referencias P10 exactas realmente visibles, y guarda un snapshot inmutable.
 3. Un periodo cerrado no se reabre ni acepta nuevos hechos ordinarios.
 4. Un hecho tardío conserva periodo económico y se registra en el primer periodo posterior abierto
    como ajuste anterior.
-5. Consultar un cierre devuelve el snapshot; consultar la vida del evento incluye hechos tardíos y
+5. Una fuente P10 pertenece al snapshot solo si su tipo e identificador exactos constan en esas
+   referencias. Un timestamp anterior no prueba inclusión; una transacción que confirma después
+   del cierre entra en el siguiente periodo aplicable como ajuste anterior.
+6. Consultar un cierre devuelve el snapshot; consultar la vida del evento incluye hechos tardíos y
    muestra la reconciliación.
 
 ## 4. Capacidades
@@ -138,3 +148,13 @@ desde cero y migración desde P10; dos tenants; RLS/privilegios; ORM, bulk y SQL
 concurrencia e idempotencia; reprogramación entre sedes; baseline antes/después del inicio; hechos
 tardíos y cierres; redondeo; exportación; y regresiones P10, P8 y operations sin catálogo, P12,
 duplicación P10 o contabilidad formal.
+
+El cierre correctivo observado aplica además estos casos: SQL retrodatado después del inicio;
+carrera real publicación↔inicio con una baseline ganadora exacta; pago y devolución P10 confirmados
+después del cierre; y gasto repartido entre eventos/sedes con salida parcial, recuperación,
+corrección y reconciliación de overview/CSV filtrados.
+
+La suite PostgreSQL confirmó el contrato RLS y de privilegios de las migraciones. La comprobación
+posterior del rol en `claridez_local` encontró que el helper `prepare` vuelve a conceder `UPDATE` y
+`DELETE`; los triggers rechazan mutaciones, pero esa discrepancia local queda pendiente y no forma
+parte de las tres correcciones de este cierre.

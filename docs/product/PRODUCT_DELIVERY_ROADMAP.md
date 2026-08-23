@@ -2,7 +2,7 @@
 
 - **Versión:** 1.0
 - **Estado:** fuente maestra de secuencia y estado de entrega
-- **Fecha de corte:** 22 de agosto de 2026
+- **Fecha de corte:** 23 de agosto de 2026
 - **Destino:** [Blueprint maestro del producto funcional](PRODUCT_BLUEPRINT.md)
 
 Este roadmap conserva el historial real y ordena el trabajo pendiente hasta el producto funcional
@@ -501,13 +501,24 @@ financiera completa.
 hechos/correcciones append-only, cierres y ajustes tardíos, sede histórica, baseline al
 `execution_started`, reconocimiento al `execution_completed`, capabilities, RLS y concurrencia
 probados. La instalación limpia observada sincronizó 88 paquetes Python y 253 npm sin
-vulnerabilidades reportadas por `npm ci`; la migración desde cero aplicó `finance.0001`–`0004` y la
-migración P10-final→P11 fue reaplicable. `npm run check:all` cerró con 216 pruebas API no
-integración, 86 de integración PostgreSQL y 27 frontend, además de locks, formato, lint, tipos,
-migraciones, OpenAPI y builds correctos. La evidencia es local y no afirma CI remota, despliegue ni
-cutover.
+vulnerabilidades reportadas por `npm ci`; el reset protegido y la migración desde cero aplicaron
+`finance.0001`–`0005`, y la migración P10-final→P11 fue reaplicable. El cierre correctivo del 23 de
+agosto blindó toda inserción de baseline posterior al inicio, clasificó una fuente P10 cerrada solo
+por identidad exacta capturada y añadió atribución monetaria explícita a la caja de gastos. La
+puerta aprobó 217 pruebas API no integración con 76% de cobertura, 28 frontend y una repetición
+completa de 91 integraciones PostgreSQL, además de locks, formato, lint, tipos, migraciones, OpenAPI
+sin warnings y builds. Una primera pasada terminó 90/91 por un deadlock P8 transitorio; la prueba
+aislada y la repetición completa 91/91 aprobaron sin cambiar P8. La evidencia es local, no incluye
+navegador manual y no afirma CI remota, despliegue ni cutover.
 
-**Riesgos principales:** Un despliegue futuro requiere preflight, respaldo y verificación de
+La base de pruebas migrada confirmó ausencia de `UPDATE`, `DELETE` y `TRUNCATE` para
+`claridez_app`. Después, una consulta efectiva sobre `claridez_local` observó que
+`tools/local_database.py prepare` vuelve a conceder `UPDATE` y `DELETE` a finance; los guardianes
+append-only siguen rechazando mutaciones, pero el privilegio mínimo local queda pendiente. No se
+corrigió ese helper porque este cierre autorizó exclusivamente los tres defectos focalizados.
+
+**Riesgos principales:** Antes de usar la base local como evidencia de privilegios efectivos debe
+corregirse el helper `prepare`; un despliegue futuro requiere preflight, respaldo y verificación de
 cutoffs/cierres reales. P11 no resuelve consecuencias abiertas de cancelación de ADR 0019, no
 reabre periodos, no representa contabilidad formal y no autoriza P12.
 

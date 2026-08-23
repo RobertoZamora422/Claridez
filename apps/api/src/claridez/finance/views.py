@@ -573,6 +573,7 @@ class CashMovementsView(FinanceAPIView):
                 source_id=data["source_id"],
                 original_outflow_id=data.get("original_outflow_id"),
                 amount_value=data["amount"],
+                expense_attributions=data.get("expense_attributions", []),
                 economic_date=data["economic_date"],
                 reason=data["reason"],
                 evidence_reference=data["evidence_reference"],
@@ -599,6 +600,7 @@ class CashCorrectionView(FinanceAPIView):
                 cash_movement_id=cash_movement_id,
                 direction=data["direction"],
                 amount_value=data["amount"],
+                expense_attributions=data.get("expense_attributions", []),
                 economic_date=data["economic_date"],
                 reason=data["reason"],
                 idempotency_key=key,
@@ -663,7 +665,11 @@ class RecognitionCorrectionView(FinanceAPIView):
 
 class ExportView(FinanceAPIView):
     @extend_schema(
-        parameters=[OpenApiParameter("period_id", UUID, OpenApiParameter.QUERY)],
+        parameters=[
+            OpenApiParameter("period_id", UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("root_reservation_id", UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("venue_id", UUID, OpenApiParameter.QUERY),
+        ],
         responses={(200, "text/csv"): OpenApiResponse(description="CSV financiero operativo.")},
         tags=["Finanzas"],
     )
@@ -673,7 +679,11 @@ class ExportView(FinanceAPIView):
             return actor
         try:
             rows = export_rows(
-                actor, organization_id, period_id=request.query_params.get("period_id")
+                actor,
+                organization_id,
+                period_id=request.query_params.get("period_id"),
+                root_reservation_id=request.query_params.get("root_reservation_id"),
+                venue_id=request.query_params.get("venue_id"),
             )
         except TenantAccessDenied:
             return _error("resource_not_available", "El recurso no está disponible.", status=404)

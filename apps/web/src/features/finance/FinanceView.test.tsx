@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FinanceView } from "./FinanceView";
 
@@ -66,6 +66,8 @@ function requestUrl(input: RequestInfo | URL) {
 }
 
 describe("FinanceView", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -119,6 +121,32 @@ describe("FinanceView", () => {
       const headers = new Headers(request?.[1]?.headers);
       expect(headers.get("Idempotency-Key")).toMatch(/[0-9a-f-]{36}/);
       expect(headers.get("X-CSRFToken")).toBe("token");
+    });
+  });
+
+  it("mantiene los filtros de raíz y sede en overview y exportación", async () => {
+    render(
+      <FinanceView organizationId={organizationId} capabilities={new Set(["finance:read"])} />,
+    );
+    await screen.findByRole("heading", { name: "Rentabilidad por evento" });
+    const rootId = "10000000-0000-4000-8000-000000000001";
+    const venueId = "20000000-0000-4000-8000-000000000001";
+    fireEvent.change(screen.getByLabelText("Raíz estable"), { target: { value: rootId } });
+    fireEvent.change(screen.getByLabelText("Sede histórica"), { target: { value: venueId } });
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute(
+        "href",
+        `/api/v1/organizations/${organizationId}/finance/export/?root_reservation_id=${rootId}&venue_id=${venueId}`,
+      );
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([input]) =>
+              requestUrl(input).includes(`root_reservation_id=${rootId}`) &&
+              requestUrl(input).includes(`venue_id=${venueId}`),
+          ),
+      ).toBe(true);
     });
   });
 });

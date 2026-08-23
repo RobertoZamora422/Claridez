@@ -12,6 +12,7 @@ from django.test import Client
 from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 
+from claridez.application.reservation_confirmation import confirm_reservation
 from claridez.finance.errors import FinanceError
 from claridez.finance.models import (
     ExpenseOccurrence,
@@ -27,6 +28,7 @@ from claridez.finance.services import (
     create_category,
     create_period,
     create_recurring_rule,
+    export_rows,
     finance_overview,
     materialize_recurring_expense,
     publish_budget,
@@ -49,7 +51,7 @@ from claridez.organizations.configuration_services import create_space, create_v
 from claridez.organizations.models import Membership
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 from claridez.scheduling.services import reschedule_reservation
-from tests.test_receivables import _confirmed
+from tests.test_receivables import _accepted, _confirmed, _request
 
 
 def test_finance_cross_module_consumers_use_only_public_ports_and_no_catalog() -> None:
@@ -335,6 +337,194 @@ def test_reprogramming_between_venues_does_not_move_historical_cost_or_expense()
 
 
 @pytest.mark.django_db(transaction=True)
+def test_expense_cash_attribution_reconciles_events_venues_period_and_csv() -> None:
+    owner, creation, person, _, first_reservation, first_confirmed = _confirmed(
+        "finance-expense-cash-attribution"
+    )
+    organization_id = creation.organization.pk
+    period = _make_period(owner, organization_id, timezone.localdate())
+    first_venue = _venue_for_space(owner, organization_id, first_confirmed["space_id"])
+    second_venue = create_venue(owner, organization_id, name="Sede caja atribuida")
+    second_space = create_space(
+        owner,
+        organization_id,
+        venue_id=second_venue["id"],
+        name="Salón caja atribuida",
+    )
+    second_request = _request(owner, organization_id, person["id"], days_from_now=50)
+    _, second_reservation = _accepted(owner, organization_id, second_request["id"])
+    second_successor = reschedule_reservation(
+        owner,
+        organization_id,
+        reservation_id=second_reservation["id"],
+        revision=second_reservation["revision"],
+        idempotency_key=uuid4(),
+        space_id=UUID(str(second_space["id"])),
+        starts_at_local=datetime(2026, 11, 20, 18, 0),
+        ends_at_local=datetime(2026, 11, 20, 23, 0),
+        timezone_name="America/Guayaquil",
+        reason="Segunda sede para atribución",
+        commercial_terms_unchanged=True,
+    )["reservation"]
+    confirm_reservation(
+        owner,
+        organization_id,
+        reservation_id=second_successor["id"],
+        kind="waiver",
+        waiver_reason="Caso sintético sin segundo cobro",
+        idempotency_key=uuid4(),
+    )
+    category = create_category(
+        owner,
+        organization_id,
+        kind="variable_expense",
+        name="Logística compartida",
+        idempotency_key=uuid4(),
+    )
+    first_root = UUID(str(first_reservation["root_id"]))
+    second_root = UUID(str(second_reservation["root_id"]))
+    second_venue_id = UUID(str(second_venue["id"]))
+    expense = record_expense(
+        owner,
+        organization_id,
+        category_id=category.pk,
+        expense_type="variable",
+        amount_value="100.00",
+        currency_value="USD",
+        economic_date=timezone.localdate(),
+        description="Logística para dos eventos",
+        evidence_reference="EXP-ATTR-1",
+        allocations=[
+            {
+                "scope": "event",
+                "root_reservation_id": first_root,
+                "venue_id": first_venue,
+                "amount": "60.00",
+            },
+            {
+                "scope": "event",
+                "root_reservation_id": second_root,
+                "venue_id": second_venue_id,
+                "amount": "40.00",
+            },
+        ],
+        idempotency_key=uuid4(),
+    )
+    outflow = record_cash_movement(
+        owner,
+        organization_id,
+        direction="outflow",
+        source_kind="expense",
+        source_id=expense.pk,
+        original_outflow_id=None,
+        amount_value="70.00",
+        expense_attributions=[
+            {
+                "scope": "event",
+                "root_reservation_id": first_root,
+                "venue_id": first_venue,
+                "amount": "50.00",
+            },
+            {
+                "scope": "event",
+                "root_reservation_id": second_root,
+                "venue_id": second_venue_id,
+                "amount": "20.00",
+            },
+        ],
+        economic_date=timezone.localdate(),
+        reason="Salida parcial compartida",
+        evidence_reference="CASH-ATTR-OUT",
+        idempotency_key=uuid4(),
+    )
+    record_cash_movement(
+        owner,
+        organization_id,
+        direction="recovery",
+        source_kind="expense",
+        source_id=expense.pk,
+        original_outflow_id=outflow.pk,
+        amount_value="15.00",
+        expense_attributions=[
+            {
+                "scope": "event",
+                "root_reservation_id": first_root,
+                "venue_id": first_venue,
+                "amount": "10.00",
+            },
+            {
+                "scope": "event",
+                "root_reservation_id": second_root,
+                "venue_id": second_venue_id,
+                "amount": "5.00",
+            },
+        ],
+        economic_date=timezone.localdate(),
+        reason="Recuperación compartida",
+        evidence_reference="CASH-ATTR-REC",
+        idempotency_key=uuid4(),
+    )
+    correct_cash_movement(
+        owner,
+        organization_id,
+        cash_movement_id=outflow.pk,
+        direction="decrease",
+        amount_value="10.00",
+        expense_attributions=[
+            {
+                "scope": "event",
+                "root_reservation_id": first_root,
+                "venue_id": first_venue,
+                "amount": "5.00",
+            },
+            {
+                "scope": "event",
+                "root_reservation_id": second_root,
+                "venue_id": second_venue_id,
+                "amount": "5.00",
+            },
+        ],
+        economic_date=timezone.localdate(),
+        reason="Corrección atribuida",
+        idempotency_key=uuid4(),
+    )
+
+    global_result = _overview(owner, organization_id, period_id=period.pk)
+    first_event = _overview(
+        owner, organization_id, period_id=period.pk, root_reservation_id=first_root
+    )
+    second_event = _overview(
+        owner, organization_id, period_id=period.pk, root_reservation_id=second_root
+    )
+    first_site = _overview(owner, organization_id, period_id=period.pk, venue_id=first_venue)
+    second_site = _overview(owner, organization_id, period_id=period.pk, venue_id=second_venue_id)
+    assert global_result["presented"]["p11_cash"] == Decimal("-45.00")
+    assert first_event["presented"]["p11_cash"] == Decimal("-35.00")
+    assert second_event["presented"]["p11_cash"] == Decimal("-10.00")
+    assert first_site["presented"]["p11_cash"] == Decimal("-35.00")
+    assert second_site["presented"]["p11_cash"] == Decimal("-10.00")
+    assert (
+        first_event["presented"]["p11_cash"] + second_event["presented"]["p11_cash"]
+        == global_result["presented"]["p11_cash"]
+    )
+    first_csv = export_rows(
+        owner,
+        organization_id,
+        period_id=period.pk,
+        root_reservation_id=first_root,
+    )
+    second_site_csv = export_rows(
+        owner,
+        organization_id,
+        period_id=period.pk,
+        venue_id=second_venue_id,
+    )
+    assert first_csv[1][0] == second_site_csv[1][0] == "scope_total"
+    assert Decimal(first_csv[1][8]) == first_event["presented"]["net_cash_flow"]
+    assert Decimal(second_site_csv[1][8]) == second_site["presented"]["net_cash_flow"]
+
+
+@pytest.mark.django_db(transaction=True)
 def test_late_fact_is_prior_period_adjustment_and_closed_snapshot_is_unchanged() -> None:
     owner, creation, _, _, reservation, confirmed = _confirmed("finance-late-fact")
     organization_id = creation.organization.pk
@@ -412,6 +602,7 @@ def test_expense_recurrence_budget_cash_and_restricted_recognition() -> None:
         source_id=cost.pk,
         original_outflow_id=None,
         amount_value="50.00",
+        expense_attributions=[],
         economic_date=timezone.localdate(),
         reason="Pago de costo",
         evidence_reference="CASH-1",
@@ -525,6 +716,7 @@ def test_cash_limits_survive_source_and_outflow_corrections() -> None:
         source_id=cost.pk,
         original_outflow_id=None,
         amount_value="80.00",
+        expense_attributions=[],
         economic_date=timezone.localdate(),
         reason="Salida",
         evidence_reference="CASH-GUARD-OUT",
@@ -538,6 +730,7 @@ def test_cash_limits_survive_source_and_outflow_corrections() -> None:
         source_id=cost.pk,
         original_outflow_id=outflow.pk,
         amount_value="30.00",
+        expense_attributions=[],
         economic_date=timezone.localdate(),
         reason="Recuperación",
         evidence_reference="CASH-GUARD-REC",
@@ -563,6 +756,7 @@ def test_cash_limits_survive_source_and_outflow_corrections() -> None:
             cash_movement_id=outflow.pk,
             direction="decrease",
             amount_value="60.00",
+            expense_attributions=[],
             economic_date=timezone.localdate(),
             reason="Corrección incompatible",
             idempotency_key=uuid4(),
