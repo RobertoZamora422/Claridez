@@ -29,6 +29,7 @@ ROLE_SPECIFICATIONS: dict[str, dict[str, bool]] = {
     "claridez_app": {"rolsuper": False, "rolcreatedb": False},
     "claridez_test_runner": {"rolsuper": False, "rolcreatedb": True},
 }
+APPEND_ONLY_TABLE_PREFIXES = ("finance_",)
 NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",
@@ -68,6 +69,21 @@ NO_DELETE_TABLES = {
     "documents_externaltokenlocator",
     "documents_externalratelimitbucket",
 }
+RUNTIME_GRANTS_BY_CLASS: dict[str, tuple[str, ...]] = {
+    "append_only": ("SELECT", "INSERT"),
+    "no_delete": ("SELECT", "INSERT", "UPDATE"),
+    "mutable": ("SELECT", "INSERT", "UPDATE", "DELETE"),
+}
+
+
+def _runtime_grants_for_table(table_name: str) -> tuple[str, ...]:
+    if table_name.startswith(APPEND_ONLY_TABLE_PREFIXES):
+        table_class = "append_only"
+    elif table_name in NO_DELETE_TABLES:
+        table_class = "no_delete"
+    else:
+        table_class = "mutable"
+    return RUNTIME_GRANTS_BY_CLASS[table_class]
 
 
 def _connect(
@@ -206,10 +222,8 @@ def _grant_runtime_data_access(
                 application,
             )
         )
-        privileges = (
-            sql.SQL("SELECT, INSERT, UPDATE")
-            if table["tablename"] in NO_DELETE_TABLES
-            else sql.SQL("SELECT, INSERT, UPDATE, DELETE")
+        privileges = sql.SQL(", ").join(
+            sql.SQL(privilege) for privilege in _runtime_grants_for_table(table["tablename"])
         )
         connection.execute(
             sql.SQL("GRANT {} ON TABLE {}.{} TO {}").format(

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -11,9 +15,10 @@ from psycopg import Connection, sql
 from psycopg.rows import dict_row
 
 from claridez.settings.environment import BootstrapSettings, load_bootstrap_settings
-from tools.local_database import prepare_local_database
+from tools.local_database import check_application_connection, prepare_local_database
 
 pytestmark = pytest.mark.integration
+API_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _connect(
@@ -131,3 +136,98 @@ def test_migrator_owns_ddl_and_application_is_limited_to_dml() -> None:
             password=settings.migration_db_password.get_secret_value(),
         ) as migrator:
             migrator.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(probe_table)))
+
+
+def test_finance_migrations_then_prepare_preserve_append_only_runtime_grants() -> None:
+    settings = load_bootstrap_settings()
+    subprocess.run(
+        [
+            sys.executable,
+            "manage.py",
+            "migrate",
+            "finance",
+            "0005",
+            "--settings=claridez.settings.migration",
+            "--noinput",
+        ],
+        cwd=API_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    with _connect(
+        settings,
+        database=settings.db_name,
+        user=settings.migration_db_user,
+        password=settings.migration_db_password.get_secret_value(),
+    ) as migrator:
+        migration = migrator.execute(
+            """
+            SELECT name
+            FROM django_migrations
+            WHERE app = 'finance'
+            ORDER BY applied DESC, name DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        assert migration is not None
+        assert migration["name"] == "0005_baseline_and_expense_cash_attribution"
+
+    prepare_local_database(settings, quiet=True)
+    check_application_connection(settings)
+
+    with _connect(
+        settings,
+        database=settings.db_name,
+        user=settings.migration_db_user,
+        password=settings.migration_db_password.get_secret_value(),
+    ) as migrator:
+        grants = migrator.execute(
+            """
+            SELECT
+                tablename,
+                has_table_privilege(
+                    %s, 'public.' || quote_ident(tablename), 'SELECT'
+                ) AS can_select,
+                has_table_privilege(
+                    %s, 'public.' || quote_ident(tablename), 'INSERT'
+                ) AS can_insert,
+                has_table_privilege(
+                    %s, 'public.' || quote_ident(tablename), 'UPDATE'
+                ) AS can_update,
+                has_table_privilege(
+                    %s, 'public.' || quote_ident(tablename), 'DELETE'
+                ) AS can_delete,
+                has_table_privilege(
+                    %s, 'public.' || quote_ident(tablename), 'TRUNCATE'
+                ) AS can_truncate
+            FROM pg_tables
+            WHERE schemaname = 'public' AND left(tablename, 8) = 'finance_'
+            ORDER BY tablename
+            """,
+            (settings.db_user,) * 5,
+        ).fetchall()
+    assert len(grants) == 20
+    assert all(
+        row["can_select"]
+        and row["can_insert"]
+        and not row["can_update"]
+        and not row["can_delete"]
+        and not row["can_truncate"]
+        for row in grants
+    )
+
+    with _connect(
+        settings,
+        database=settings.db_name,
+        user=settings.db_user,
+        password=settings.db_password.get_secret_value(),
+    ) as application:
+        application.execute(
+            "SELECT set_config('claridez.organization_id', %s, false)",
+            (str(uuid4()),),
+        )
+        row = application.execute(
+            "SELECT count(*) AS total FROM finance_financecategory"
+        ).fetchone()
+        assert row is not None and row["total"] == 0

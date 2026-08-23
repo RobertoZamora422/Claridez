@@ -511,14 +511,12 @@ sin warnings y builds. Una primera pasada terminó 90/91 por un deadlock P8 tran
 aislada y la repetición completa 91/91 aprobaron sin cambiar P8. La evidencia es local, no incluye
 navegador manual y no afirma CI remota, despliegue ni cutover.
 
-La base de pruebas migrada confirmó ausencia de `UPDATE`, `DELETE` y `TRUNCATE` para
-`claridez_app`. Después, una consulta efectiva sobre `claridez_local` observó que
-`tools/local_database.py prepare` vuelve a conceder `UPDATE` y `DELETE` a finance; los guardianes
-append-only siguen rechazando mutaciones, pero el privilegio mínimo local queda pendiente. No se
-corrigió ese helper porque este cierre autorizó exclusivamente los tres defectos focalizados.
+La comprobación correctiva migró hasta `finance.0005` y ejecutó después
+`tools/local_database.py prepare`. La política explícita por clase de tabla preservó en las 20
+tablas privadas finance `SELECT/INSERT` y ausencia de `UPDATE/DELETE/TRUNCATE` para
+`claridez_app`; la conexión y una consulta normal con el rol de aplicación continuaron operativas.
 
-**Riesgos principales:** Antes de usar la base local como evidencia de privilegios efectivos debe
-corregirse el helper `prepare`; un despliegue futuro requiere preflight, respaldo y verificación de
+**Riesgos principales:** Un despliegue futuro requiere preflight, respaldo y verificación de
 cutoffs/cierres reales. P11 no resuelve consecuencias abiertas de cancelación de ADR 0019, no
 reabre periodos, no representa contabilidad formal y no autoriza P12.
 

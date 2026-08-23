@@ -249,11 +249,10 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   retrodatado, carrera publicación↔inicio, commits P10 tardíos de pago/devolución y caja de gasto
   multievento/multisede con salida, recuperación, corrección, filtros y CSV. La evidencia es local;
   no incluye navegador manual, CI remota, despliegue ni cutover de un entorno destino.
-- La base de pruebas migrada confirmó que `claridez_app` carece de `UPDATE`, `DELETE` y `TRUNCATE`
-  sobre finance. En `claridez_local`, una consulta posterior a `tools/local_database.py prepare`
-  devolvió `(SELECT, INSERT, UPDATE, DELETE, no TRUNCATE)`: ese helper vuelve a conceder privilegios
-  revocados por las migraciones. Los triggers append-only todavía rechazan cambios, pero el mínimo
-  privilegio local queda pendiente; no se corrigió por estar fuera de los tres defectos autorizados.
+- La comprobación correctiva migró hasta `finance.0005` y ejecutó después
+  `tools/local_database.py prepare`. La política explícita por clase de tabla preservó
+  `SELECT/INSERT` sin `UPDATE/DELETE/TRUNCATE` para `claridez_app` en las 20 tablas privadas
+  finance; la conexión y una consulta normal con el rol de aplicación continuaron operativas.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y

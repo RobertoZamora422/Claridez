@@ -250,13 +250,11 @@ gasto divididas entre eventos/sedes, salida parcial, recuperación, corrección,
 reconciliación CSV. La evidencia es local, no incluye navegador manual y no presume CI remota,
 despliegue ni cutover de un entorno destino.
 
-La base de pruebas migrada confirmó `claridez_app = SELECT, INSERT` y ausencia de
-`UPDATE/DELETE/TRUNCATE` sobre finance. Una comprobación adicional de `claridez_local` después de
-`tools/local_database.py prepare` observó `(SELECT, INSERT, UPDATE, DELETE, no TRUNCATE)`: el helper
-local vuelve a conceder privilegios que la migración había revocado. Los triggers append-only aún
-rechazan cambios, pero ese entorno no reproduce privilegio mínimo. El hallazgo no se corrigió por
-quedar fuera de los tres defectos focalizados y debe resolverse antes de usar esa base como
-evidencia de privilegios efectivos.
+La comprobación correctiva migró hasta `finance.0005` y ejecutó después
+`tools/local_database.py prepare`. El bootstrap clasifica explícitamente las tablas `finance_*`
+como append-only y preservó `claridez_app = SELECT, INSERT`, sin `UPDATE`, `DELETE` ni `TRUNCATE`,
+en las 20 tablas privadas. La conexión y una consulta normal con el rol de aplicación continuaron
+operativas; los triggers no se usan como sustituto del privilegio mínimo.
 
 ## Alternativas consideradas
 

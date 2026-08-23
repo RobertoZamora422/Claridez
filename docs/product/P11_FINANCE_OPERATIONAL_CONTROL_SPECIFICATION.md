@@ -154,7 +154,6 @@ carrera real publicación↔inicio con una baseline ganadora exacta; pago y devo
 después del cierre; y gasto repartido entre eventos/sedes con salida parcial, recuperación,
 corrección y reconciliación de overview/CSV filtrados.
 
-La suite PostgreSQL confirmó el contrato RLS y de privilegios de las migraciones. La comprobación
-posterior del rol en `claridez_local` encontró que el helper `prepare` vuelve a conceder `UPDATE` y
-`DELETE`; los triggers rechazan mutaciones, pero esa discrepancia local queda pendiente y no forma
-parte de las tres correcciones de este cierre.
+La comprobación correctiva migró hasta `finance.0005`, ejecutó después el helper local `prepare` y
+confirmó en las 20 tablas privadas `SELECT/INSERT` sin `UPDATE/DELETE/TRUNCATE` para
+`claridez_app`. La conexión y una consulta normal con el rol de aplicación continuaron operativas.
