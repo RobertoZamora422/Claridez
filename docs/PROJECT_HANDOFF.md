@@ -2,8 +2,8 @@
 
 - **Fecha de corte:** 23 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P11 está cerrada localmente bajo ADR 0020
-- **Siguiente etapa:** P12 — Proveedores, recursos e inventario; pendiente de autorización
-  explícita
+- **Siguiente etapa:** P12 — Proveedores, recursos e inventario; arquitectura aceptada bajo ADR
+  0021 e implementación pendiente de autorización explícita
 
 ## Qué es Claridez
 
@@ -82,6 +82,8 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
 ## Estado exacto
 
 - I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P11: completadas y validadas localmente.
+- El plan consolidado y ADR 0021 formalizan P12; no existen todavía modelos, migraciones,
+  capabilities ejecutables, endpoints, frontend ni implementación P12.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -281,6 +283,8 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   transaccional, ledger append-only, saldo derivado, migración 5.1 y capacidades P10: ADR 0019.
 - Autoridad de `claridez.finance`, reconocimiento operativo, sede histórica, baseline, hechos
   tardíos, cierres, locks y frontera estricta con P10: ADR 0020.
+- Autoridad de `claridez.resources`, unidades, recepción/inventario, capacidad concurrente,
+  consecuencias de scheduling y procedencia financiera P12: ADR 0021; aún no implementado.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11; P9
   se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -303,7 +307,6 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   vencimientos y retención jurídica definitiva de comprobantes/recibos. P10 no automatiza ninguna.
 - Conciliación bancaria, ejecución real de reembolsos, conversión de moneda, facturación
   electrónica, libro mayor, cuentas bancarias y contabilidad formal.
-- Proveedores, recursos, inventario, compras y demás semántica de P12.
 
 ## Fuentes de verdad y precedencia
 
@@ -325,7 +328,7 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2/P8/P11 y ADR aplicables, incluidos ADR 0016–0020; P12 no puede redefinir
+5. Especificaciones 5.1/5.2/P8/P11 y ADR aplicables, incluidos ADR 0016–0021; P12 no puede redefinir
    la evidencia comercial, documental, de agenda, cartera o control financiero ya cerrada.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
@@ -388,9 +391,10 @@ falta.
 
 ## Próximo trabajo
 
-P11 está cerrada localmente bajo ADR 0020. El siguiente paso exacto es preparar el plan breve de
-**P12 — Proveedores, recursos e inventario** y recibir su aprobación; este cierre no autoriza
-modelos, migraciones, capabilities, endpoints ni frontend de P12.
+P11 está cerrada localmente bajo ADR 0020. El plan consolidado y ADR 0021 de **P12 — Proveedores,
+recursos e inventario** están aceptados. El siguiente paso exacto es recibir autorización explícita
+para implementar; hasta entonces no se crean modelos, migraciones, capabilities ejecutables,
+servicios, endpoints ni frontend de P12.
 
 ## Riesgos actuales
 

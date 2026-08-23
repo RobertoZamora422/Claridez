@@ -259,6 +259,12 @@ planificada al iniciar ejecución y registra hechos tardíos como ajustes de per
 reabrir cierres. Pagos P10 no se convierten automáticamente en ingreso y sus movimientos no se
 copian a P11.
 
+ADR 0021 concreta la arquitectura P12: `claridez.resources` posee proveedores, recursos,
+existencias, recepciones, movimientos y reservas de capacidad; coordina consecuencias
+transaccionales con scheduling y permite que una línea de recepción confirmada sea procedencia de
+Finance sin duplicar costo, gasto o caja. La implementación de P12 continúa pendiente de
+autorización separada.
+
 ## 10. Capacidades y permisos
 
 La matriz siguiente define el destino por familias. Cada etapa traduce la familia a capacidades

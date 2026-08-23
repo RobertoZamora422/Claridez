@@ -526,7 +526,8 @@ reabre periodos, no representa contabilidad formal y no autoriza P12.
 
 **Identificador y nombre:** P12 — Capacidad física y abastecimiento operativo.
 
-**Estado:** Pendiente.
+**Estado:** Plan consolidado y ADR 0021 aceptados el 23 de agosto de 2026; implementación pendiente
+y no autorizada.
 
 **Objetivo:** Saber qué proveedores y recursos existen, dónde están y cómo se asignan a eventos.
 
@@ -537,7 +538,8 @@ compras/gastos vinculados; alertas de faltantes; historial.
 **Exclusiones:** Marketplace, e-commerce, logística avanzada, nómina y contabilidad de inventario
 formal.
 
-**Dependencias:** P11, P8 y reglas de unidades, valoración operativa, concurrencia y responsables.
+**Dependencias:** P11, P8 y ADR 0021 aceptado; la implementación debe demostrar sus reglas de
+unidades, valoración operativa, concurrencia y responsables.
 
 **Resultado visible:** Operaciones asigna recursos disponibles y finanzas relaciona su costo sin
 hojas separadas.
