@@ -181,6 +181,25 @@ EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P10_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.FINANCE].update(P10_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.COMMERCIAL].add(Capability.RECEIVABLES_READ_SUMMARY)
 
+P11_CAPABILITIES = {
+    Capability.FINANCE_READ,
+    Capability.FINANCE_MANAGE_CATEGORIES,
+    Capability.FINANCE_PLAN_COSTS,
+    Capability.FINANCE_RECORD_ACTUALS,
+    Capability.FINANCE_SUBMIT_EVIDENCE,
+    Capability.FINANCE_ALLOCATE_EXPENSES,
+    Capability.FINANCE_MANAGE_RECURRING,
+    Capability.FINANCE_RECORD_CASH,
+    Capability.FINANCE_MANAGE_BUDGETS,
+    Capability.FINANCE_ADJUST_RECOGNITION,
+    Capability.FINANCE_CLOSE_PERIOD,
+    Capability.FINANCE_EXPORT,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(P11_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P11_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.FINANCE].update(P11_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.OPERATIONS].add(Capability.FINANCE_SUBMIT_EVIDENCE)
+
 
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
@@ -237,6 +256,18 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "receivables:reverse_movement",
         "receivables:record_refund",
         "receivables:issue_receipt",
+        "finance:read",
+        "finance:manage_categories",
+        "finance:plan_costs",
+        "finance:record_actuals",
+        "finance:submit_evidence",
+        "finance:allocate_expenses",
+        "finance:manage_recurring",
+        "finance:record_cash",
+        "finance:manage_budgets",
+        "finance:adjust_recognition",
+        "finance:close_period",
+        "finance:export",
     }
 
 

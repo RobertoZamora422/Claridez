@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from .models import Organization, OrganizationSettings, Space, Venue
+from .models import Membership, Organization, OrganizationSettings, Space, Venue
+from .tenant_scope import TenantAuthorization
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,31 @@ class LocationContractualProjection:
     venue_location_reference: str | None
     space_id: UUID
     space_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class FinanceVenueProjection:
+    id: UUID
+    name: str
+
+
+def venue_for_finance(
+    authorization: TenantAuthorization, venue_id: UUID
+) -> FinanceVenueProjection | None:
+    row = Venue.objects.filter(
+        organization_id=authorization.organization_id,
+        pk=venue_id,
+        is_active=True,
+    ).first()
+    if row is None:
+        return None
+    return FinanceVenueProjection(id=row.pk, name=row.name)
+
+
+def requires_operation_manage_for_finance_evidence(
+    authorization: TenantAuthorization,
+) -> bool:
+    return authorization.role == Membership.Role.OPERATIONS
 
 
 def contractual_organization(organization_id: UUID) -> OrganizationContractualProjection:
@@ -61,7 +87,10 @@ def active_organization_ids_for_document_worker() -> tuple[UUID, ...]:
 __all__ = (
     "LocationContractualProjection",
     "OrganizationContractualProjection",
+    "FinanceVenueProjection",
     "contractual_location",
     "contractual_organization",
+    "venue_for_finance",
+    "requires_operation_manage_for_finance_evidence",
     "active_organization_ids_for_document_worker",
 )

@@ -75,6 +75,55 @@ class ContractualScheduleProjection:
     chain_reservation_ids: tuple[UUID, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ReservationVenueProjection:
+    reservation_id: UUID
+    venue_id: UUID
+    space_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class RootScheduleHistoryProjection:
+    organization_id: UUID
+    root_reservation_id: UUID
+    reservations: tuple[ReservationVenueProjection, ...]
+
+
+def root_schedule_history_for_finance(
+    authorization: TenantAuthorization, root_reservation_id: UUID
+) -> RootScheduleHistoryProjection:
+    from .models import Reservation
+
+    rows = tuple(
+        Reservation.objects.select_related("space")
+        .filter(
+            organization_id=authorization.organization_id,
+            root_id=root_reservation_id,
+        )
+        .order_by("created_at", "id")
+    )
+    if not rows or rows[0].root_id != root_reservation_id:
+        raise SchedulingError("not_found", "La raíz de reserva no está disponible.", status=404)
+    return RootScheduleHistoryProjection(
+        organization_id=authorization.organization_id,
+        root_reservation_id=root_reservation_id,
+        reservations=tuple(
+            ReservationVenueProjection(
+                reservation_id=row.pk,
+                venue_id=row.space.venue_id,
+                space_id=row.space_id,
+                starts_at=row.event_interval.lower,
+                ends_at=row.event_interval.upper,
+                status=row.status,
+            )
+            for row in rows
+        ),
+    )
+
+
 def contractual_schedule(
     authorization: TenantAuthorization, root_reservation_id: UUID
 ) -> ContractualScheduleProjection:
@@ -292,10 +341,13 @@ __all__ = (
     "ConfirmationReadiness",
     "ConfirmedReservationProjection",
     "ContractualScheduleProjection",
+    "ReservationVenueProjection",
+    "RootScheduleHistoryProjection",
     "ScheduleChangeProjection",
     "SchedulingError",
     "confirmed_event_request_ids",
     "contractual_schedule",
+    "root_schedule_history_for_finance",
     "close_provisional_hold",
     "cancel_command",
     "confirm_prepared",

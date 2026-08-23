@@ -117,6 +117,38 @@ class AcceptedQuotationProjection:
     lines: tuple[AcceptedQuotationLineProjection, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class EconomicSaleProjection:
+    organization_id: UUID
+    quotation_version_id: UUID
+    currency: str
+    total: Decimal
+    accepted_at: datetime
+
+
+def economic_sale_for_finance(
+    authorization: TenantAuthorization, quotation_version_id: UUID
+) -> EconomicSaleProjection:
+    try:
+        row = QuotationVersion.objects.get(
+            organization_id=authorization.organization_id,
+            pk=quotation_version_id,
+            status=QuotationVersion.Status.ACCEPTED,
+            accepted_at__isnull=False,
+        )
+    except QuotationVersion.DoesNotExist:
+        raise unavailable("La venta confirmada") from None
+    if row.accepted_at is None:
+        raise unavailable("La venta confirmada")
+    return EconomicSaleProjection(
+        organization_id=row.organization_id,
+        quotation_version_id=row.pk,
+        currency=row.currency,
+        total=row.total,
+        accepted_at=row.accepted_at,
+    )
+
+
 def accepted_quotation_for_documents(
     authorization: TenantAuthorization, quotation_version_id: UUID
 ) -> AcceptedQuotationProjection:
@@ -348,11 +380,13 @@ __all__ = (
     "AcceptedScheduleEvidence",
     "AcceptedQuotationLineProjection",
     "AcceptedQuotationProjection",
+    "EconomicSaleProjection",
     "OpportunityHistoryProjection",
     "OpportunityProjection",
     "accepted_schedule_evidence",
     "accepted_quotation_for_documents",
     "accepted_quotation_snapshot",
+    "economic_sale_for_finance",
     "confirmed_evidence_for_people",
     "interest_evidence_for_people",
     "opportunities_for_crm",

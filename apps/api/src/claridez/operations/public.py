@@ -8,6 +8,7 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from claridez.organizations.models import Membership
+from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .baseline import (
     BASELINE,
@@ -46,6 +47,75 @@ class PreparationProjection:
     status: str
     revision: int
     responsible_membership_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionEvidenceProjection:
+    organization_id: UUID
+    root_reservation_id: UUID
+    reservation_id: UUID
+    execution_started_transition_id: UUID | None
+    execution_started_at: datetime | None
+    execution_completed_transition_id: UUID | None
+    execution_completed_at: datetime | None
+
+
+def _execution_projection(row: EventPreparation) -> ExecutionEvidenceProjection:
+    transitions = {
+        item.cause: item
+        for item in PreparationTransition.objects.filter(
+            organization_id=row.organization_id,
+            preparation_id=row.reservation_id,
+            cause__in=[
+                PreparationTransition.Cause.EXECUTION_STARTED,
+                PreparationTransition.Cause.EXECUTION_COMPLETED,
+            ],
+        )
+    }
+    started = transitions.get(PreparationTransition.Cause.EXECUTION_STARTED)
+    completed = transitions.get(PreparationTransition.Cause.EXECUTION_COMPLETED)
+    return ExecutionEvidenceProjection(
+        organization_id=row.organization_id,
+        root_reservation_id=row.reservation.root_id,
+        reservation_id=row.reservation_id,
+        execution_started_transition_id=None if started is None else started.pk,
+        execution_started_at=None if started is None else started.occurred_at,
+        execution_completed_transition_id=None if completed is None else completed.pk,
+        execution_completed_at=None if completed is None else completed.occurred_at,
+    )
+
+
+def execution_evidence_for_finance(
+    authorization: TenantAuthorization,
+    root_reservation_id: UUID,
+    *,
+    lock: bool = False,
+) -> ExecutionEvidenceProjection | None:
+    rows = EventPreparation.objects.select_related("reservation")
+    if lock:
+        rows = rows.select_for_update()
+    row = (
+        rows.filter(
+            organization_id=authorization.organization_id,
+            reservation__root_id=root_reservation_id,
+        )
+        .order_by("-reservation__created_at", "-reservation_id")
+        .first()
+    )
+    return None if row is None else _execution_projection(row)
+
+
+def execution_evidences_for_finance(
+    authorization: TenantAuthorization,
+) -> tuple[ExecutionEvidenceProjection, ...]:
+    latest: dict[UUID, EventPreparation] = {}
+    for row in (
+        EventPreparation.objects.select_related("reservation")
+        .filter(organization_id=authorization.organization_id)
+        .order_by("reservation__root_id", "reservation__created_at", "reservation_id")
+    ):
+        latest[row.reservation.root_id] = row
+    return tuple(_execution_projection(row) for row in latest.values())
 
 
 def _projection(row: EventPreparation) -> PreparationProjection:
@@ -256,9 +326,12 @@ def reschedule_preparation(
 __all__ = (
     "OperationsError",
     "PreparationProjection",
+    "ExecutionEvidenceProjection",
     "cancel_for_schedule",
     "initialize_from_accepted_snapshot",
     "has_document_relationship",
+    "execution_evidence_for_finance",
+    "execution_evidences_for_finance",
     "preparation_for_schedule",
     "reschedule_preparation",
 )

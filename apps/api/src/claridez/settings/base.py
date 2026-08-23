@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "claridez.operations.apps.OperationsConfig",
     "claridez.documents.apps.DocumentsConfig",
     "claridez.receivables.apps.ReceivablesConfig",
+    "claridez.finance.apps.FinanceConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -117,6 +118,7 @@ SPECTACULAR_SETTINGS = {
         "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
         "SchedulingReservationStatus": "claridez.scheduling.models.Reservation.Status",
         "SchedulingBlockStatus": "claridez.scheduling.models.ScheduleBlock.Status",
+        "SchedulingBlockScope": "claridez.scheduling.models.ScheduleBlock.Scope",
         "DocumentTemplateVersionStatus": (
             "claridez.documents.models.DocumentTemplateVersion.Status"
         ),
@@ -126,6 +128,11 @@ SPECTACULAR_SETTINGS = {
         "ReceivablesAdjustmentDirection": (
             "claridez.receivables.models.ReceivableAdjustment.Direction"
         ),
+        "FinanceCategoryKind": "claridez.finance.models.FinanceCategory.Kind",
+        "FinanceExpenseType": "claridez.finance.models.ExpenseOccurrence.ExpenseType",
+        "FinanceCorrectionDirection": ("claridez.finance.models.DirectCostCorrection.Direction"),
+        "FinanceCashDirection": "claridez.finance.models.OperatingCashMovement.Direction",
+        "FinanceExpenseAllocationScope": "claridez.finance.models.ExpenseAllocation.Scope",
     },
 }
 

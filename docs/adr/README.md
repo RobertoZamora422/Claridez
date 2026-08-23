@@ -61,6 +61,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0017](0017-contractual-domain-and-documentary-evidence.md)               | Aceptado                            | Dominio contractual y evidencia documental P9               |
 | [0018](0018-file-platform-and-document-processing.md)                     | Aceptado                            | Plataforma de archivos y procesamiento documental P9        |
 | [0019](0019-receivables-authority-and-financial-movement-integrity.md)    | Aceptado                            | Autoridad de cuentas por cobrar e integridad financiera P10 |
+| [0020](0020-finance-authority-recognition-and-operational-close-integrity.md) | Aceptado                         | Autoridad financiera operativa, reconocimiento y cierres P11 |
 
 ## Modificación y reemplazo
 

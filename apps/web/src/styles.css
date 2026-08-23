@@ -1894,6 +1894,90 @@ dd {
   min-width: 0;
 }
 
+.finance-page,
+.finance-actions,
+.finance-page .command-box form {
+  display: grid;
+  gap: 20px;
+}
+.finance-header-actions,
+.finance-filter,
+.finance-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+.finance-filter {
+  justify-content: flex-end;
+}
+.finance-filter label {
+  min-width: min(100%, 300px);
+}
+.finance-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.finance-metrics article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dbe7e5;
+  border-radius: 14px;
+  background: #fff;
+}
+.finance-metrics span,
+.finance-breakdown dt {
+  color: #64748b;
+}
+.finance-metrics strong {
+  overflow-wrap: anywhere;
+  color: #0f3d3a;
+  font-size: 1.2rem;
+}
+.finance-split,
+.finance-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.finance-breakdown {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.finance-breakdown div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.finance-breakdown dd {
+  margin: 0;
+  font-weight: 750;
+}
+.finance-actions .command-box,
+.finance-page > .command-box {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.finance-actions .command-box h2,
+.finance-page > .command-box h2 {
+  margin: 0;
+}
+.finance-decision {
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+.finance-decision span {
+  min-width: 180px;
+  flex: 1;
+}
+
 @media (max-width: 980px) {
   .auth-layout {
     grid-template-columns: 1fr;
@@ -1975,11 +2059,14 @@ dd {
     grid-template-columns: 1fr;
   }
   .receivables-layout,
-  .financial-actions {
+  .financial-actions,
+  .finance-split,
+  .finance-actions {
     grid-template-columns: 1fr;
   }
   .receivables-metrics,
-  .aging-grid {
+  .aging-grid,
+  .finance-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .crm-metrics {
@@ -2078,7 +2165,8 @@ dd {
     grid-template-columns: 1fr;
   }
   .receivables-metrics,
-  .aging-grid {
+  .aging-grid,
+  .finance-metrics {
     grid-template-columns: 1fr;
   }
   .obligation-list > button {

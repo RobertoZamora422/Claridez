@@ -12,7 +12,7 @@ from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .errors import ReceivablesError, conflict, unavailable
-from .models import ReceivableObligation, ReceivedPayment
+from .models import MovementReversal, ReceivableObligation, ReceivedPayment, RefundRecord
 from .money import amount
 from .services import (
     adjusted_obligation_amount,
@@ -61,6 +61,123 @@ class ReceivableSummaryProjection:
     applied_total: Decimal
     balance: Decimal
     derived_status: str
+
+
+@dataclass(frozen=True, slots=True)
+class FinanceObligationProjection:
+    obligation_id: UUID
+    root_reservation_id: UUID
+    quotation_version_id: UUID
+    currency: str
+    original_total: Decimal
+    registered_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FinanceCashContributionProjection:
+    source_kind: str
+    source_id: UUID
+    root_reservation_id: UUID | None
+    direction: str
+    amount: Decimal
+    currency: str
+    economic_at: datetime
+    registered_at: datetime
+
+
+def obligation_for_finance(
+    authorization: TenantAuthorization, root_reservation_id: UUID
+) -> FinanceObligationProjection:
+    try:
+        row = ReceivableObligation.objects.get(
+            organization_id=authorization.organization_id,
+            root_reservation_id=root_reservation_id,
+        )
+    except ReceivableObligation.DoesNotExist:
+        raise unavailable("La obligación") from None
+    return FinanceObligationProjection(
+        obligation_id=row.pk,
+        root_reservation_id=row.root_reservation_id,
+        quotation_version_id=row.quotation_version_id,
+        currency=row.currency,
+        original_total=row.original_total,
+        registered_at=row.created_at,
+    )
+
+
+def cash_contributions_for_finance(
+    authorization: TenantAuthorization,
+) -> tuple[FinanceCashContributionProjection, ...]:
+    organization_id = authorization.organization_id
+    payments = {
+        row.pk: row for row in ReceivedPayment.objects.filter(organization_id=organization_id)
+    }
+    refunds = {
+        row.pk: row
+        for row in RefundRecord.objects.select_related("payment").filter(
+            organization_id=organization_id
+        )
+    }
+    result = [
+        FinanceCashContributionProjection(
+            source_kind="payment",
+            source_id=row.pk,
+            root_reservation_id=row.root_reservation_id,
+            direction="inflow",
+            amount=row.amount,
+            currency=row.currency,
+            economic_at=row.reported_at,
+            registered_at=row.created_at,
+        )
+        for row in payments.values()
+    ]
+    result.extend(
+        FinanceCashContributionProjection(
+            source_kind="refund",
+            source_id=row.pk,
+            root_reservation_id=row.payment.root_reservation_id,
+            direction="outflow",
+            amount=row.amount,
+            currency=row.currency,
+            economic_at=row.refunded_at,
+            registered_at=row.created_at,
+        )
+        for row in refunds.values()
+    )
+    for reversal in MovementReversal.objects.filter(
+        organization_id=organization_id,
+        target_kind__in=[
+            MovementReversal.TargetKind.PAYMENT,
+            MovementReversal.TargetKind.REFUND,
+        ],
+    ):
+        if reversal.target_kind == MovementReversal.TargetKind.PAYMENT:
+            payment = payments.get(reversal.target_id)
+            if payment is None:
+                continue
+            root_id = payment.root_reservation_id
+            direction = "outflow"
+            kind = "payment_reversal"
+        else:
+            refund = refunds.get(reversal.target_id)
+            if refund is None:
+                continue
+            root_id = refund.payment.root_reservation_id
+            direction = "inflow"
+            kind = "refund_reversal"
+        result.append(
+            FinanceCashContributionProjection(
+                source_kind=kind,
+                source_id=reversal.pk,
+                root_reservation_id=root_id,
+                direction=direction,
+                amount=reversal.amount,
+                currency=reversal.currency,
+                economic_at=reversal.reversed_at,
+                registered_at=reversal.created_at,
+            )
+        )
+    return tuple(sorted(result, key=lambda row: (row.registered_at, str(row.source_id))))
 
 
 def invalid_confirmation_idempotency_key() -> ReceivablesError:
@@ -233,12 +350,16 @@ __all__ = (
     "ConfirmationObligationProjection",
     "ConfirmationPaymentProjection",
     "ReceivableSummaryProjection",
+    "FinanceObligationProjection",
+    "FinanceCashContributionProjection",
     "ReceivablesError",
     "apply_confirmation_payment",
     "complete_reservation_confirmation_command",
     "create_or_get_confirmation_obligation",
     "invalid_confirmation_idempotency_key",
     "record_confirmation_payment",
+    "obligation_for_finance",
+    "cash_contributions_for_finance",
     "replay_reservation_confirmation_command",
     "summary_for_commercial",
     "validate_confirmation_deposit",

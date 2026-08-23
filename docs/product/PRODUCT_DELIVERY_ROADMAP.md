@@ -478,7 +478,7 @@ contabilidad, conciliación, facturación electrónica, FX ni ejecución bancari
 
 **Identificador y nombre:** P11 — Control financiero operativo del negocio.
 
-**Estado:** Pendiente.
+**Estado:** Completada y validada localmente; no desplegada.
 
 **Objetivo:** Mostrar cuánto cuesta, cuánto genera y cuán rentable es cada evento, sede y periodo.
 
@@ -489,17 +489,27 @@ rentabilidad; cierres de periodo operativos; trazabilidad y exportación.
 **Exclusiones:** Libro mayor, balances contables certificados, impuestos, declaraciones, nómina y
 facturación electrónica.
 
-**Dependencias:** P10, P6 y reglas aprobadas de reconocimiento, asignación, redondeo y corrección.
+**Dependencias:** P10, P6, ADR 0020 aceptado y contrato funcional P11 aprobado.
 
-**Resultado visible:** Propietario y finanzas comparan ingreso, costo y resultado real por evento y
-periodo desde una sola verdad.
+**Resultado visible:** Propietario, administrador y finanzas comparan por evento, sede y periodo el
+ingreso reconocido, baseline de costos al inicio de ejecución, costos/gastos reales, caja,
+presupuesto, margen y rentabilidad. Operaciones aporta evidencia mínima sin recibir la superficie
+financiera completa.
 
-**Criterio verificable de finalización:** Fórmulas backend documentadas y probadas, ningún float,
-totales reconciliables, cambios auditados, filtros temporales/moneda correctos y reportes con datos
-representativos.
+**Criterio verificable de finalización:** ADR 0020 y contrato funcional formalizados;
+`claridez.finance` implementado sin depender de catálogo ni duplicar P10; fórmulas `Decimal`,
+hechos/correcciones append-only, cierres y ajustes tardíos, sede histórica, baseline al
+`execution_started`, reconocimiento al `execution_completed`, capabilities, RLS y concurrencia
+probados. La instalación limpia observada sincronizó 88 paquetes Python y 253 npm sin
+vulnerabilidades reportadas por `npm ci`; la migración desde cero aplicó `finance.0001`–`0004` y la
+migración P10-final→P11 fue reaplicable. `npm run check:all` cerró con 216 pruebas API no
+integración, 86 de integración PostgreSQL y 27 frontend, además de locks, formato, lint, tipos,
+migraciones, OpenAPI y builds correctos. La evidencia es local y no afirma CI remota, despliegue ni
+cutover.
 
-**Riesgos principales:** Presentar contabilidad formal, doble contar gastos, alterar periodos
-cerrados o calcular resultados diferentes en frontend.
+**Riesgos principales:** Un despliegue futuro requiere preflight, respaldo y verificación de
+cutoffs/cierres reales. P11 no resuelve consecuencias abiertas de cancelación de ADR 0019, no
+reabre periodos, no representa contabilidad formal y no autoriza P12.
 
 **Siguiente etapa:** P12 — Proveedores, recursos e inventario.
 

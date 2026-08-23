@@ -7,6 +7,7 @@ import { CatalogView } from "../features/catalog/CatalogView";
 import { ConfigurationView } from "../features/configuration/ConfigurationView";
 import { CRMView } from "../features/crm/CRMView";
 import { DocumentsView } from "../features/documents/DocumentsView";
+import { FinanceView } from "../features/finance/FinanceView";
 import { OperationsView } from "../features/operations/OperationsView";
 import { ReceivablesView } from "../features/receivables/ReceivablesView";
 import { RequestsView } from "../features/requests/RequestsView";
@@ -19,6 +20,7 @@ type Page =
   | "requests"
   | "operations"
   | "receivables"
+  | "finance"
   | "catalog"
   | "documents"
   | "configuration";
@@ -65,6 +67,9 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/receivables/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/finance/capabilities/`,
+      ),
     ])
       .then(
         ([
@@ -76,6 +81,7 @@ export function Workspace({
           scheduleBody,
           documentsBody,
           receivablesBody,
+          financeBody,
         ]) => {
           setCapabilities(
             new Set([
@@ -86,6 +92,7 @@ export function Workspace({
               ...scheduleBody.capabilities,
               ...documentsBody.capabilities,
               ...receivablesBody.capabilities,
+              ...financeBody.capabilities,
             ]),
           );
           setTimeZone(settingsBody.settings.timezone);
@@ -155,6 +162,17 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">$</span>Cartera
+              </button>
+            ) : null}
+            {capabilities.has("finance:read") || capabilities.has("finance:submit_evidence") ? (
+              <button
+                aria-current={page === "finance" ? "page" : undefined}
+                onClick={() => {
+                  setPage("finance");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">∑</span>Finanzas
               </button>
             ) : null}
             {capabilities.has("catalog:read") ? (
@@ -262,6 +280,17 @@ export function Workspace({
             Cartera
           </button>
         ) : null}
+        {capabilities.has("finance:read") || capabilities.has("finance:submit_evidence") ? (
+          <button
+            aria-current={page === "finance" ? "page" : undefined}
+            onClick={() => {
+              setPage("finance");
+              setSelectedRequest(null);
+            }}
+          >
+            Finanzas
+          </button>
+        ) : null}
         {capabilities.has("catalog:read") ? (
           <button
             aria-current={page === "catalog" ? "page" : undefined}
@@ -327,6 +356,8 @@ export function Workspace({
           />
         ) : page === "receivables" ? (
           <ReceivablesView organizationId={organization.id} capabilities={capabilities} />
+        ) : page === "finance" ? (
+          <FinanceView organizationId={organization.id} capabilities={capabilities} />
         ) : page === "catalog" ? (
           <CatalogView
             organizationId={organization.id}

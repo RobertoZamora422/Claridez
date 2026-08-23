@@ -64,6 +64,18 @@ class Capability(StrEnum):
     RECEIVABLES_REVERSE_MOVEMENT = "receivables:reverse_movement"
     RECEIVABLES_RECORD_REFUND = "receivables:record_refund"
     RECEIVABLES_ISSUE_RECEIPT = "receivables:issue_receipt"
+    FINANCE_READ = "finance:read"
+    FINANCE_MANAGE_CATEGORIES = "finance:manage_categories"
+    FINANCE_PLAN_COSTS = "finance:plan_costs"
+    FINANCE_RECORD_ACTUALS = "finance:record_actuals"
+    FINANCE_SUBMIT_EVIDENCE = "finance:submit_evidence"
+    FINANCE_ALLOCATE_EXPENSES = "finance:allocate_expenses"
+    FINANCE_MANAGE_RECURRING = "finance:manage_recurring"
+    FINANCE_RECORD_CASH = "finance:record_cash"
+    FINANCE_MANAGE_BUDGETS = "finance:manage_budgets"
+    FINANCE_ADJUST_RECOGNITION = "finance:adjust_recognition"
+    FINANCE_CLOSE_PERIOD = "finance:close_period"
+    FINANCE_EXPORT = "finance:export"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -123,6 +135,18 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RECEIVABLES_REVERSE_MOVEMENT,
                 Capability.RECEIVABLES_RECORD_REFUND,
                 Capability.RECEIVABLES_ISSUE_RECEIPT,
+                Capability.FINANCE_READ,
+                Capability.FINANCE_MANAGE_CATEGORIES,
+                Capability.FINANCE_PLAN_COSTS,
+                Capability.FINANCE_RECORD_ACTUALS,
+                Capability.FINANCE_SUBMIT_EVIDENCE,
+                Capability.FINANCE_ALLOCATE_EXPENSES,
+                Capability.FINANCE_MANAGE_RECURRING,
+                Capability.FINANCE_RECORD_CASH,
+                Capability.FINANCE_MANAGE_BUDGETS,
+                Capability.FINANCE_ADJUST_RECOGNITION,
+                Capability.FINANCE_CLOSE_PERIOD,
+                Capability.FINANCE_EXPORT,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -179,6 +203,18 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RECEIVABLES_REVERSE_MOVEMENT,
                 Capability.RECEIVABLES_RECORD_REFUND,
                 Capability.RECEIVABLES_ISSUE_RECEIPT,
+                Capability.FINANCE_READ,
+                Capability.FINANCE_MANAGE_CATEGORIES,
+                Capability.FINANCE_PLAN_COSTS,
+                Capability.FINANCE_RECORD_ACTUALS,
+                Capability.FINANCE_SUBMIT_EVIDENCE,
+                Capability.FINANCE_ALLOCATE_EXPENSES,
+                Capability.FINANCE_MANAGE_RECURRING,
+                Capability.FINANCE_RECORD_CASH,
+                Capability.FINANCE_MANAGE_BUDGETS,
+                Capability.FINANCE_ADJUST_RECOGNITION,
+                Capability.FINANCE_CLOSE_PERIOD,
+                Capability.FINANCE_EXPORT,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -228,6 +264,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.CATALOG_READ,
                 Capability.CONTRACTUAL_RECORD_READ,
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
+                Capability.FINANCE_SUBMIT_EVIDENCE,
             }
         ),
         Membership.Role.FINANCE: frozenset(
@@ -250,6 +287,18 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RECEIVABLES_REVERSE_MOVEMENT,
                 Capability.RECEIVABLES_RECORD_REFUND,
                 Capability.RECEIVABLES_ISSUE_RECEIPT,
+                Capability.FINANCE_READ,
+                Capability.FINANCE_MANAGE_CATEGORIES,
+                Capability.FINANCE_PLAN_COSTS,
+                Capability.FINANCE_RECORD_ACTUALS,
+                Capability.FINANCE_SUBMIT_EVIDENCE,
+                Capability.FINANCE_ALLOCATE_EXPENSES,
+                Capability.FINANCE_MANAGE_RECURRING,
+                Capability.FINANCE_RECORD_CASH,
+                Capability.FINANCE_MANAGE_BUDGETS,
+                Capability.FINANCE_ADJUST_RECOGNITION,
+                Capability.FINANCE_CLOSE_PERIOD,
+                Capability.FINANCE_EXPORT,
             }
         ),
     }

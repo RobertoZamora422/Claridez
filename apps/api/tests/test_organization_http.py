@@ -456,5 +456,41 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         ): {"post"},
         "/api/v1/organizations/{organization_id}/receivables/receipts/{receipt_id}/": {"get"},
         ("/api/v1/organizations/{organization_id}/receivables/receipts/{receipt_id}/pdf/"): {"get"},
+        "/api/v1/organizations/{organization_id}/finance/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/finance/overview/": {"get"},
+        "/api/v1/organizations/{organization_id}/finance/evidence-context/": {"get"},
+        "/api/v1/organizations/{organization_id}/finance/categories/": {"post"},
+        "/api/v1/organizations/{organization_id}/finance/periods/": {"post"},
+        "/api/v1/organizations/{organization_id}/finance/periods/{period_id}/close/": {"post"},
+        "/api/v1/organizations/{organization_id}/finance/direct-cost-plans/": {"post"},
+        "/api/v1/organizations/{organization_id}/finance/cost-evidence/": {"post"},
+        ("/api/v1/organizations/{organization_id}/finance/cost-evidence/{evidence_id}/decision/"): {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/finance/direct-costs/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/finance/direct-costs/"
+            "{direct_cost_id}/corrections/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/finance/recurring-rules/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/finance/recurring-rules/{rule_id}/occurrences/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/finance/expenses/": {"post"},
+        ("/api/v1/organizations/{organization_id}/finance/expenses/{expense_id}/corrections/"): {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/finance/budgets/": {"post"},
+        "/api/v1/organizations/{organization_id}/finance/cash-movements/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/finance/cash-movements/"
+            "{cash_movement_id}/corrections/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/finance/recognition-adjustments/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/finance/recognition-adjustments/"
+            "{recognition_adjustment_id}/corrections/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/finance/export/": {"get"},
     }
     assert organization_paths == expected_paths

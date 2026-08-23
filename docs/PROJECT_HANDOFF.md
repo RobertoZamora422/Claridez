@@ -1,8 +1,8 @@
 # Claridez — Handoff del proyecto
 
 - **Fecha de corte:** 22 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P10 está cerrada localmente bajo ADR 0019
-- **Siguiente etapa:** P11 — Costos, gastos, flujo y rentabilidad; pendiente de autorización
+- **Etapa funcional activa:** ninguna; P11 está cerrada localmente bajo ADR 0020
+- **Siguiente etapa:** P12 — Proveedores, recursos e inventario; pendiente de autorización
   explícita
 
 ## Qué es Claridez
@@ -63,20 +63,25 @@ duplica: registra cómo continuar desde el checkout real.
   operativo versionado, pagos externos declarados, aplicaciones, ajustes, reversos, devoluciones,
   recibos lógicos, estado de cuenta, saldo derivado y antigüedad; ledger append-only con
   idempotencia, locks, guardianes PostgreSQL, RLS y puertos inmutables.
+- `claridez.finance`: proyección económica mínima, costos directos planificados/reales, evidencia y
+  baseline operativa, gastos variables/recurrentes con asignaciones, presupuestos, caja operativa,
+  reconocimiento, periodos y cierres; hechos y correcciones append-only, sede histórica, RLS,
+  idempotencia y locks internos deterministas.
 - Web: autenticación, selector organizacional, agenda responsive diaria/semanal/mensual con
   filtros y carriles/listas, políticas, bloqueos, reprogramación guiada, cancelación, historia y
   exportación; solicitudes/cotizaciones/reservas, operación, configuración/catálogo y CRM con
   bandeja, persona integral, timeline, interacciones, tareas, consentimiento y fusión; backoffice
   documental y experiencia externa mínima responsive para lectura, descarga y aceptación; cartera,
   vencimientos, movimientos, pagos, correcciones, devoluciones, recibos y estado de cuenta para
-  roles financieros, con resumen acotado para comercial.
+  roles financieros, con resumen acotado para comercial; control financiero operativo con
+  baseline, variación, gastos, caja, presupuesto, margen, rentabilidad, cierres y exportación.
 
-No existen aún los módulos de P11 en adelante. No hay contabilidad formal ni portal completo, ni
+No existen aún los módulos de P12 en adelante. No hay contabilidad formal ni portal completo, ni
 proveedores productivos de almacenamiento/correo/identidad, staging o producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P10: completadas y validadas localmente.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P11: completadas y validadas localmente.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -202,6 +207,39 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   upgrades colaterales en `uv.lock`. `npm run check:all` completó con 208 pruebas API, 25 pruebas
   frontend y 81 pruebas de integración PostgreSQL aprobadas; `npm run audit` no encontró
   vulnerabilidades en Python ni en el workspace web.
+- P11 establece `claridez.finance` como autoridad exclusiva del control financiero operativo. Una
+  venta aceptada es evidencia económica comercial; P10 conserva obligación y cobro; la entrada de
+  caja se clasifica desde sus contribuciones tipadas; el ingreso base solo nace cuando operations
+  evidencia `execution_completed`. Los pagos no se convierten en ingreso y finance no copia
+  movimientos de receivables ni crea un ledger paralelo.
+- La revisión publicada vigente al primer `execution_started` se captura como baseline inmutable.
+  `operations.public` expone DTO congelado de inicio/finalización y permite lock externo solo para
+  esa invariante transversal; finance usa advisory locks propios y deterministas para sus demás
+  comandos. La proyección económica comercial excluye PII, notas y detalle innecesario.
+- `root_reservation_id` conserva la identidad estable ante reprogramaciones. Cada costo real y cada
+  asignación de gasto a evento congela el `venue_id` de su hecho económico; una reprogramación
+  posterior no los traslada. El ingreso se atribuye a la sede de la reserva que alcanzó
+  `execution_completed`.
+- Periodos cerrados no se reabren ni reescriben. Los hechos tardíos conservan fecha económica y se
+  registran en el siguiente periodo abierto como ajuste explícito de periodo anterior. Los cierres
+  guardan cutoffs, referencias y hashes de fuentes P10 clasificadas por identificador, fecha
+  económica y fecha de registro, sin `SourcePeriodRegistration` ni índice espejo.
+- Gastos manuales y recurrentes comparten `ExpenseOccurrence` con procedencia explícita;
+  asignaciones, costos, caja, reconocimiento y correcciones son hechos tipados. Los ajustes de
+  reconocimiento no implementan penalidades, anticipos perdidos, créditos ni deber de devolución.
+  No existe dependencia de catálogo, libro mayor, cuenta bancaria, FX ni contabilidad formal.
+- P11 añade doce capabilities. Propietario, administrador y finanzas reciben la matriz completa;
+  operaciones solo `finance:submit_evidence`; comercial no recibe acceso financiero. Las 20 tablas
+  privadas usan FKs tenant-aware, `ENABLE` + `FORCE RLS`, privilegios mínimos e inmutabilidad; la
+  API solo expone consultas y comandos explícitos, sin `DELETE`, `PATCH` libre ni CRUD de hechos.
+- La instalación limpia observada sincronizó 88 paquetes Python con el lock y 253 paquetes npm;
+  `npm ci` reportó cero vulnerabilidades. El reset protegido y la migración desde cero aplicaron
+  todo el historial hasta `finance.0004`; tres pruebas dirigidas confirmaron P9→P10, SQL directo y
+  P10-final→P11/rollback/reaplicación. La puerta final `npm run check:all` aprobó 216 pruebas API no
+  integración con 76% de cobertura, 27 frontend y 86 de integración PostgreSQL, además de locks,
+  migraciones sin cambios, formato, lint, mypy sobre 299 archivos, TypeScript, OpenAPI sin warnings
+  y build Vite. La evidencia es local; no incluye navegador manual, CI remota, despliegue ni
+  cutover de un entorno destino.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
@@ -228,8 +266,10 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   malware y primer mecanismo asíncrono durable: ADR 0018.
 - Autoridad de `claridez.receivables`, obligación por primera confirmación de raíz, coordinación
   transaccional, ledger append-only, saldo derivado, migración 5.1 y capacidades P10: ADR 0019.
-- Comportamiento exacto implementado: especificaciones 5.1, 5.2 y P8; P9 se rige por ADR
-  0017–0018, Roadmap y el plan consolidado aprobado.
+- Autoridad de `claridez.finance`, reconocimiento operativo, sede histórica, baseline, hechos
+  tardíos, cierres, locks y frontera estricta con P10: ADR 0020.
+- Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11; P9
+  se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
@@ -249,7 +289,8 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   favor, aplicación de sobrepagos a otros eventos, consecuencias contractuales de revisar
   vencimientos y retención jurídica definitiva de comprobantes/recibos. P10 no automatiza ninguna.
 - Conciliación bancaria, ejecución real de reembolsos, conversión de moneda, facturación
-  electrónica y toda la semántica de costos, gastos, flujo y rentabilidad de P11.
+  electrónica, libro mayor, cuentas bancarias y contabilidad formal.
+- Proveedores, recursos, inventario, compras y demás semántica de P12.
 
 ## Fuentes de verdad y precedencia
 
@@ -271,8 +312,8 @@ resuelve antes de implementarla.
 2. `docs/product/PRODUCT_BLUEPRINT.md`.
 3. `docs/product/PRODUCT_DELIVERY_ROADMAP.md`.
 4. `docs/PROJECT_HANDOFF.md`.
-5. Especificaciones 5.1/5.2/P8 y ADR aplicables, incluidos ADR 0016–0019; P11 no puede redefinir la
-   evidencia comercial, documental, de agenda o cuentas por cobrar ya cerrada.
+5. Especificaciones 5.1/5.2/P8/P11 y ADR aplicables, incluidos ADR 0016–0020; P12 no puede redefinir
+   la evidencia comercial, documental, de agenda, cartera o control financiero ya cerrada.
 6. Código, migraciones, pruebas, Git y configuración ejecutable; nunca confiar solo en documentos.
 
 ## Entorno y comandos oficiales
@@ -334,9 +375,9 @@ falta.
 
 ## Próximo trabajo
 
-P10 está cerrada localmente bajo ADR 0019. El siguiente paso exacto es preparar el plan breve de
-**P11 — Costos, gastos, flujo y rentabilidad** y recibir su aprobación; este cierre no autoriza
-modelos, migraciones, capabilities, endpoints ni frontend de P11.
+P11 está cerrada localmente bajo ADR 0020. El siguiente paso exacto es preparar el plan breve de
+**P12 — Proveedores, recursos e inventario** y recibir su aprobación; este cierre no autoriza
+modelos, migraciones, capabilities, endpoints ni frontend de P12.
 
 ## Riesgos actuales
 
@@ -357,6 +398,10 @@ modelos, migraciones, capabilities, endpoints ni frontend de P11.
 - Antes de desplegar P10 se debe ejecutar el preflight sobre confirmaciones 5.1 reales, verificar
   cardinalidades e importes, respaldar, bloquear tráfico durante el cutover y revisar toda evidencia
   clasificada como incoherente. La migración local no prueba los datos de un entorno destino.
+- Antes de desplegar P11 se deben verificar moneda/configuración por organización, rangos de
+  periodos, cutoffs de receivables, raíces/sedes históricas y ausencia de cierres productivos
+  incompatibles; se requiere respaldo y ensayo de migración P10-final. La validación local no prueba
+  datos ni operación de un entorno destino.
 - El run remoto 22 falló históricamente sobre `36e41ef`; CI #23, run `31757547140`, fue observado
   verde sobre `dab6b7ea367ce3d80dd375f1c41f048d5a9d9906`. No existe evidencia de staging,
   producción, despliegue ni cutover.

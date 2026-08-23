@@ -253,6 +253,12 @@ de inventario conservan origen, destino, cantidad y responsable. La rentabilidad
 reconocidos por la regla funcional aprobada con costos y gastos asignados, siempre con `Decimal`,
 redondeo documentado y trazabilidad.
 
+ADR 0020 concreta P11: `claridez.finance` reconoce el ingreso base al completar la ejecución,
+conserva la raíz como identidad del evento y la sede histórica de cada hecho, congela la baseline
+planificada al iniciar ejecución y registra hechos tardíos como ajustes de periodos anteriores sin
+reabrir cierres. Pagos P10 no se convierten automáticamente en ingreso y sus movimientos no se
+copian a P11.
+
 ## 10. Capacidades y permisos
 
 La matriz siguiente define el destino por familias. Cada etapa traduce la familia a capacidades

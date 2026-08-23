@@ -94,7 +94,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2, P6, P7, P8 y P9 están completadas. 4.1 incorpora el usuario
+5.2 y P6–P11 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -123,13 +123,19 @@ reversos, devoluciones registradas, recibos lógicos, saldo derivado y antigüed
 0019. La primera confirmación de una raíz crea exactamente una obligación mediante coordinación
 transaccional neutral; scheduling no importa receivables. Los hechos financieros son append-only,
 tenant-aware e idempotentes y Claridez no custodia fondos ni ejecuta reembolsos.
+P11 incorpora `claridez.finance` como autoridad de costos directos planificados y reales, gastos
+variables y recurrentes, caja operativa propia, presupuestos, reconocimiento de ingreso operativo,
+periodos y cierres conforme a ADR 0020 y su contrato funcional. Consume de P10 solo referencias y
+contribuciones de caja tipadas por `receivables.public`, reconoce el ingreso base al completar la
+ejecución, conserva raíz y sede históricas, y no introduce libro mayor, cuentas bancarias,
+contabilidad formal ni dependencia de catálogo.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P11 o etapas posteriores.
+- Módulos o pantallas de P12 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
@@ -144,6 +150,10 @@ P10 aprueba consultas de cartera, obligación, calendario, movimientos, pagos, e
 antigüedad y recibos, además de comandos explícitos para pago, aplicación, calendario, ajuste,
 reverso, devolución y recibo. No existe CRUD financiero genérico, `DELETE` ni `PATCH` libre sobre
 hechos consumados.
+P11 aprueba consultas de capabilities, contexto de evidencia, resumen y exportación, además de
+comandos explícitos para categorías, periodos/cierres, planes y baseline, evidencia y decisión,
+costos/correcciones, recurrencias, gastos/asignaciones, presupuestos, caja/correcciones y ajustes de
+reconocimiento/correcciones. No expone un ledger duplicado de P10 ni CRUD libre sobre hechos.
 PostgreSQL local se publica solo sobre loopback. Django normal usa
 `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
@@ -180,8 +190,8 @@ modelo de amenazas se conservan como evidencia histórica; no constituyen códig
 - OWASP ASVS es una referencia y fuente progresiva de checklists, no una certificación ya alcanzada.
 - La autorización debe denegar por defecto cuando una decisión no esté definida.
 - Los logs futuros no deben contener secretos ni datos sensibles innecesarios.
-- Las operaciones financieras de P10 usan `numeric(18,2)`, `Decimal`, cuantización `0.01` y
-  `ROUND_HALF_UP`; la moneda histórica no cambia y P10 no convierte divisas.
+- Las operaciones financieras de P10 y P11 usan `numeric(18,2)`, `Decimal`, cuantización `0.01` y
+  `ROUND_HALF_UP`; la moneda histórica no cambia y ninguno convierte divisas.
 
 ## 11. Cambios arquitectónicos y ADR
 
