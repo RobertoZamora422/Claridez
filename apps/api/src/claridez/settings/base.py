@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "claridez.operations.apps.OperationsConfig",
     "claridez.documents.apps.DocumentsConfig",
     "claridez.receivables.apps.ReceivablesConfig",
+    "claridez.resources.apps.ResourcesConfig",
     "claridez.finance.apps.FinanceConfig",
     "rest_framework",
     "drf_spectacular",
@@ -133,6 +134,8 @@ SPECTACULAR_SETTINGS = {
         "FinanceCorrectionDirection": ("claridez.finance.models.DirectCostCorrection.Direction"),
         "FinanceCashDirection": "claridez.finance.models.OperatingCashMovement.Direction",
         "FinanceExpenseAllocationScope": "claridez.finance.models.ExpenseAllocation.Scope",
+        "ResourcesNature": "claridez.resources.models.Resource.Nature",
+        "ResourcesMovementKind": "claridez.resources.models.StockMovement.Kind",
     },
 }
 

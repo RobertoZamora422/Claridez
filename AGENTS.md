@@ -94,7 +94,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2 y P6–P11 están completadas. 4.1 incorpora el usuario
+5.2 y P6–P12 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -129,13 +129,19 @@ periodos y cierres conforme a ADR 0020 y su contrato funcional. Consume de P10 s
 contribuciones de caja tipadas por `receivables.public`, reconoce el ingreso base al completar la
 ejecución, conserva raíz y sede históricas, y no introduce libro mayor, cuentas bancarias,
 contabilidad formal ni dependencia de catálogo.
+P12 incorpora `claridez.resources` como autoridad de proveedores, unidades, recursos físicos y
+suministrados, ubicaciones, compras y recepciones, ledger de inventario, disponibilidad por evento,
+custodia, mantenimiento e indisponibilidad conforme a ADR 0021. Amplía las consecuencias de agenda
+sin sustituir la autoridad temporal de scheduling, y Finance conserva la única autoridad de costo
+real, gasto y caja mediante procedencia tipada de líneas de recepción. No introduce valoración
+contable de inventario, marketplace, e-commerce ni logística avanzada.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P12 o etapas posteriores.
+- Módulos o pantallas de P13 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
@@ -154,6 +160,11 @@ P11 aprueba consultas de capabilities, contexto de evidencia, resumen y exportac
 comandos explícitos para categorías, periodos/cierres, planes y baseline, evidencia y decisión,
 costos/correcciones, recurrencias, gastos/asignaciones, presupuestos, caja/correcciones y ajustes de
 reconocimiento/correcciones. No expone un ledger duplicado de P10 ni CRUD libre sobre hechos.
+P12 aprueba consultas de capabilities, disponibilidad y resumen operativo, además de comandos
+explícitos para unidades/conversiones, proveedores/contactos/términos/ofertas, recursos/ubicaciones,
+compras/recepciones, movimientos, requerimientos/asignaciones, ejecución, mantenimiento e
+indisponibilidad y materialización financiera conjuntiva. No expone CRUD genérico, valoración de
+inventario, `DELETE` ni edición destructiva de hechos consumados.
 PostgreSQL local se publica solo sobre loopback. Django normal usa
 `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda
@@ -169,6 +180,9 @@ controlada. `claridez_app` tampoco tiene `DELETE` sobre tablas documentales; P9 
 capability, endpoint, acción web, job ni servicio de destrucción física.
 `claridez_app` tampoco tiene `DELETE` ni `TRUNCATE` sobre tablas financieras; movimientos,
 comandos idempotentes y recibos consumados se corrigen exclusivamente con nuevos hechos.
+`claridez_app` tampoco tiene `DELETE` ni `TRUNCATE` sobre las tablas privadas de resources; sus
+ledgers, recepciones, historial y correcciones son append-only o se alteran mediante comandos
+controlados y hechos compensatorios conforme a ADR 0021.
 
 El código y los scripts del spike de tenancy fueron eliminados en 4.0. Su protocolo, resultados y
 modelo de amenazas se conservan como evidencia histórica; no constituyen código productivo.

@@ -200,6 +200,55 @@ EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P11_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.FINANCE].update(P11_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.OPERATIONS].add(Capability.FINANCE_SUBMIT_EVIDENCE)
 
+P12_OWNER_ADMIN = {
+    Capability.RESOURCE_READ_AVAILABILITY,
+    Capability.SUPPLIER_READ,
+    Capability.SUPPLIER_MANAGE_PROFILE,
+    Capability.SUPPLIER_LINK_CONTACT,
+    Capability.SUPPLIER_MANAGE_TERMS,
+    Capability.SUPPLIER_MANAGE_OFFERING,
+    Capability.RESOURCE_READ,
+    Capability.RESOURCE_MANAGE,
+    Capability.RESOURCE_RESERVE,
+    Capability.RESOURCE_MAINTAIN,
+    Capability.INVENTORY_RECORD_MOVEMENT,
+    Capability.PURCHASE_READ,
+    Capability.PURCHASE_MANAGE,
+    Capability.PURCHASE_RECEIVE,
+    Capability.PURCHASE_MATERIALIZE_FINANCE,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(P12_OWNER_ADMIN)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P12_OWNER_ADMIN)
+EXPECTED_MATRIX[Membership.Role.COMMERCIAL].add(Capability.RESOURCE_READ_AVAILABILITY)
+EXPECTED_MATRIX[Membership.Role.OPERATIONS].update(
+    {
+        Capability.RESOURCE_READ_AVAILABILITY,
+        Capability.SUPPLIER_READ,
+        Capability.SUPPLIER_MANAGE_PROFILE,
+        Capability.SUPPLIER_LINK_CONTACT,
+        Capability.SUPPLIER_MANAGE_OFFERING,
+        Capability.RESOURCE_READ,
+        Capability.RESOURCE_MANAGE,
+        Capability.RESOURCE_RESERVE,
+        Capability.RESOURCE_MAINTAIN,
+        Capability.INVENTORY_RECORD_MOVEMENT,
+        Capability.PURCHASE_READ,
+        Capability.PURCHASE_RECEIVE,
+    }
+)
+EXPECTED_MATRIX[Membership.Role.FINANCE].update(
+    {
+        Capability.RESOURCE_READ_AVAILABILITY,
+        Capability.SUPPLIER_READ,
+        Capability.SUPPLIER_LINK_CONTACT,
+        Capability.SUPPLIER_MANAGE_TERMS,
+        Capability.RESOURCE_READ,
+        Capability.PURCHASE_READ,
+        Capability.PURCHASE_MANAGE,
+        Capability.PURCHASE_MATERIALIZE_FINANCE,
+    }
+)
+
 
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
@@ -268,6 +317,21 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "finance:adjust_recognition",
         "finance:close_period",
         "finance:export",
+        "resource:read_availability",
+        "supplier:read",
+        "supplier:manage_profile",
+        "supplier:link_contact",
+        "supplier:manage_terms",
+        "supplier:manage_offering",
+        "resource:read",
+        "resource:manage",
+        "resource:reserve",
+        "resource:maintain",
+        "inventory:record_movement",
+        "purchase:read",
+        "purchase:manage",
+        "purchase:receive",
+        "purchase:materialize_finance",
     }
 
 

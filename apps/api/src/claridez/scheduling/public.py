@@ -31,6 +31,35 @@ class ReservationProjection:
 
 
 @dataclass(frozen=True, slots=True)
+class ResourceScheduleProjection:
+    reservation_id: UUID
+    root_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+
+
+def resource_schedule(
+    authorization: TenantAuthorization, reservation_id: UUID
+) -> ResourceScheduleProjection | None:
+    from .models import Reservation
+
+    row = Reservation.objects.filter(
+        organization_id=authorization.organization_id,
+        pk=reservation_id,
+    ).first()
+    if row is None:
+        return None
+    return ResourceScheduleProjection(
+        reservation_id=row.pk,
+        root_id=row.root_id,
+        starts_at=row.event_interval.lower,
+        ends_at=row.event_interval.upper,
+        status=row.status,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ConfirmationReadiness:
     state: str
     reservation: ReservationProjection
@@ -336,8 +365,15 @@ def legacy_availability_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return legacy_availability(*args, **kwargs)
 
 
+def reschedule_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    from .services import reschedule_reservation
+
+    return reschedule_reservation(*args, **kwargs)
+
+
 __all__ = (
     "ReservationProjection",
+    "ResourceScheduleProjection",
     "ConfirmationReadiness",
     "ConfirmedReservationProjection",
     "ContractualScheduleProjection",
@@ -362,5 +398,7 @@ __all__ = (
     "read_command",
     "reservation_for_commercial",
     "reservation_for_quotation",
+    "resource_schedule",
+    "reschedule_command",
     "schedule_changes",
 )

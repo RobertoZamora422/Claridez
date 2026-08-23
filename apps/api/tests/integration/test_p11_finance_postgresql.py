@@ -789,7 +789,7 @@ def test_finance_idempotency_and_cash_limit_are_serialized() -> None:
         )
 
 
-def test_p10_final_to_p11_and_back_to_head_is_reapplicable() -> None:
+def test_p10_final_to_current_finance_head_and_back_is_reapplicable() -> None:
     def restore() -> None:
         executor = MigrationExecutor(connection)
         executor.migrate(executor.loader.graph.leaf_nodes())
@@ -809,6 +809,7 @@ def test_p10_final_to_p11_and_back_to_head_is_reapplicable() -> None:
                 ("finance", "0003_deferred_guard_hardening"),
                 ("finance", "0004_cash_invariant_hardening"),
                 ("finance", "0005_baseline_and_expense_cash_attribution"),
+                ("finance", "0006_resources_receipt_provenance"),
             ]
     finally:
         restore()

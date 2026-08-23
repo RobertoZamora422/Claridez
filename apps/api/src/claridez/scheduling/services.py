@@ -1168,6 +1168,7 @@ def _perform_reschedule_locked(
     idempotency_key: UUID,
     payload_hash: str,
     carry_free_item_ids: tuple[UUID, ...],
+    carry_resource_assignment_ids: tuple[UUID, ...],
 ) -> dict[str, Any]:
     policy = _policy(auth.organization_id, destination.pk, lock=True)
     setup, teardown, before, after = _policy_values(policy)
@@ -1238,6 +1239,9 @@ def _perform_reschedule_locked(
     event_snapshot = {
         **successor_snapshot,
         "carried_item_ids": [str(value) for value in carried_ids],
+        "requested_resource_assignment_ids": [
+            str(value) for value in carry_resource_assignment_ids
+        ],
     }
     event = ScheduleEvent.objects.create(
         organization_id=auth.organization_id,
@@ -1275,6 +1279,7 @@ def _perform_reschedule_locked(
         "previous": previous_snapshot,
         "reservation": reservation_data(successor),
         "carried_item_ids": carried_ids,
+        "carried_resource_assignment_ids": (),
     }
 
 
@@ -1292,6 +1297,7 @@ def reschedule_reservation(
     reason: str,
     commercial_terms_unchanged: bool,
     carry_free_item_ids: tuple[UUID, ...] = (),
+    carry_resource_assignment_ids: tuple[UUID, ...] = (),
 ) -> dict[str, Any]:
     expired = False
     result: dict[str, Any] | None = None
@@ -1319,6 +1325,9 @@ def reschedule_reservation(
             "reason": canonical_reason,
             "commercial_terms_unchanged": True,
             "carry_free_item_ids": sorted(str(value) for value in carry_free_item_ids),
+            "carry_resource_assignment_ids": sorted(
+                str(value) for value in carry_resource_assignment_ids
+            ),
         }
         payload_hash = _hash(payload)
         replay = (
@@ -1338,6 +1347,7 @@ def reschedule_reservation(
                 "previous": replay.previous_snapshot,
                 "reservation": reservation_data(successor),
                 "carried_item_ids": tuple(replay.new_snapshot.get("carried_item_ids", ())),
+                "carried_resource_assignment_ids": (),
             }
         destination = Space.objects.filter(
             organization_id=auth.organization_id,
@@ -1368,6 +1378,7 @@ def reschedule_reservation(
                 "previous": replay.previous_snapshot,
                 "reservation": reservation_data(successor),
                 "carried_item_ids": tuple(replay.new_snapshot.get("carried_item_ids", ())),
+                "carried_resource_assignment_ids": (),
             }
         root = Reservation.objects.select_for_update().get(
             organization_id=auth.organization_id, pk=candidate.root_id
@@ -1399,6 +1410,7 @@ def reschedule_reservation(
                 idempotency_key=idempotency_key,
                 payload_hash=payload_hash,
                 carry_free_item_ids=carry_free_item_ids,
+                carry_resource_assignment_ids=carry_resource_assignment_ids,
             )
     if expired:
         raise conflict("hold_expired", "La reserva provisional venció.")

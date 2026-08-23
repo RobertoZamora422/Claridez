@@ -42,7 +42,6 @@ from .services import (
     export_icalendar,
     list_blocks,
     read_policy,
-    reschedule_reservation,
     schedule_history,
     scheduling_capabilities,
     terminate_block,
@@ -290,8 +289,10 @@ class RescheduleView(SchedulingAPIView):
         if error:
             return error
         data = serializer.validated_data
+        from claridez.application.resources_scheduling import reschedule_with_resources
+
         return _respond(
-            lambda: reschedule_reservation(
+            lambda: reschedule_with_resources(
                 actor,
                 organization_id,
                 reservation_id=reservation_id,
@@ -304,6 +305,7 @@ class RescheduleView(SchedulingAPIView):
                 reason=data["reason"],
                 commercial_terms_unchanged=data["commercial_terms_unchanged"],
                 carry_free_item_ids=tuple(data.get("carry_free_item_ids", ())),
+                carry_resource_assignment_ids=tuple(data.get("carry_resource_assignment_ids", ())),
             )
         )
 

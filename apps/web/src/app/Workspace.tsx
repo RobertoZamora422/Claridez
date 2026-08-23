@@ -10,6 +10,7 @@ import { DocumentsView } from "../features/documents/DocumentsView";
 import { FinanceView } from "../features/finance/FinanceView";
 import { OperationsView } from "../features/operations/OperationsView";
 import { ReceivablesView } from "../features/receivables/ReceivablesView";
+import { ResourcesView } from "../features/resources/ResourcesView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
@@ -21,6 +22,7 @@ type Page =
   | "operations"
   | "receivables"
   | "finance"
+  | "resources"
   | "catalog"
   | "documents"
   | "configuration";
@@ -70,6 +72,9 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/finance/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(
+        `/api/v1/organizations/${organization.id}/resources/capabilities/`,
+      ),
     ])
       .then(
         ([
@@ -82,6 +87,7 @@ export function Workspace({
           documentsBody,
           receivablesBody,
           financeBody,
+          resourcesBody,
         ]) => {
           setCapabilities(
             new Set([
@@ -93,6 +99,7 @@ export function Workspace({
               ...documentsBody.capabilities,
               ...receivablesBody.capabilities,
               ...financeBody.capabilities,
+              ...resourcesBody.capabilities,
             ]),
           );
           setTimeZone(settingsBody.settings.timezone);
@@ -173,6 +180,17 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">∑</span>Finanzas
+              </button>
+            ) : null}
+            {capabilities.has("resource:read_availability") ? (
+              <button
+                aria-current={page === "resources" ? "page" : undefined}
+                onClick={() => {
+                  setPage("resources");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">▦</span>Recursos
               </button>
             ) : null}
             {capabilities.has("catalog:read") ? (
@@ -291,6 +309,17 @@ export function Workspace({
             Finanzas
           </button>
         ) : null}
+        {capabilities.has("resource:read_availability") ? (
+          <button
+            aria-current={page === "resources" ? "page" : undefined}
+            onClick={() => {
+              setPage("resources");
+              setSelectedRequest(null);
+            }}
+          >
+            Recursos
+          </button>
+        ) : null}
         {capabilities.has("catalog:read") ? (
           <button
             aria-current={page === "catalog" ? "page" : undefined}
@@ -358,6 +387,8 @@ export function Workspace({
           <ReceivablesView organizationId={organization.id} capabilities={capabilities} />
         ) : page === "finance" ? (
           <FinanceView organizationId={organization.id} capabilities={capabilities} />
+        ) : page === "resources" ? (
+          <ResourcesView organizationId={organization.id} capabilities={capabilities} />
         ) : page === "catalog" ? (
           <CatalogView
             organizationId={organization.id}

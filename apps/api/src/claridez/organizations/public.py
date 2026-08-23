@@ -32,6 +32,25 @@ class FinanceVenueProjection:
     name: str
 
 
+@dataclass(frozen=True, slots=True)
+class ResourcesVenueProjection:
+    id: UUID
+    name: str
+    is_active: bool
+
+
+def venue_for_resources(
+    authorization: TenantAuthorization, venue_id: UUID
+) -> ResourcesVenueProjection | None:
+    row = Venue.objects.filter(
+        organization_id=authorization.organization_id,
+        pk=venue_id,
+    ).first()
+    if row is None:
+        return None
+    return ResourcesVenueProjection(id=row.pk, name=row.name, is_active=row.is_active)
+
+
 def venue_for_finance(
     authorization: TenantAuthorization, venue_id: UUID
 ) -> FinanceVenueProjection | None:
@@ -88,9 +107,11 @@ __all__ = (
     "LocationContractualProjection",
     "OrganizationContractualProjection",
     "FinanceVenueProjection",
+    "ResourcesVenueProjection",
     "contractual_location",
     "contractual_organization",
     "venue_for_finance",
+    "venue_for_resources",
     "requires_operation_manage_for_finance_evidence",
     "active_organization_ids_for_document_worker",
 )

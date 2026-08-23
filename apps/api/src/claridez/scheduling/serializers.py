@@ -91,6 +91,9 @@ class RescheduleSerializer(serializers.Serializer[dict[str, object]]):
     carry_free_item_ids = serializers.ListField(
         child=serializers.UUIDField(), required=False, allow_empty=True
     )
+    carry_resource_assignment_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=True
+    )
 
 
 class DomainErrorDetailSerializer(serializers.Serializer[dict[str, object]]):
@@ -225,6 +228,7 @@ class RescheduleResponseSerializer(serializers.Serializer[dict[str, object]]):
     previous = serializers.JSONField()
     reservation = ReservationResponseSerializer()
     carried_item_ids = serializers.ListField(child=serializers.UUIDField())
+    carried_resource_assignment_ids = serializers.ListField(child=serializers.UUIDField())
 
 
 class ScheduleEventResponseSerializer(serializers.Serializer[dict[str, object]]):

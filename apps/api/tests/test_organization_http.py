@@ -492,5 +492,50 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
             "{recognition_adjustment_id}/corrections/"
         ): {"post"},
         "/api/v1/organizations/{organization_id}/finance/export/": {"get"},
+        "/api/v1/organizations/{organization_id}/resources/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/resources/overview/": {"get"},
+        "/api/v1/organizations/{organization_id}/resources/units/create/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/unit-conversions/create/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/suppliers/create/": {"post"},
+        ("/api/v1/organizations/{organization_id}/resources/suppliers/{supplier_id}/status/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/resources/suppliers/"
+            "{supplier_id}/contacts/link/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/resources/contacts/{contact_id}/inactivate/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/resources/suppliers/{supplier_id}/terms/add/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/resources/suppliers/"
+            "{supplier_id}/offerings/add/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/resources/offerings/{offering_id}/status/"): {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/resources/items/create/": {"post"},
+        ("/api/v1/organizations/{organization_id}/resources/items/{resource_id}/status/"): {"post"},
+        "/api/v1/organizations/{organization_id}/resources/locations/create/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/purchases/create/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/receipt-lines/confirm/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/resources/receipt-lines/"
+            "{receipt_line_id}/materialize-finance/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/resources/movements/record/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/requirements/create/": {"post"},
+        "/api/v1/organizations/{organization_id}/resources/assignments/reserve/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/resources/assignments/{assignment_id}/execute/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/resources/unavailability/record/": {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/resources/unavailability/"
+            "{unavailability_id}/close/"
+        ): {"post"},
     }
     assert organization_paths == expected_paths

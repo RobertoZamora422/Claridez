@@ -193,6 +193,7 @@ class ActualDirectCost(TenantModel):
     class Provenance(models.TextChoices):
         MANUAL = "manual", "Registro manual"
         OPERATIONS_EVIDENCE = "operations_evidence", "Evidencia de operaciones"
+        RESOURCES_RECEIPT = "resources_receipt", "Recepción P12"
 
     root_reservation_id = models.UUIDField()
     venue_id = models.UUIDField()
@@ -227,6 +228,14 @@ class ActualDirectCost(TenantModel):
                 name="finance_cost_evidence_uq",
             ),
             models.CheckConstraint(condition=Q(amount__gt=0), name="finance_cost_amount_ck"),
+            models.CheckConstraint(
+                condition=(
+                    Q(provenance="manual", source_evidence__isnull=True)
+                    | Q(provenance="operations_evidence", source_evidence__isnull=False)
+                    | Q(provenance="resources_receipt", source_evidence__isnull=True)
+                ),
+                name="finance_cost_provenance_ck",
+            ),
         ]
 
 
@@ -299,10 +308,11 @@ class ExpenseOccurrence(TenantModel):
     class Provenance(models.TextChoices):
         MANUAL = "manual", "Manual"
         RECURRING = "recurring", "Regla recurrente"
+        RESOURCES_RECEIPT = "resources_receipt", "Recepción P12"
 
     category = models.ForeignKey(FinanceCategory, on_delete=models.PROTECT)
     expense_type = models.CharField(max_length=12, choices=ExpenseType.choices)
-    provenance = models.CharField(max_length=12, choices=Provenance.choices)
+    provenance = models.CharField(max_length=24, choices=Provenance.choices)
     recurring_rule = models.ForeignKey(
         RecurringExpenseRule,
         on_delete=models.PROTECT,
@@ -342,8 +352,70 @@ class ExpenseOccurrence(TenantModel):
                         expense_type="recurring",
                         recurring_rule__isnull=False,
                     )
+                    | Q(
+                        provenance="resources_receipt",
+                        expense_type__in=["variable", "recurring"],
+                        recurring_rule__isnull=True,
+                    )
                 ),
                 name="finance_expense_provenance_ck",
+            ),
+        ]
+
+
+class FinancialSourceReference(TenantModel):
+    class TargetKind(models.TextChoices):
+        ACTUAL_DIRECT_COST = "actual_direct_cost", "Costo directo real"
+        EXPENSE_OCCURRENCE = "expense_occurrence", "Ocurrencia de gasto"
+
+    source_kind = models.CharField(max_length=32, default="resources_receipt_line")
+    source_id = models.UUIDField()
+    target_kind = models.CharField(max_length=24, choices=TargetKind.choices)
+    actual_direct_cost = models.OneToOneField(
+        ActualDirectCost,
+        on_delete=models.PROTECT,
+        related_name="resources_source_reference",
+        null=True,
+        blank=True,
+    )
+    expense_occurrence = models.OneToOneField(
+        ExpenseOccurrence,
+        on_delete=models.PROTECT,
+        related_name="resources_source_reference",
+        null=True,
+        blank=True,
+    )
+    created_by_membership = models.ForeignKey(
+        "organizations.Membership",
+        on_delete=models.PROTECT,
+        related_name="finance_source_references",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "id"], name="finance_source_org_id_uq"),
+            models.UniqueConstraint(
+                fields=["organization", "source_kind", "source_id"],
+                name="finance_source_receipt_uq",
+            ),
+            models.CheckConstraint(
+                condition=Q(source_kind="resources_receipt_line"),
+                name="finance_source_kind_resources_ck",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        target_kind="actual_direct_cost",
+                        actual_direct_cost__isnull=False,
+                        expense_occurrence__isnull=True,
+                    )
+                    | Q(
+                        target_kind="expense_occurrence",
+                        actual_direct_cost__isnull=True,
+                        expense_occurrence__isnull=False,
+                    )
+                ),
+                name="finance_source_exact_target_ck",
             ),
         ]
 

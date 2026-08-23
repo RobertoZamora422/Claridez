@@ -440,6 +440,28 @@
   margin: 0.4rem 0;
 }
 
+.schedule-resource-selection {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.schedule-resource-selection p {
+  margin: 0;
+  color: #64748b;
+}
+.schedule-resource-selection label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.schedule-resource-selection input {
+  width: 18px;
+  min-height: 18px;
+  flex: 0 0 auto;
+}
+
 .schedule-history {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -1978,6 +2000,93 @@ dd {
   flex: 1;
 }
 
+.resource-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  padding: 4px;
+  border: 1px solid #dbe7e5;
+  border-radius: 14px;
+  background: #fff;
+}
+.resource-tabs button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  color: #64748b;
+  background: transparent;
+  font-weight: 750;
+}
+.resource-tabs button[aria-current="page"] {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+.resource-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.resource-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dbe7e5;
+  border-radius: 14px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.resource-card--shortage {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.resource-card__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+.resource-card small,
+.resource-card span {
+  color: #64748b;
+}
+.resource-quantity {
+  margin: 2px 0;
+  color: #0f3d3a;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.resource-ledger,
+.resource-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.resource-ledger > div {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.resource-ledger h2 {
+  margin: 0;
+}
+.resource-command {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #dbe7e5;
+  border-radius: 14px;
+  background: #fff;
+}
+.resource-command h3 {
+  margin: 0;
+}
+
 @media (max-width: 980px) {
   .auth-layout {
     grid-template-columns: 1fr;
@@ -2062,6 +2171,10 @@ dd {
   .financial-actions,
   .finance-split,
   .finance-actions {
+    grid-template-columns: 1fr;
+  }
+  .resource-ledger,
+  .resource-command-grid {
     grid-template-columns: 1fr;
   }
   .receivables-metrics,
@@ -2215,6 +2328,13 @@ dd {
   .details div {
     grid-template-columns: 1fr;
     gap: 3px;
+  }
+  .resource-tabs {
+    margin-right: -16px;
+    border-radius: 14px 0 0 14px;
+  }
+  .resource-card-grid {
+    grid-template-columns: 1fr;
   }
 }
 

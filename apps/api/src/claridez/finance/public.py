@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import cast
 from uuid import UUID
 
 from claridez.organizations.tenant_scope import TenantAuthorization
 
-from .services import _overview_authorized
+from .errors import FinanceError
+from .services import _materialize_resources_receipt_authorized, _overview_authorized
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +23,55 @@ class EventProfitabilityProjection:
     recurring_expense: Decimal
     operating_result: Decimal
     profitability_percentage: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class ResourcesReceiptFinancialCommand:
+    source_id: UUID
+    source_kind: str
+    target_kind: str
+    category_id: UUID
+    amount: Decimal
+    currency: str
+    economic_date: date
+    description: str
+    evidence_reference: str
+    root_reservation_id: UUID | None = None
+    venue_id: UUID | None = None
+    expense_type: str | None = None
+    allocations: tuple[dict[str, object], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialMaterializationProjection:
+    target_kind: str
+    target_id: UUID
+
+
+def materialize_resources_receipt(
+    authorization: TenantAuthorization,
+    command: ResourcesReceiptFinancialCommand,
+    *,
+    idempotency_key: UUID,
+) -> FinancialMaterializationProjection:
+    target_kind, target_id = _materialize_resources_receipt_authorized(
+        authorization,
+        source_id=command.source_id,
+        source_kind=command.source_kind,
+        target_kind=command.target_kind,
+        category_id=command.category_id,
+        amount_value=command.amount,
+        currency_value=command.currency,
+        economic_date=command.economic_date,
+        description=command.description,
+        evidence_reference=command.evidence_reference,
+        root_reservation_id=command.root_reservation_id,
+        venue_id=command.venue_id,
+        expense_type=command.expense_type,
+        allocations=list(command.allocations),
+        idempotency_key=idempotency_key,
+    )
+    return FinancialMaterializationProjection(target_kind=target_kind, target_id=target_id)
 
 
 def event_profitability(
@@ -41,4 +92,11 @@ def event_profitability(
     )
 
 
-__all__ = ("EventProfitabilityProjection", "event_profitability")
+__all__ = (
+    "EventProfitabilityProjection",
+    "FinancialMaterializationProjection",
+    "FinanceError",
+    "ResourcesReceiptFinancialCommand",
+    "event_profitability",
+    "materialize_resources_receipt",
+)

@@ -29,7 +29,13 @@ ROLE_SPECIFICATIONS: dict[str, dict[str, bool]] = {
     "claridez_app": {"rolsuper": False, "rolcreatedb": False},
     "claridez_test_runner": {"rolsuper": False, "rolcreatedb": True},
 }
-APPEND_ONLY_TABLE_PREFIXES = ("finance_",)
+APPEND_ONLY_TABLE_PREFIXES = (
+    "finance_",
+    "resources_stockmovement",
+    "resources_resourceevent",
+    "resources_resourcecommand",
+    "resources_custodyevent",
+)
 NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",

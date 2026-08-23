@@ -146,7 +146,7 @@ def test_finance_migrations_then_prepare_preserve_append_only_runtime_grants() -
             "manage.py",
             "migrate",
             "finance",
-            "0005",
+            "0006",
             "--settings=claridez.settings.migration",
             "--noinput",
         ],
@@ -171,7 +171,7 @@ def test_finance_migrations_then_prepare_preserve_append_only_runtime_grants() -
             """
         ).fetchone()
         assert migration is not None
-        assert migration["name"] == "0005_baseline_and_expense_cash_attribution"
+        assert migration["name"] == "0006_resources_receipt_provenance"
 
     prepare_local_database(settings, quiet=True)
     check_application_connection(settings)
@@ -207,7 +207,7 @@ def test_finance_migrations_then_prepare_preserve_append_only_runtime_grants() -
             """,
             (settings.db_user,) * 5,
         ).fetchall()
-    assert len(grants) == 20
+    assert len(grants) == 21
     assert all(
         row["can_select"]
         and row["can_insert"]

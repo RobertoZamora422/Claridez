@@ -30,6 +30,14 @@ const STATUS_LABELS: Record<string, string> = {
   retain: "Conservar",
   held: "Legal hold",
   eligible: "Elegible para disposición",
+  shortage: "Faltante",
+  reserved: "Reservada",
+  custody: "En custodia",
+  returned: "Devuelta",
+  fulfilled: "Cumplida",
+  scheduled: "Programado",
+  in_progress: "En progreso",
+  completed: "Completado",
 };
 
 export function StatusBadge({ value }: { value: string }) {

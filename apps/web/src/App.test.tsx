@@ -68,6 +68,8 @@ describe("flujo comercial de Claridez", () => {
         return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/finance/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/resources/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -190,6 +192,10 @@ describe("flujo comercial de Claridez", () => {
         );
       if (url.endsWith("/finance/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/resources/capabilities/"))
+        return Promise.resolve(
+          json({ capabilities: ["resource:read_availability", "resource:reserve"] }),
+        );
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));
       if (url.endsWith("/venues/"))
@@ -253,6 +259,20 @@ describe("flujo comercial de Claridez", () => {
       }
       if (url.endsWith("/reservations/reservation-hold-1/schedule-history/"))
         return Promise.resolve(json({ results: [] }));
+      if (url.endsWith("/resources/overview/"))
+        return Promise.resolve(
+          json({
+            assignments: [
+              {
+                id: "resource-assignment-1",
+                reservation_id: "reservation-hold-1",
+                resource_id: "resource-1",
+                quantity: "2.000000",
+                status: "reserved",
+              },
+            ],
+          }),
+        );
       if (url.endsWith("/reservations/reservation-hold-1/reschedule/") && init?.method === "POST")
         return Promise.resolve(
           json({
@@ -274,6 +294,7 @@ describe("flujo comercial de Claridez", () => {
     expect(await screen.findByRole("button", { name: "Confirmar" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Reprogramar" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /2.000000.*resource-1/ }));
     fireEvent.change(screen.getByLabelText("Nuevo espacio"), { target: { value: "space-2" } });
     fireEvent.change(screen.getByLabelText("Inicio local"), {
       target: { value: "2026-08-14T18:00" },
@@ -311,6 +332,7 @@ describe("flujo comercial de Claridez", () => {
       timezone: "America/Guayaquil",
       reason: "Cambio solicitado antes de confirmar",
       commercial_terms_unchanged: true,
+      carry_resource_assignment_ids: ["resource-assignment-1"],
     });
     expect(body.idempotency_key).toEqual(expect.any(String));
   });
@@ -441,6 +463,8 @@ describe("flujo comercial de Claridez", () => {
           }),
         );
       if (url.endsWith("/finance/capabilities/"))
+        return Promise.resolve(json({ capabilities: [] }));
+      if (url.endsWith("/resources/capabilities/"))
         return Promise.resolve(json({ capabilities: [] }));
       if (url.endsWith("/settings/"))
         return Promise.resolve(json({ settings: { timezone: "America/Guayaquil" } }));

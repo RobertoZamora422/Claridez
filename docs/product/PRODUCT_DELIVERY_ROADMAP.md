@@ -518,16 +518,15 @@ tablas privadas finance `SELECT/INSERT` y ausencia de `UPDATE/DELETE/TRUNCATE` p
 
 **Riesgos principales:** Un despliegue futuro requiere preflight, respaldo y verificación de
 cutoffs/cierres reales. P11 no resuelve consecuencias abiertas de cancelación de ADR 0019, no
-reabre periodos, no representa contabilidad formal y no autoriza P12.
+reabre periodos, no representa contabilidad formal y no autorizó por sí solo P12.
 
-**Siguiente etapa:** P12 — Proveedores, recursos e inventario.
+**Etapa sucesora completada:** P12 — Proveedores, recursos e inventario.
 
 ## P12 — Proveedores, recursos e inventario
 
 **Identificador y nombre:** P12 — Capacidad física y abastecimiento operativo.
 
-**Estado:** Plan consolidado y ADR 0021 aceptados el 23 de agosto de 2026; implementación pendiente
-y no autorizada.
+**Estado:** Completada y validada localmente el 23 de agosto de 2026; no desplegada.
 
 **Objetivo:** Saber qué proveedores y recursos existen, dónde están y cómo se asignan a eventos.
 
@@ -538,14 +537,28 @@ compras/gastos vinculados; alertas de faltantes; historial.
 **Exclusiones:** Marketplace, e-commerce, logística avanzada, nómina y contabilidad de inventario
 formal.
 
-**Dependencias:** P11, P8 y ADR 0021 aceptado; la implementación debe demostrar sus reglas de
-unidades, valoración operativa, concurrencia y responsables.
+**Dependencias:** P11, P8 y ADR 0021 aceptado; sus reglas de unidades, ausencia de valoración
+contable, concurrencia, responsables y coordinación intermodular quedaron implementadas y
+probadas.
 
 **Resultado visible:** Operaciones asigna recursos disponibles y finanzas relaciona su costo sin
 hojas separadas.
 
-**Criterio verificable de finalización:** Movimientos balanceados, no sobreasignación bajo carrera,
-trazabilidad por evento/sede, activación lógica y aislamiento probado.
+**Criterio verificable de finalización:** `claridez.resources` quedó como autoridad P12 con
+proveedores/contactos canónicos existentes, términos/ofertas con historia, unidades y conversiones,
+las cuatro naturalezas de recurso, ubicaciones, compras/recepciones, activos serializados, ledger
+append-only, saldos, disponibilidad por evento, custodia, mantenimiento e indisponibilidad. La
+recepción física 1:1, el saldo no negativo, los traslados de dos piernas, las correcciones
+compensatorias, las exclusiones temporales y la liberación/sustitución frente a scheduling están
+protegidos por constraints, locks y guardianes PostgreSQL también ante ORM bulk y SQL directo.
+Finance añadió `resources_receipt` y `FinancialSourceReference` cerrada a la línea de recepción sin
+duplicar costo, gasto ni caja. Las 23 tablas privadas P12 usan FKs tenant-aware, `ENABLE` + `FORCE
+RLS`, privilegios mínimos e idempotencia; la API usa comandos explícitos y el frontend responsive
+expone proveedores, inventario, compras/recepciones, asignación/disponibilidad y mantenimiento sin
+superficies P13. La puerta oficial aprobó 230 pruebas API no integración, 30 frontend y 99 de
+integración PostgreSQL, además de migraciones sin cambios, locks, formato, lint, tipos, OpenAPI sin
+warnings, builds y auditorías sin vulnerabilidades conocidas. La evidencia es local; no afirma CI
+remota, despliegue ni cutover.
 
 **Riesgos principales:** Existencias negativas, unidades incompatibles, borrado de historial y
 mezcla entre catálogo vendible y activo físico.

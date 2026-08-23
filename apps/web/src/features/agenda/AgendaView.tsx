@@ -14,6 +14,13 @@ interface ScheduleEvent {
   previous_snapshot: Record<string, unknown>;
   new_snapshot: Record<string, unknown>;
 }
+interface ResourceAssignmentSummary {
+  id: string;
+  reservation_id: string;
+  resource_id: string;
+  quantity: string;
+  status: string;
+}
 
 function newKey() {
   return globalThis.crypto.randomUUID();
@@ -100,6 +107,8 @@ export function AgendaView({
   const [calendar, setCalendar] = useState<CalendarPayload | null>(null);
   const [selected, setSelected] = useState<CalendarEntry | null>(null);
   const [history, setHistory] = useState<ScheduleEvent[]>([]);
+  const [resourceAssignments, setResourceAssignments] = useState<ResourceAssignmentSummary[]>([]);
+  const [carriedResourceIds, setCarriedResourceIds] = useState<string[]>([]);
   const [mode, setMode] = useState<"" | "block" | "reschedule" | "cancel" | "confirm">("");
   const [reason, setReason] = useState("");
   const [startsAtLocal, setStartsAtLocal] = useState(defaultLocal(anchorDate, "09:00"));
@@ -183,12 +192,27 @@ export function AgendaView({
     setStartsAtLocal(instantToLocal(entry.starts_at, entry.event_timezone));
     setEndsAtLocal(instantToLocal(entry.ends_at, entry.event_timezone));
     setHistory([]);
+    setResourceAssignments([]);
+    setCarriedResourceIds([]);
     if (entry.type !== "block") {
       try {
-        const body = await api<{ results: ScheduleEvent[] }>(
-          `/api/v1/organizations/${organizationId}/reservations/${entry.id}/schedule-history/`,
+        const [historyBody, resourcesBody] = await Promise.all([
+          api<{ results: ScheduleEvent[] }>(
+            `/api/v1/organizations/${organizationId}/reservations/${entry.id}/schedule-history/`,
+          ),
+          capabilities.has("resource:reserve")
+            ? api<{ assignments: ResourceAssignmentSummary[] }>(
+                `/api/v1/organizations/${organizationId}/resources/overview/`,
+              )
+            : Promise.resolve({ assignments: [] }),
+        ]);
+        setHistory(historyBody.results);
+        setResourceAssignments(
+          resourcesBody.assignments.filter(
+            (assignment) =>
+              assignment.reservation_id === entry.id && assignment.status === "reserved",
+          ),
         );
-        setHistory(body.results);
       } catch (caught) {
         setError(message(caught));
       }
@@ -205,6 +229,8 @@ export function AgendaView({
       setMode("");
       setSelected(null);
       setHistory([]);
+      setResourceAssignments([]);
+      setCarriedResourceIds([]);
       await load();
     } catch (caught) {
       setError(message(caught));
@@ -248,6 +274,7 @@ export function AgendaView({
             reason,
             commercial_terms_unchanged: true,
             carry_free_item_ids: [],
+            carry_resource_assignment_ids: carriedResourceIds,
           }),
         }),
       "Reserva reprogramada. La fecha anterior permanece en la historia.",
@@ -715,6 +742,31 @@ export function AgendaView({
                         terminal y se creará otra desde el snapshot aceptado.
                       </small>
                     </div>
+                  )}
+                  {mode === "reschedule" && resourceAssignments.length > 0 && (
+                    <fieldset className="schedule-resource-selection">
+                      <legend>Asignaciones P12 a trasladar</legend>
+                      <p>
+                        Selecciona expresamente las reservas aún no ejecutadas que deben pasar a la
+                        reserva sucesora.
+                      </p>
+                      {resourceAssignments.map((assignment) => (
+                        <label key={assignment.id}>
+                          <input
+                            type="checkbox"
+                            checked={carriedResourceIds.includes(assignment.id)}
+                            onChange={(event) => {
+                              setCarriedResourceIds((current) =>
+                                event.target.checked
+                                  ? [...current, assignment.id]
+                                  : current.filter((id) => id !== assignment.id),
+                              );
+                            }}
+                          />
+                          {assignment.quantity} · recurso {assignment.resource_id}
+                        </label>
+                      ))}
+                    </fieldset>
                   )}
                   <button
                     className="button"

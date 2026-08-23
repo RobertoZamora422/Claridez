@@ -1,9 +1,8 @@
 # Claridez — Handoff del proyecto
 
 - **Fecha de corte:** 23 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P11 está cerrada localmente bajo ADR 0020
-- **Siguiente etapa:** P12 — Proveedores, recursos e inventario; arquitectura aceptada bajo ADR
-  0021 e implementación pendiente de autorización explícita
+- **Etapa funcional activa:** ninguna; P12 está cerrada localmente bajo ADR 0021
+- **Siguiente etapa:** P13 — Operación avanzada; no iniciada y pendiente de aprobación explícita
 
 ## Qué es Claridez
 
@@ -67,6 +66,11 @@ duplica: registra cómo continuar desde el checkout real.
   baseline operativa, gastos variables/recurrentes con asignaciones, presupuestos, caja operativa,
   reconocimiento, periodos y cierres; hechos y correcciones append-only, sede histórica, RLS,
   idempotencia y locks internos deterministas.
+- `claridez.resources`: proveedores y contactos canónicos existentes, términos/ofertas con
+  historia, unidades y conversiones, recursos suministrados y físicos, ubicaciones, compras y
+  recepciones, activos serializados, movimientos/saldos, requerimientos/faltantes,
+  reservas/asignaciones/capacidad, custodia, mantenimiento e indisponibilidad; ledger append-only,
+  RLS, idempotencia, locks y guardianes PostgreSQL.
 - Web: autenticación, selector organizacional, agenda responsive diaria/semanal/mensual con
   filtros y carriles/listas, políticas, bloqueos, reprogramación guiada, cancelación, historia y
   exportación; solicitudes/cotizaciones/reservas, operación, configuración/catálogo y CRM con
@@ -74,16 +78,19 @@ duplica: registra cómo continuar desde el checkout real.
   documental y experiencia externa mínima responsive para lectura, descarga y aceptación; cartera,
   vencimientos, movimientos, pagos, correcciones, devoluciones, recibos y estado de cuenta para
   roles financieros, con resumen acotado para comercial; control financiero operativo con
-  baseline, variación, gastos, caja, presupuesto, margen, rentabilidad, cierres y exportación.
+  baseline, variación, gastos, caja, presupuesto, margen, rentabilidad, cierres y exportación;
+  proveedores, recursos, existencias/ubicaciones, movimientos, compras/recepciones,
+  asignación/disponibilidad por evento y mantenimiento/indisponibilidad, con faltantes y conflictos
+  explícitos.
 
-No existen aún los módulos de P12 en adelante. No hay contabilidad formal ni portal completo, ni
+No existen aún los módulos de P13 en adelante. No hay contabilidad formal ni portal completo, ni
 proveedores productivos de almacenamiento/correo/identidad, staging o producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P11: completadas y validadas localmente.
-- El plan consolidado y ADR 0021 formalizan P12; no existen todavía modelos, migraciones,
-  capabilities ejecutables, endpoints, frontend ni implementación P12.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P12: completadas y validadas localmente.
+- ADR 0021 gobierna la implementación P12 cerrada localmente; P13 continúa sin modelos,
+  migraciones, capabilities, endpoints ni frontend.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -255,6 +262,36 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   `tools/local_database.py prepare`. La política explícita por clase de tabla preservó
   `SELECT/INSERT` sin `UPDATE/DELETE/TRUNCATE` para `claridez_app` en las 20 tablas privadas
   finance; la conexión y una consulta normal con el rol de aplicación continuaron operativas.
+- P12 establece `claridez.resources` como autoridad de proveedores, recursos, abastecimiento e
+  inventario operativo. `SupplierContact` solo enlaza `Person` canónicas existentes; operaciones y
+  finanzas no reciben `person:manage`. Las unidades base son canónicas y quedan inmutables tras el
+  primer hecho; `catalog.unit_label` continúa descriptivo. `supplied_service`, `consumable`,
+  `reusable_pool` y `serialized_asset` tienen reglas separadas de disponibilidad y faltantes.
+- `StockMovement` es la autoridad append-only de cantidad en unidad base: entradas y devoluciones
+  suman, salidas restan sin negativo, ajustes declaran dirección/razón, traslados usan dos piernas
+  atómicas y correcciones compensan sin reescribir. La confirmación `goods_received` crea en la
+  misma transacción una única entrada física tenant-aware; `service_fulfilled` no crea stock y los
+  serializados cuadran recepción, movimiento y unidades individuales. Guardianes diferidos,
+  exclusiones GiST, advisory/row locks y proyecciones protegidas cubren ORM, bulk y SQL directo.
+- Resources usa exclusivamente `[starts_at, ends_at)` de scheduling. Cancelación y expiración
+  liberan capacidad en la misma transacción, y la reprogramación coordina sucesora, consecuencias
+  Operations y asignaciones P12 seleccionadas; los hechos físicos ejecutados no se trasladan.
+  Finance incorpora procedencia `resources_receipt` y `FinancialSourceReference` cerrada a
+  `resources_receipt_line`, con cardinalidad 0..1 hacia costo real o gasto y sin caja automática.
+  La dependencia física de esquema es `finance.0006` → `resources.0001`; los dominios se coordinan
+  por DTO inmutables y puertos públicos estrechos.
+- P12 añade quince capabilities atómicas. Propietario y administrador reciben la matriz completa;
+  comercial solo `resource:read_availability`; operaciones y finanzas reciben exactamente sus
+  capacidades explícitas de ADR 0021. `purchase:materialize_finance` exige además
+  `finance:record_actuals` o `finance:allocate_expenses`, según el destino. Las 23 tablas privadas
+  resources usan FKs tenant-aware, `ENABLE` + `FORCE RLS`, privilegios mínimos, idempotencia y
+  ausencia de `DELETE/TRUNCATE` para hechos/ledgers.
+- La puerta final `npm run check:all` aprobó 230 pruebas API no integración en 297,67 s, 30 pruebas
+  frontend en 13 archivos y 99 integraciones PostgreSQL en 1487,32 s; también aprobó locks,
+  migraciones sin cambios, formato, lint, mypy sobre 317 archivos, TypeScript, system checks,
+  OpenAPI sin warnings y build Vite. `npm run audit` no encontró vulnerabilidades conocidas en
+  Python ni en el workspace web. La evidencia es local; no incluye navegador manual, CI remota,
+  commit, push, despliegue ni cutover.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
@@ -284,7 +321,7 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
 - Autoridad de `claridez.finance`, reconocimiento operativo, sede histórica, baseline, hechos
   tardíos, cierres, locks y frontera estricta con P10: ADR 0020.
 - Autoridad de `claridez.resources`, unidades, recepción/inventario, capacidad concurrente,
-  consecuencias de scheduling y procedencia financiera P12: ADR 0021; aún no implementado.
+  consecuencias de scheduling y procedencia financiera P12: ADR 0021; implementado localmente.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11; P9
   se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -391,10 +428,9 @@ falta.
 
 ## Próximo trabajo
 
-P11 está cerrada localmente bajo ADR 0020. El plan consolidado y ADR 0021 de **P12 — Proveedores,
-recursos e inventario** están aceptados. El siguiente paso exacto es recibir autorización explícita
-para implementar; hasta entonces no se crean modelos, migraciones, capabilities ejecutables,
-servicios, endpoints ni frontend de P12.
+P12 — Proveedores, recursos e inventario está cerrada localmente bajo ADR 0021. La siguiente etapa
+exacta es **P13 — Operación avanzada**, que no está iniciada y requiere planificación y aprobación
+explícitas antes de crear modelos, migraciones, capabilities, servicios, endpoints o frontend P13.
 
 ## Riesgos actuales
 

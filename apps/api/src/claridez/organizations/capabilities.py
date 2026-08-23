@@ -76,6 +76,21 @@ class Capability(StrEnum):
     FINANCE_ADJUST_RECOGNITION = "finance:adjust_recognition"
     FINANCE_CLOSE_PERIOD = "finance:close_period"
     FINANCE_EXPORT = "finance:export"
+    RESOURCE_READ_AVAILABILITY = "resource:read_availability"
+    SUPPLIER_READ = "supplier:read"
+    SUPPLIER_MANAGE_PROFILE = "supplier:manage_profile"
+    SUPPLIER_LINK_CONTACT = "supplier:link_contact"
+    SUPPLIER_MANAGE_TERMS = "supplier:manage_terms"
+    SUPPLIER_MANAGE_OFFERING = "supplier:manage_offering"
+    RESOURCE_READ = "resource:read"
+    RESOURCE_MANAGE = "resource:manage"
+    RESOURCE_RESERVE = "resource:reserve"
+    RESOURCE_MAINTAIN = "resource:maintain"
+    INVENTORY_RECORD_MOVEMENT = "inventory:record_movement"
+    PURCHASE_READ = "purchase:read"
+    PURCHASE_MANAGE = "purchase:manage"
+    PURCHASE_RECEIVE = "purchase:receive"
+    PURCHASE_MATERIALIZE_FINANCE = "purchase:materialize_finance"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -147,6 +162,21 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.FINANCE_ADJUST_RECOGNITION,
                 Capability.FINANCE_CLOSE_PERIOD,
                 Capability.FINANCE_EXPORT,
+                Capability.RESOURCE_READ_AVAILABILITY,
+                Capability.SUPPLIER_READ,
+                Capability.SUPPLIER_MANAGE_PROFILE,
+                Capability.SUPPLIER_LINK_CONTACT,
+                Capability.SUPPLIER_MANAGE_TERMS,
+                Capability.SUPPLIER_MANAGE_OFFERING,
+                Capability.RESOURCE_READ,
+                Capability.RESOURCE_MANAGE,
+                Capability.RESOURCE_RESERVE,
+                Capability.RESOURCE_MAINTAIN,
+                Capability.INVENTORY_RECORD_MOVEMENT,
+                Capability.PURCHASE_READ,
+                Capability.PURCHASE_MANAGE,
+                Capability.PURCHASE_RECEIVE,
+                Capability.PURCHASE_MATERIALIZE_FINANCE,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -215,6 +245,21 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.FINANCE_ADJUST_RECOGNITION,
                 Capability.FINANCE_CLOSE_PERIOD,
                 Capability.FINANCE_EXPORT,
+                Capability.RESOURCE_READ_AVAILABILITY,
+                Capability.SUPPLIER_READ,
+                Capability.SUPPLIER_MANAGE_PROFILE,
+                Capability.SUPPLIER_LINK_CONTACT,
+                Capability.SUPPLIER_MANAGE_TERMS,
+                Capability.SUPPLIER_MANAGE_OFFERING,
+                Capability.RESOURCE_READ,
+                Capability.RESOURCE_MANAGE,
+                Capability.RESOURCE_RESERVE,
+                Capability.RESOURCE_MAINTAIN,
+                Capability.INVENTORY_RECORD_MOVEMENT,
+                Capability.PURCHASE_READ,
+                Capability.PURCHASE_MANAGE,
+                Capability.PURCHASE_RECEIVE,
+                Capability.PURCHASE_MATERIALIZE_FINANCE,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -246,6 +291,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_EXTERNAL_FILE_MANAGE,
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
                 Capability.RECEIVABLES_READ_SUMMARY,
+                Capability.RESOURCE_READ_AVAILABILITY,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -265,6 +311,18 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.CONTRACTUAL_RECORD_READ,
                 Capability.DOCUMENT_ARTIFACT_DOWNLOAD,
                 Capability.FINANCE_SUBMIT_EVIDENCE,
+                Capability.RESOURCE_READ_AVAILABILITY,
+                Capability.SUPPLIER_READ,
+                Capability.SUPPLIER_MANAGE_PROFILE,
+                Capability.SUPPLIER_LINK_CONTACT,
+                Capability.SUPPLIER_MANAGE_OFFERING,
+                Capability.RESOURCE_READ,
+                Capability.RESOURCE_MANAGE,
+                Capability.RESOURCE_RESERVE,
+                Capability.RESOURCE_MAINTAIN,
+                Capability.INVENTORY_RECORD_MOVEMENT,
+                Capability.PURCHASE_READ,
+                Capability.PURCHASE_RECEIVE,
             }
         ),
         Membership.Role.FINANCE: frozenset(
@@ -299,6 +357,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.FINANCE_ADJUST_RECOGNITION,
                 Capability.FINANCE_CLOSE_PERIOD,
                 Capability.FINANCE_EXPORT,
+                Capability.RESOURCE_READ_AVAILABILITY,
+                Capability.SUPPLIER_READ,
+                Capability.SUPPLIER_LINK_CONTACT,
+                Capability.SUPPLIER_MANAGE_TERMS,
+                Capability.RESOURCE_READ,
+                Capability.PURCHASE_READ,
+                Capability.PURCHASE_MANAGE,
+                Capability.PURCHASE_MATERIALIZE_FINANCE,
             }
         ),
     }

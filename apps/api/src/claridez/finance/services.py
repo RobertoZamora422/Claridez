@@ -34,6 +34,7 @@ from .models import (
     ExpenseOccurrenceCorrection,
     FinanceCategory,
     FinanceCommand,
+    FinancialSourceReference,
     OperatingBudgetLine,
     OperatingBudgetRevision,
     OperatingCashMovement,
@@ -1109,6 +1110,146 @@ def record_expense(
             result_reference=row.pk,
         )
         return row
+
+
+def _materialize_resources_receipt_authorized(
+    authorization: TenantAuthorization,
+    *,
+    source_id: UUID,
+    source_kind: str,
+    target_kind: str,
+    category_id: UUID,
+    amount_value: Decimal | int | str,
+    currency_value: str,
+    economic_date: date,
+    description: str,
+    evidence_reference: str,
+    root_reservation_id: UUID | None,
+    venue_id: UUID | None,
+    expense_type: str | None,
+    allocations: list[dict[str, object]],
+    idempotency_key: UUID,
+) -> tuple[str, UUID]:
+    if source_kind != "resources_receipt_line":
+        raise invalid("La procedencia financiera P12 no es válida.")
+    payload = {
+        "source_id": source_id,
+        "source_kind": source_kind,
+        "target_kind": target_kind,
+        "category_id": category_id,
+        "amount": amount_value,
+        "currency": currency_value,
+        "economic_date": economic_date,
+        "description": description,
+        "evidence_reference": evidence_reference,
+        "root_reservation_id": root_reservation_id,
+        "venue_id": venue_id,
+        "expense_type": expense_type,
+        "allocations": allocations,
+    }
+    replay = _command_replay(
+        authorization,
+        command_type="materialize_resources_receipt",
+        idempotency_key=idempotency_key,
+        payload=payload,
+    )
+    if replay is not None:
+        return replay
+    _lock(f"finance:{authorization.organization_id}:resources-receipt:{source_id}")
+    if FinancialSourceReference.objects.filter(
+        organization_id=authorization.organization_id,
+        source_kind=source_kind,
+        source_id=source_id,
+    ).exists():
+        raise conflict(
+            "resources_receipt_already_materialized",
+            "La línea de recepción ya fue materializada en Finanzas.",
+        )
+    normalized_amount = _positive(amount_value)
+    normalized_currency = _organization_currency(authorization, currency_value)
+    if target_kind == FinancialSourceReference.TargetKind.ACTUAL_DIRECT_COST:
+        authorization.require(Capability.FINANCE_RECORD_ACTUALS)
+        if (
+            root_reservation_id is None
+            or venue_id is None
+            or expense_type is not None
+            or allocations
+        ):
+            raise invalid("El costo directo requiere raíz y sede, sin datos de gasto.")
+        _validate_root_venue(authorization, root_reservation_id, venue_id)
+        actual_target = _create_actual_cost(
+            authorization,
+            root_id=root_reservation_id,
+            venue_id=venue_id,
+            category=_category(
+                authorization, category_id, kinds=(FinanceCategory.Kind.DIRECT_COST,)
+            ),
+            amount_value=normalized_amount,
+            currency_value=normalized_currency,
+            economic_date=economic_date,
+            provenance=ActualDirectCost.Provenance.RESOURCES_RECEIPT,
+            description=description,
+            evidence_reference=evidence_reference,
+            source_evidence=None,
+        )
+        reference = FinancialSourceReference.objects.create(
+            organization_id=authorization.organization_id,
+            source_kind=source_kind,
+            source_id=source_id,
+            target_kind=target_kind,
+            actual_direct_cost=actual_target,
+            created_by_membership_id=authorization.membership_id,
+        )
+        result_type = "actual_direct_cost"
+        target_id = actual_target.pk
+    elif target_kind == FinancialSourceReference.TargetKind.EXPENSE_OCCURRENCE:
+        authorization.require(Capability.FINANCE_ALLOCATE_EXPENSES)
+        if root_reservation_id is not None or venue_id is not None:
+            raise invalid("El gasto usa asignaciones Finance, no raíz o sede directas.")
+        if expense_type not in ExpenseOccurrence.ExpenseType.values:
+            raise invalid("El tipo de gasto no es válido.")
+        expected_kind = (
+            FinanceCategory.Kind.VARIABLE_EXPENSE
+            if expense_type == ExpenseOccurrence.ExpenseType.VARIABLE
+            else FinanceCategory.Kind.RECURRING_EXPENSE
+        )
+        normalized_allocations = _normalized_allocations(
+            authorization, allocations, expected_amount=normalized_amount
+        )
+        expense_target = _create_expense(
+            authorization,
+            category=_category(authorization, category_id, kinds=(expected_kind,)),
+            expense_type=expense_type,
+            provenance=ExpenseOccurrence.Provenance.RESOURCES_RECEIPT,
+            recurring_rule=None,
+            amount_value=normalized_amount,
+            currency_value=normalized_currency,
+            economic_date=economic_date,
+            description=description,
+            evidence_reference=evidence_reference,
+            allocations=normalized_allocations,
+        )
+        reference = FinancialSourceReference.objects.create(
+            organization_id=authorization.organization_id,
+            source_kind=source_kind,
+            source_id=source_id,
+            target_kind=target_kind,
+            expense_occurrence=expense_target,
+            created_by_membership_id=authorization.membership_id,
+        )
+        result_type = "expense_occurrence"
+        target_id = expense_target.pk
+    else:
+        raise invalid("La línea solo puede originar costo directo o gasto.")
+    _complete_command(
+        authorization,
+        command_type="materialize_resources_receipt",
+        idempotency_key=idempotency_key,
+        payload=payload,
+        result_type=result_type,
+        result_reference=target_id,
+    )
+    return reference.target_kind, target_id
 
 
 def materialize_recurring_expense(
