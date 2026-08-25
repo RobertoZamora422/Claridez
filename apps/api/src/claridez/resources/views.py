@@ -24,6 +24,7 @@ from .serializers import (
     AssignmentCreateSerializer,
     CapabilitiesSerializer,
     ContactInactivateSerializer,
+    ContextualAvailabilitySerializer,
     ConversionCreateSerializer,
     EntitySerializer,
     ErrorSerializer,
@@ -47,6 +48,7 @@ from .services import (
     add_supplier_term,
     close_unavailability,
     confirm_receipt_line,
+    contextual_resource_availability,
     create_conversion,
     create_location,
     create_purchase,
@@ -175,6 +177,38 @@ class OverviewView(ResourcesAPIView):
             actor
             if isinstance(actor, Response)
             else _respond(lambda: resources_overview(actor, organization_id))
+        )
+
+
+class ContextualAvailabilityView(ResourcesAPIView):
+    @extend_schema(
+        responses={
+            200: ContextualAvailabilitySerializer,
+            401: ERROR,
+            403: ERROR,
+            404: ERROR,
+        },
+        tags=["Recursos"],
+    )
+    def get(
+        self,
+        request: Request,
+        organization_id: UUID,
+        event_request_id: UUID,
+        resource_id: UUID,
+    ) -> Response:
+        actor = self.actor_or_response(request)
+        return (
+            actor
+            if isinstance(actor, Response)
+            else _respond(
+                lambda: contextual_resource_availability(
+                    actor,
+                    organization_id,
+                    event_request_id=event_request_id,
+                    resource_id=resource_id,
+                )
+            )
         )
 
 

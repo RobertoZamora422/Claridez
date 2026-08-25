@@ -135,6 +135,10 @@ custodia, mantenimiento e indisponibilidad conforme a ADR 0021. Amplía las cons
 sin sustituir la autoridad temporal de scheduling, y Finance conserva la única autoridad de costo
 real, gasto y caja mediante procedencia tipada de líneas de recepción. No introduce valoración
 contable de inventario, marketplace, e-commerce ni logística avanzada.
+El cierre correctivo `resources.0002` separa el estado físico `available/custody/retired` de la
+ocupación temporal de activos serializados; pools, activos e indisponibilidades compiten solo cuando
+se solapan en el intervalo y ubicación aplicables. Comercial no recibe inventario global y solo
+consulta disponibilidad contextual vinculada a una solicitud/reserva y recurso pertinentes.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
@@ -160,7 +164,8 @@ P11 aprueba consultas de capabilities, contexto de evidencia, resumen y exportac
 comandos explícitos para categorías, periodos/cierres, planes y baseline, evidencia y decisión,
 costos/correcciones, recurrencias, gastos/asignaciones, presupuestos, caja/correcciones y ajustes de
 reconocimiento/correcciones. No expone un ledger duplicado de P10 ni CRUD libre sobre hechos.
-P12 aprueba consultas de capabilities, disponibilidad y resumen operativo, además de comandos
+P12 aprueba consultas de capabilities, disponibilidad contextual y resumen operativo minimizado
+por rol, además de comandos
 explícitos para unidades/conversiones, proveedores/contactos/términos/ofertas, recursos/ubicaciones,
 compras/recepciones, movimientos, requerimientos/asignaciones, ejecución, mantenimiento e
 indisponibilidad y materialización financiera conjuntiva. No expone CRUD genérico, valoración de

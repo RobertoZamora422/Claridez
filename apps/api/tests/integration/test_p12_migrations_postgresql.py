@@ -32,6 +32,7 @@ def test_p11_final_to_p12_is_empty_ordered_and_reapplicable() -> None:
             )
             rows = cursor.fetchall()
             assert ("resources", "0001_initial") not in rows
+            assert ("resources", "0002_temporal_asset_availability_hardening") not in rows
             assert ("finance", "0006_resources_receipt_provenance") not in rows
 
         _restore_head()
@@ -48,13 +49,15 @@ def test_p11_final_to_p12_is_empty_ordered_and_reapplicable() -> None:
             assert cursor.fetchone()[0] == 0
             cursor.execute(
                 "SELECT app, name FROM django_migrations "
-                "WHERE (app = 'resources' AND name = '0001_initial') "
+                "WHERE (app = 'resources' AND name IN ("
+                "'0001_initial', '0002_temporal_asset_availability_hardening')) "
                 "OR (app = 'finance' AND name = '0006_resources_receipt_provenance') "
-                "ORDER BY app"
+                "ORDER BY app, name"
             )
             assert cursor.fetchall() == [
                 ("finance", "0006_resources_receipt_provenance"),
                 ("resources", "0001_initial"),
+                ("resources", "0002_temporal_asset_availability_hardening"),
             ]
 
         MigrationExecutor(connection).migrate(

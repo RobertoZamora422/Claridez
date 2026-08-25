@@ -4,6 +4,7 @@ from .views import (
     AssignmentActionView,
     AssignmentView,
     CapabilitiesView,
+    ContextualAvailabilityView,
     ConversionCreateView,
     FinancialMaterializationView,
     LocationCreateView,
@@ -32,6 +33,11 @@ PREFIX = "<uuid:organization_id>/resources/"
 urlpatterns = [
     path(f"{PREFIX}capabilities/", CapabilitiesView.as_view(), name="capabilities"),
     path(f"{PREFIX}overview/", OverviewView.as_view(), name="overview"),
+    path(
+        f"{PREFIX}event-requests/<uuid:event_request_id>/items/<uuid:resource_id>/availability/",
+        ContextualAvailabilityView.as_view(),
+        name="contextual-availability",
+    ),
     path(f"{PREFIX}units/create/", UnitCreateView.as_view(), name="unit-create"),
     path(
         f"{PREFIX}unit-conversions/create/",

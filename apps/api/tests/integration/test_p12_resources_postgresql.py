@@ -9,7 +9,7 @@ from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
-from django.db import IntegrityError, close_old_connections, connection
+from django.db import IntegrityError, close_old_connections, connection, transaction
 
 from claridez.application.resources_finance import materialize_resources_receipt
 from claridez.finance.models import (
@@ -24,10 +24,15 @@ from claridez.organizations.capabilities import Capability
 from claridez.organizations.configuration_services import list_venues
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 from claridez.resources.errors import ResourcesError
-from claridez.resources.models import Resource, SerializedAsset
+from claridez.resources.models import (
+    Resource,
+    ResourceAssignment,
+    ResourceCapacityAllocation,
+    SerializedAsset,
+)
 from claridez.resources.services import create_requirement, reserve_resource
 from tests.test_receivables import _confirmed
-from tests.test_resources import _resource_in_organization
+from tests.test_resources import _resource_in_organization, _temporal_holds
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db(transaction=True)]
 
@@ -115,6 +120,102 @@ def test_each_resource_nature_allows_only_one_concurrent_capacity_winner(
         results = [future.result(timeout=20) for future in futures]
     assert results.count("ok") == 1
     assert results.count("conflict") == 1
+
+
+@pytest.mark.parametrize(
+    "nature",
+    (Resource.Nature.REUSABLE_POOL, Resource.Nature.SERIALIZED_ASSET),
+    ids=("reusable-pool", "serialized-asset"),
+)
+def test_postgresql_guards_allow_disjoint_capacity_and_reject_direct_overlap(
+    nature: str,
+) -> None:
+    owner, organization_id, _, holds = _temporal_holds(f"p12-pg-{nature}")
+    resource, location, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        f"pg-{nature}",
+        nature,
+        quantity="1",
+    )
+    assert location is not None
+    asset = None
+    if nature == Resource.Nature.SERIALIZED_ASSET:
+        with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+            asset = SerializedAsset.objects.get(resource=resource)
+    for hold in holds[:2]:
+        requirement = create_requirement(
+            owner,
+            organization_id,
+            reservation_id=hold["id"],
+            resource_id=resource.pk,
+            quantity="1",
+            reason="Prueba PostgreSQL no solapada",
+            idempotency_key=uuid4(),
+        )
+        reserve_resource(
+            owner,
+            organization_id,
+            requirement_id=requirement.pk,
+            source_location_id=location.pk,
+            serialized_asset_id=None if asset is None else asset.pk,
+            idempotency_key=uuid4(),
+        )
+    overlap = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=holds[2]["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Inserción directa solapada",
+        idempotency_key=uuid4(),
+    )
+    with (
+        pytest.raises(IntegrityError),
+        authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_RESERVE) as auth,
+        transaction.atomic(),
+    ):
+        assignment = ResourceAssignment.objects.create(
+            organization_id=organization_id,
+            requirement=overlap,
+            root_reservation_id=overlap.root_reservation_id,
+            reservation_id=overlap.reservation_id,
+            resource=resource,
+            serialized_asset=asset,
+            source_location=location,
+            quantity=overlap.quantity,
+            resource_interval=overlap.resource_interval,
+            recorded_by_membership_id=auth.membership_id,
+        )
+        ResourceCapacityAllocation.objects.create(
+            organization_id=organization_id,
+            assignment=assignment,
+            reservation_id=assignment.reservation_id,
+            resource=resource,
+            serialized_asset=asset,
+            quantity=assignment.quantity,
+            resource_interval=assignment.resource_interval,
+        )
+
+
+def test_orm_bulk_cannot_invent_serialized_physical_custody() -> None:
+    owner, creation, _, _, _, _ = _confirmed("p12-pg-asset-bulk")
+    organization_id = creation.organization.pk
+    resource, _, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        "pg-asset-bulk",
+        Resource.Nature.SERIALIZED_ASSET,
+        quantity="1",
+    )
+    with (
+        pytest.raises(IntegrityError),
+        authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_MAINTAIN),
+        transaction.atomic(),
+    ):
+        SerializedAsset.objects.filter(resource=resource).update(
+            status=SerializedAsset.Status.CUSTODY
+        )
 
 
 def test_resources_tables_force_rls_and_ledgers_have_minimum_app_privileges() -> None:

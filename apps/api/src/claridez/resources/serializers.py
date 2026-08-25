@@ -37,6 +37,18 @@ class OverviewSerializer(serializers.Serializer[dict[str, object]]):
     receipts = serializers.ListField(child=serializers.JSONField())
 
 
+class ContextualAvailabilitySerializer(serializers.Serializer[dict[str, object]]):
+    event_request_id = serializers.UUIDField()
+    reservation_id = serializers.UUIDField()
+    resource_id = serializers.UUIDField()
+    starts_at = serializers.DateTimeField()
+    ends_at = serializers.DateTimeField()
+    unit = serializers.CharField()
+    required_quantity = serializers.DecimalField(max_digits=20, decimal_places=6)
+    available_quantity = serializers.DecimalField(max_digits=20, decimal_places=6, allow_null=True)
+    shortage = serializers.BooleanField()
+
+
 class UnitCreateSerializer(serializers.Serializer[dict[str, object]]):
     code = serializers.CharField(max_length=32)
     name = serializers.CharField(max_length=80)

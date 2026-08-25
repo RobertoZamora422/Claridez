@@ -526,7 +526,8 @@ reabre periodos, no representa contabilidad formal y no autorizó por sí solo P
 
 **Identificador y nombre:** P12 — Capacidad física y abastecimiento operativo.
 
-**Estado:** Completada y validada localmente el 23 de agosto de 2026; no desplegada.
+**Estado:** Completada y validada localmente el 23 de agosto de 2026; cierre correctivo validado el
+24 de agosto de 2026; no desplegada.
 
 **Objetivo:** Saber qué proveedores y recursos existen, dónde están y cómo se asignan a eventos.
 
@@ -551,14 +552,18 @@ append-only, saldos, disponibilidad por evento, custodia, mantenimiento e indisp
 recepción física 1:1, el saldo no negativo, los traslados de dos piernas, las correcciones
 compensatorias, las exclusiones temporales y la liberación/sustitución frente a scheduling están
 protegidos por constraints, locks y guardianes PostgreSQL también ante ORM bulk y SQL directo.
+El cierre correctivo `resources.0002` separó estado físico y ocupación temporal de activos
+serializados, alineó el cálculo de pools reutilizables con sus solapamientos por intervalo y
+ubicación, y redujo Comercial a disponibilidad contextual vinculada a una solicitud/reserva y un
+recurso pertinentes, sin inventario global.
 Finance añadió `resources_receipt` y `FinancialSourceReference` cerrada a la línea de recepción sin
 duplicar costo, gasto ni caja. Las 23 tablas privadas P12 usan FKs tenant-aware, `ENABLE` + `FORCE
 RLS`, privilegios mínimos e idempotencia; la API usa comandos explícitos y el frontend responsive
 expone proveedores, inventario, compras/recepciones, asignación/disponibilidad y mantenimiento sin
-superficies P13. La puerta oficial aprobó 230 pruebas API no integración, 30 frontend y 99 de
-integración PostgreSQL, además de migraciones sin cambios, locks, formato, lint, tipos, OpenAPI sin
-warnings, builds y auditorías sin vulnerabilidades conocidas. La evidencia es local; no afirma CI
-remota, despliegue ni cutover.
+superficies P13. La puerta oficial repetida aprobó 236 pruebas API no integración, 30 frontend y
+102 de integración PostgreSQL, además de migraciones sin cambios, locks, formato, lint, tipos,
+OpenAPI sin warnings, builds y auditorías sin vulnerabilidades conocidas. La evidencia es local;
+no afirma CI remota, despliegue ni cutover.
 
 **Riesgos principales:** Existencias negativas, unidades incompatibles, borrado de historial y
 mezcla entre catálogo vendible y activo físico.

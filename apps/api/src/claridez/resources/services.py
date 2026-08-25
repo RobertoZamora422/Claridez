@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 from django.db import connection
-from django.db.models import Max, Model, Sum
+from django.db.models import Exists, Max, Model, OuterRef, Sum
 from django.utils import timezone
 from psycopg.types.range import Range
 
@@ -1240,7 +1240,7 @@ def _available_quantity(
     interval: Range[datetime] | None = None,
     location: InventoryLocation | None = None,
 ) -> Decimal | None:
-    if resource.nature in (Resource.Nature.CONSUMABLE, Resource.Nature.REUSABLE_POOL):
+    if resource.nature == Resource.Nature.CONSUMABLE:
         stock = (
             StockBalance.objects.filter(
                 organization_id=authorization.organization_id,
@@ -1260,24 +1260,80 @@ def _available_quantity(
             ).aggregate(value=Sum("quantity"))["value"]
             or ZERO
         )
-        unavailable = (
+        return stock - reserved
+    if resource.nature == Resource.Nature.REUSABLE_POOL:
+        effective_interval = interval or Range(
+            timezone.now(), timezone.now() + timedelta(microseconds=1), bounds="[)"
+        )
+        stock = (
+            StockBalance.objects.filter(
+                organization_id=authorization.organization_id,
+                resource=resource,
+                **({"location": location} if location is not None else {}),
+            ).aggregate(value=Sum("quantity"))["value"]
+            or ZERO
+        )
+        custody = (
+            ResourceCapacityAllocation.objects.filter(
+                organization_id=authorization.organization_id,
+                resource=resource,
+                is_active=True,
+                basis=ResourceCapacityAllocation.Basis.CUSTODY,
+                **({"assignment__source_location": location} if location is not None else {}),
+            ).aggregate(value=Sum("quantity"))["value"]
+            or ZERO
+        )
+        competing = (
+            ResourceCapacityAllocation.objects.filter(
+                organization_id=authorization.organization_id,
+                resource=resource,
+                is_active=True,
+                resource_interval__overlap=effective_interval,
+                **({"assignment__source_location": location} if location is not None else {}),
+            ).aggregate(value=Sum("quantity"))["value"]
+            or ZERO
+        )
+        unavailable_amount = (
             ResourceUnavailability.objects.filter(
                 organization_id=authorization.organization_id,
                 resource=resource,
                 is_active=True,
+                unavailable_interval__overlap=effective_interval,
                 **({"location": location} if location is not None else {}),
-                **({"unavailable_interval__overlap": interval} if interval is not None else {}),
             ).aggregate(value=Sum("quantity"))["value"]
             or ZERO
         )
-        return stock - reserved - unavailable
+        return stock + custody - competing - unavailable_amount
     if resource.nature == Resource.Nature.SERIALIZED_ASSET:
-        assets = SerializedAsset.objects.filter(
+        effective_interval = interval or Range(
+            timezone.now(), timezone.now() + timedelta(microseconds=1), bounds="[)"
+        )
+        allocations = ResourceCapacityAllocation.objects.filter(
             organization_id=authorization.organization_id,
-            resource=resource,
-            status=SerializedAsset.Status.AVAILABLE,
-            **({"location": location} if location is not None else {}),
-        ).count()
+            serialized_asset_id=OuterRef("pk"),
+            is_active=True,
+            resource_interval__overlap=effective_interval,
+        )
+        unavailability = ResourceUnavailability.objects.filter(
+            organization_id=authorization.organization_id,
+            serialized_asset_id=OuterRef("pk"),
+            is_active=True,
+            unavailable_interval__overlap=effective_interval,
+        )
+        assets = (
+            SerializedAsset.objects.filter(
+                organization_id=authorization.organization_id,
+                resource=resource,
+                status=SerializedAsset.Status.AVAILABLE,
+                **({"location": location} if location is not None else {}),
+            )
+            .annotate(
+                has_allocation=Exists(allocations),
+                has_unavailability=Exists(unavailability),
+            )
+            .filter(has_allocation=False, has_unavailability=False)
+            .count()
+        )
         return Decimal(assets)
     if resource.declared_capacity is None:
         return None
@@ -1302,6 +1358,29 @@ def _available_quantity(
         or ZERO
     )
     return resource.declared_capacity - allocated - unavailable_amount
+
+
+def _serialized_asset_is_available(
+    authorization: TenantAuthorization,
+    asset: SerializedAsset,
+    interval: Range[datetime],
+) -> bool:
+    if asset.status != SerializedAsset.Status.AVAILABLE:
+        return False
+    return not (
+        ResourceCapacityAllocation.objects.filter(
+            organization_id=authorization.organization_id,
+            serialized_asset=asset,
+            is_active=True,
+            resource_interval__overlap=interval,
+        ).exists()
+        or ResourceUnavailability.objects.filter(
+            organization_id=authorization.organization_id,
+            serialized_asset=asset,
+            is_active=True,
+            unavailable_interval__overlap=interval,
+        ).exists()
+    )
 
 
 def reserve_resource(
@@ -1355,11 +1434,22 @@ def reserve_resource(
             if serialized_asset_id is None:
                 raise invalid("El recurso requiere seleccionar un activo serializado.")
             asset = _get(SerializedAsset, authorization, serialized_asset_id, "El activo")
+            asset = SerializedAsset.objects.select_for_update().get(pk=asset.pk)
             if (
                 asset.resource_id != resource.pk
                 or asset.location_id != cast(InventoryLocation, location).pk
             ):
                 raise invalid("El activo no corresponde al recurso y ubicación.")
+            if not _serialized_asset_is_available(
+                authorization, asset, requirement.resource_interval
+            ):
+                ResourceRequirement.objects.filter(pk=requirement.pk).update(
+                    status=ResourceRequirement.Status.SHORTAGE
+                )
+                raise conflict(
+                    "resource_shortage",
+                    "El activo seleccionado no está disponible en el intervalo solicitado.",
+                )
         elif serialized_asset_id is not None:
             raise invalid("Solo un activo serializado admite selección individual.")
         available = _available_quantity(
@@ -1397,10 +1487,6 @@ def reserve_resource(
         ResourceRequirement.objects.filter(pk=requirement.pk).update(
             status=ResourceRequirement.Status.SATISFIED
         )
-        if asset is not None:
-            SerializedAsset.objects.filter(pk=asset.pk).update(
-                status=SerializedAsset.Status.RESERVED
-            )
         _event(authorization, "resource_assignment", row.pk, "resource_reserved", payload)
         _complete(
             authorization,
@@ -1633,6 +1719,10 @@ def record_unavailability(
                 "La corrección debe enlazar un hecho cerrado del mismo recurso y ubicación."
             )
         _lock(f"resources:{authorization.organization_id}:resource:{resource.pk}")
+        if asset is not None:
+            asset = SerializedAsset.objects.select_for_update().get(pk=asset.pk)
+            if asset.status == SerializedAsset.Status.RETIRED:
+                raise invalid("Un activo retirado no admite nuevas indisponibilidades.")
         row = ResourceUnavailability.objects.create(
             organization_id=authorization.organization_id,
             resource=resource,
@@ -1652,10 +1742,6 @@ def record_unavailability(
                 unavailability=row,
                 description=maintenance_description.strip(),
                 recorded_by_membership_id=authorization.membership_id,
-            )
-        if asset is not None:
-            SerializedAsset.objects.filter(pk=asset.pk).update(
-                status=SerializedAsset.Status.MAINTENANCE
             )
         _event(authorization, "resource", resource.pk, "resource_unavailable", payload)
         _complete(
@@ -1692,10 +1778,6 @@ def close_unavailability(
         ResourceUnavailability.objects.filter(pk=row.pk).update(
             is_active=False, closed_at=timezone.now()
         )
-        if row.serialized_asset_id:
-            SerializedAsset.objects.filter(pk=row.serialized_asset_id).update(
-                status=SerializedAsset.Status.AVAILABLE
-            )
         MaintenanceRecord.objects.filter(unavailability=row).update(
             status=MaintenanceRecord.Status.COMPLETED
         )
@@ -1720,6 +1802,45 @@ def _row(row: Any, *fields: str) -> dict[str, Any]:
         value = getattr(row, field)
         result[field] = _json(value)
     return result
+
+
+def contextual_resource_availability(
+    actor: User,
+    organization_reference: UUID | str,
+    *,
+    event_request_id: UUID | str,
+    resource_id: UUID | str,
+) -> dict[str, object]:
+    with authorized_tenant_scope(
+        actor, organization_reference, Capability.RESOURCE_READ_AVAILABILITY
+    ) as authorization:
+        context = scheduling_port.resource_availability_context(
+            authorization, _uuid(event_request_id, "La solicitud")
+        )
+        if context is None:
+            raise unavailable("La solicitud o reserva vigente")
+        resource = _get(Resource, authorization, resource_id, "El recurso")
+        requirements = ResourceRequirement.objects.filter(
+            organization_id=authorization.organization_id,
+            reservation_id=context.reservation_id,
+            resource=resource,
+        ).exclude(status=ResourceRequirement.Status.CANCELLED)
+        required = requirements.aggregate(value=Sum("quantity"))["value"]
+        if required is None:
+            raise unavailable("El recurso en el contexto solicitado")
+        interval = Range(context.starts_at, context.ends_at, bounds="[)")
+        available = _available_quantity(authorization, resource, interval=interval)
+        return {
+            "event_request_id": context.event_request_id,
+            "reservation_id": context.reservation_id,
+            "resource_id": resource.pk,
+            "starts_at": context.starts_at,
+            "ends_at": context.ends_at,
+            "unit": resource.base_unit.symbol,
+            "required_quantity": required,
+            "available_quantity": available,
+            "shortage": available is None or available < required,
+        }
 
 
 def resources_overview(actor: User, organization_reference: UUID | str) -> dict[str, object]:
@@ -1760,7 +1881,9 @@ def resources_overview(actor: User, organization_reference: UUID | str) -> dict[
                 for row in Resource.objects.filter(
                     organization_id=authorization.organization_id, is_active=True
                 ).select_related("base_unit")
-            ],
+            ]
+            if can_read_resources
+            else [],
             "resources": [
                 {
                     **_row(row, "name", "nature", "is_active", "declared_capacity"),

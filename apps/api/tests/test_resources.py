@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import ast
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, TypedDict, overload
+from typing import Any, Literal, TypedDict, overload
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 from django.db import IntegrityError, connection, transaction
 from django.db.models import F
+from django.test import Client
 from django.utils import timezone
 
 from claridez.application.resources_finance import materialize_resources_receipt
 from claridez.application.resources_scheduling import reschedule_with_resources
-from claridez.commercial.services import create_person
+from claridez.catalog.services import list_event_types
+from claridez.commercial.services import create_event_request, create_person
 from claridez.finance.models import (
     ActualDirectCost,
     ExpenseOccurrence,
@@ -26,7 +28,7 @@ from claridez.finance.models import (
 from claridez.finance.services import create_category, create_period
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability, capabilities_for_role
-from claridez.organizations.configuration_services import list_venues
+from claridez.organizations.configuration_services import create_space, list_venues
 from claridez.organizations.exceptions import TenantAccessDenied
 from claridez.organizations.models import Membership
 from claridez.organizations.services import add_membership
@@ -40,6 +42,7 @@ from claridez.resources.models import (
     ResourceAssignment,
     ResourceCapacityAllocation,
     ResourceRequirement,
+    ResourceUnavailability,
     SerializedAsset,
     StockBalance,
     StockMovement,
@@ -67,7 +70,7 @@ from claridez.scheduling.models import Reservation
 from claridez.scheduling.services import cancel_reservation, expire_overdue_for_organization
 from tests.test_p8_scheduling import PASSWORD as P8_PASSWORD
 from tests.test_p8_scheduling import _authenticated_client, _owner
-from tests.test_receivables import _confirmed, _provisional
+from tests.test_receivables import _accepted, _confirmed, _login, _provisional
 
 
 class _MaterializeCommand(TypedDict):
@@ -305,6 +308,86 @@ def _resource_in_organization(
         idempotency_key=uuid4(),
     )
     return resource, location, receipt
+
+
+def _additional_hold(
+    owner: User,
+    organization_id: UUID,
+    *,
+    person_id: UUID | str,
+    space_id: UUID | str,
+    starts_at: datetime,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    event_type = next(iter(list_event_types(owner, organization_id)))
+    request = create_event_request(
+        owner,
+        organization_id,
+        person_id=person_id,
+        event_type_id=event_type["id"],
+        space_id=space_id,
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(hours=5),
+        estimated_guests=40,
+        general_need="Contexto temporal P12",
+        notes="",
+        origin="referral",
+        origin_detail=None,
+    )
+    _, hold = _accepted(owner, organization_id, request["id"])
+    return request, hold
+
+
+def _temporal_holds(
+    slug: str,
+) -> tuple[
+    User,
+    UUID,
+    dict[str, dict[str, Any]],
+    tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]],
+]:
+    owner, creation, person, first_request, first = _provisional(slug)
+    organization_id = creation.organization.pk
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        first_row = Reservation.objects.get(pk=first["id"])
+    venue = list_venues(owner, organization_id)[0]
+    other_space = create_space(
+        owner,
+        organization_id,
+        venue_id=venue["id"],
+        name=f"Espacio paralelo {slug}",
+    )
+    second_request, second = _additional_hold(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        space_id=first_row.space_id,
+        starts_at=first_row.event_interval.lower + timedelta(days=10),
+    )
+    overlap_request, overlap = _additional_hold(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        space_id=other_space["id"],
+        starts_at=first_row.event_interval.lower + timedelta(hours=1),
+    )
+    fourth_request, fourth = _additional_hold(
+        owner,
+        organization_id,
+        person_id=person["id"],
+        space_id=first_row.space_id,
+        starts_at=first_row.event_interval.lower + timedelta(days=20),
+    )
+    return (
+        owner,
+        organization_id,
+        {
+            "first": first_request,
+            "second": second_request,
+            "overlap": overlap_request,
+            "fourth": fourth_request,
+        },
+        (first, second, overlap, fourth),
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -579,8 +662,26 @@ def test_cross_tenant_overview_and_exact_role_matrix() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_resources_http_uses_explicit_commands_and_minimizes_commercial_overview() -> None:
-    owner, organization_id, resource, _, _, _ = _physical_context("http")
-    client, csrf = _authenticated_client(owner)
+    owner, creation, _, event_request, _, confirmed = _confirmed("p12-http-context")
+    organization_id = creation.organization.pk
+    resource, _, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        "http-context",
+        Resource.Nature.REUSABLE_POOL,
+        quantity="2",
+    )
+    create_requirement(
+        owner,
+        organization_id,
+        reservation_id=confirmed["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Disponibilidad pertinente",
+        idempotency_key=uuid4(),
+    )
+    client = Client(enforce_csrf_checks=True)
+    csrf = _login(client, owner)
     base = f"/api/v1/organizations/{organization_id}/resources"
     created = client.post(
         f"{base}/units/create/",
@@ -609,7 +710,59 @@ def test_resources_http_uses_explicit_commands_and_minimizes_commercial_overview
     assert overview.json()["resources"] == []
     assert overview.json()["suppliers"] == []
     assert overview.json()["purchases"] == []
-    assert overview.json()["availability"][0]["resource_id"] == str(resource.pk)
+    assert overview.json()["availability"] == []
+    contextual = client.get(
+        f"{base}/event-requests/{event_request['id']}/items/{resource.pk}/availability/"
+    )
+    assert contextual.status_code == 200
+    assert contextual.json() == {
+        "event_request_id": str(event_request["id"]),
+        "reservation_id": str(confirmed["id"]),
+        "resource_id": str(resource.pk),
+        "starts_at": contextual.json()["starts_at"],
+        "ends_at": contextual.json()["ends_at"],
+        "unit": "u",
+        "required_quantity": "1.000000",
+        "available_quantity": "2.000000",
+        "shortage": False,
+    }
+    unrelated = create_resource(
+        owner,
+        organization_id,
+        name="Recurso no vinculado",
+        nature=Resource.Nature.REUSABLE_POOL,
+        base_unit_id=resource.base_unit_id,
+        declared_capacity=None,
+        idempotency_key=uuid4(),
+    )
+    assert (
+        client.get(
+            f"{base}/event-requests/{event_request['id']}/items/{unrelated.pk}/availability/"
+        ).status_code
+        == 404
+    )
+    other_owner, other_creation, _, other_request, _ = _provisional("http-other-tenant")
+    other_organization = other_creation.organization.pk
+    other_resource, _, _ = _resource_in_organization(
+        other_owner,
+        other_organization,
+        "http-other-tenant-resource",
+        Resource.Nature.REUSABLE_POOL,
+        quantity="1",
+    )
+    assert other_organization != organization_id
+    assert (
+        client.get(
+            f"{base}/event-requests/{event_request['id']}/items/{other_resource.pk}/availability/"
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"{base}/event-requests/{other_request['id']}/items/{resource.pk}/availability/"
+        ).status_code
+        == 404
+    )
     denied = client.post(
         f"{base}/suppliers/create/",
         data={"legal_name": "No autorizado", "internal_code": "DENIED"},
@@ -618,6 +771,22 @@ def test_resources_http_uses_explicit_commands_and_minimizes_commercial_overview
         HTTP_X_CSRFTOKEN=csrf,
     )
     assert denied.status_code == 403
+
+    for role in (
+        Membership.Role.ADMINISTRATOR,
+        Membership.Role.OPERATIONS,
+        Membership.Role.FINANCE,
+    ):
+        reader = owner.__class__.objects.create_user(
+            email=f"p12-reader-{role}-{uuid4()}@example.test",
+            password=P8_PASSWORD,
+            status=owner.__class__.Status.ACTIVE,
+            email_verified_at=timezone.now(),
+        )
+        add_membership(organization_id=organization_id, user_id=reader.pk, role=role)
+        reader_client, _ = _authenticated_client(reader)
+        rows = reader_client.get(f"{base}/overview/").json()["availability"]
+        assert any(row["resource_id"] == str(resource.pk) for row in rows)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -735,6 +904,77 @@ def test_orm_bulk_cannot_mutate_ledger_or_leave_assignment_without_projection() 
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "nature",
+    (Resource.Nature.REUSABLE_POOL, Resource.Nature.SERIALIZED_ASSET),
+    ids=("reusable-pool", "serialized-asset"),
+)
+def test_temporal_physical_capacity_allows_disjoint_and_rejects_overlap(nature: str) -> None:
+    owner, organization_id, _, holds = _temporal_holds(f"p12-temporal-{nature}")
+    resource, location, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        f"temporal-{nature}",
+        nature,
+        quantity="1",
+    )
+    assert location is not None
+    asset_id = None
+    if nature == Resource.Nature.SERIALIZED_ASSET:
+        with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+            asset_id = SerializedAsset.objects.get(resource=resource).pk
+    created: list[ResourceAssignment] = []
+    for hold in holds[:2]:
+        requirement = create_requirement(
+            owner,
+            organization_id,
+            reservation_id=hold["id"],
+            resource_id=resource.pk,
+            quantity="1",
+            reason="Capacidad completa no solapada",
+            idempotency_key=uuid4(),
+        )
+        created.append(
+            reserve_resource(
+                owner,
+                organization_id,
+                requirement_id=requirement.pk,
+                source_location_id=location.pk,
+                serialized_asset_id=asset_id,
+                idempotency_key=uuid4(),
+            )
+        )
+    overlap = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=holds[2]["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Capacidad solapada",
+        idempotency_key=uuid4(),
+    )
+    assert overlap.status == ResourceRequirement.Status.SHORTAGE
+    with pytest.raises(ResourcesError) as raised:
+        reserve_resource(
+            owner,
+            organization_id,
+            requirement_id=overlap.pk,
+            source_location_id=location.pk,
+            serialized_asset_id=asset_id,
+            idempotency_key=uuid4(),
+        )
+    assert raised.value.code == "resource_shortage"
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        assert (
+            ResourceCapacityAllocation.objects.filter(resource=resource, is_active=True).count()
+            == 2
+        )
+        if asset_id is not None:
+            asset = SerializedAsset.objects.get(pk=asset_id)
+            assert asset.status == SerializedAsset.Status.AVAILABLE
+
+
+@pytest.mark.django_db(transaction=True)
 def test_scheduling_cancel_and_expiry_release_resource_capacity_transactionally() -> None:
     owner, creation, _, _, _, confirmed = _confirmed("p12-cancel")
     organization_id = creation.organization.pk
@@ -808,6 +1048,81 @@ def test_scheduling_cancel_and_expiry_release_resource_capacity_transactionally(
         assignment2.refresh_from_db()
         assert assignment2.status == ResourceAssignment.Status.RELEASED
         assert not ResourceCapacityAllocation.objects.get(assignment=assignment2).is_active
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("terminal", ("cancel", "expire"))
+def test_serialized_terminal_reservation_releases_only_its_temporal_occupancy(
+    terminal: str,
+) -> None:
+    owner, organization_id, _, holds = _temporal_holds(f"p12-asset-{terminal}")
+    resource, location, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        f"asset-{terminal}",
+        Resource.Nature.SERIALIZED_ASSET,
+        quantity="1",
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        asset = SerializedAsset.objects.get(resource=resource)
+    first = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=holds[0]["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Ocupación anterior",
+        idempotency_key=uuid4(),
+    )
+    previous = reserve_resource(
+        owner,
+        organization_id,
+        requirement_id=first.pk,
+        source_location_id=location.pk,
+        serialized_asset_id=asset.pk,
+        idempotency_key=uuid4(),
+    )
+    overlap = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=holds[2]["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Reserva sucesiva",
+        idempotency_key=uuid4(),
+    )
+    assert overlap.status == ResourceRequirement.Status.SHORTAGE
+    if terminal == "cancel":
+        cancel_reservation(
+            owner,
+            organization_id,
+            reservation_id=holds[0]["id"],
+            reason="Liberación serializada",
+        )
+    else:
+        with authorized_tenant_scope(
+            owner, organization_id, Capability.RESERVATION_CANCEL
+        ) as authorization:
+            Reservation.objects.filter(pk=holds[0]["id"]).update(
+                hold_expires_at=timezone.now() - timedelta(seconds=1),
+                revision=F("revision") + 1,
+            )
+            assert expire_overdue_for_organization(authorization) == 1
+    successor = reserve_resource(
+        owner,
+        organization_id,
+        requirement_id=overlap.pk,
+        source_location_id=location.pk,
+        serialized_asset_id=asset.pk,
+        idempotency_key=uuid4(),
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        previous.refresh_from_db()
+        asset.refresh_from_db()
+        assert previous.status == ResourceAssignment.Status.RELEASED
+        assert not ResourceCapacityAllocation.objects.get(assignment=previous).is_active
+        assert ResourceCapacityAllocation.objects.get(assignment=successor).is_active
+        assert asset.status == SerializedAsset.Status.AVAILABLE
 
 
 @pytest.mark.django_db(transaction=True)
@@ -954,6 +1269,70 @@ def test_reschedule_moves_only_explicit_resources_and_replays_atomically() -> No
         assert current.revision == conflict_revision
         assert newest.status == ResourceAssignment.Status.RESERVED
         assert Reservation.objects.count() == reservation_count
+
+
+@pytest.mark.django_db(transaction=True)
+def test_serialized_reschedule_keeps_exactly_the_selected_successor_occupancy() -> None:
+    owner, creation, _, _, _, confirmed = _confirmed("p12-asset-reschedule")
+    organization_id = creation.organization.pk
+    resource, location, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        "asset-reschedule",
+        Resource.Nature.SERIALIZED_ASSET,
+        quantity="1",
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        asset = SerializedAsset.objects.get(resource=resource)
+        current = Reservation.objects.get(pk=confirmed["id"])
+        target_start = timezone.localtime(
+            current.event_interval.lower + timedelta(days=1), ZoneInfo("America/Guayaquil")
+        ).replace(tzinfo=None)
+        target_end = timezone.localtime(
+            current.event_interval.upper + timedelta(days=1), ZoneInfo("America/Guayaquil")
+        ).replace(tzinfo=None)
+    requirement = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=confirmed["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Activo trasladable",
+        idempotency_key=uuid4(),
+    )
+    previous = reserve_resource(
+        owner,
+        organization_id,
+        requirement_id=requirement.pk,
+        source_location_id=location.pk,
+        serialized_asset_id=asset.pk,
+        idempotency_key=uuid4(),
+    )
+    result = reschedule_with_resources(
+        owner,
+        organization_id,
+        reservation_id=confirmed["id"],
+        revision=current.revision,
+        idempotency_key=uuid4(),
+        space_id=current.space_id,
+        starts_at_local=target_start,
+        ends_at_local=target_end,
+        timezone_name="America/Guayaquil",
+        reason="Reprogramación serializada",
+        commercial_terms_unchanged=True,
+        carry_resource_assignment_ids=(previous.pk,),
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        previous.refresh_from_db()
+        asset.refresh_from_db()
+        successor = ResourceAssignment.objects.get(predecessor_assignment=previous)
+        successor_reservation = Reservation.objects.get(pk=result["reservation"]["id"])
+        active = ResourceCapacityAllocation.objects.filter(serialized_asset=asset, is_active=True)
+        assert previous.status == ResourceAssignment.Status.RELEASED
+        assert active.count() == 1
+        assert active.get().assignment_id == successor.pk
+        assert active.get().resource_interval == successor_reservation.event_interval
+        assert asset.status == SerializedAsset.Status.AVAILABLE
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1235,3 +1614,109 @@ def test_maintenance_blocks_pool_then_custody_and_return_preserve_physical_histo
         assert balance.quantity == Decimal("1.000000")
         assert StockMovement.Kind.EXIT in movement_kinds
         assert StockMovement.Kind.RETURN in movement_kinds
+
+
+@pytest.mark.django_db(transaction=True)
+def test_serialized_future_maintenance_is_interval_scoped_and_close_preserves_other_facts() -> None:
+    owner, organization_id, _, holds = _temporal_holds("p12-asset-maintenance")
+    resource, location, _ = _resource_in_organization(
+        owner,
+        organization_id,
+        "asset-maintenance",
+        Resource.Nature.SERIALIZED_ASSET,
+        quantity="1",
+    )
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        asset = SerializedAsset.objects.get(resource=resource)
+        intervals = tuple(Reservation.objects.get(pk=hold["id"]).event_interval for hold in holds)
+    first_unavailability = record_unavailability(
+        owner,
+        organization_id,
+        resource_id=resource.pk,
+        serialized_asset_id=asset.pk,
+        location_id=location.pk,
+        quantity="1",
+        starts_at=intervals[0].lower,
+        ends_at=intervals[0].upper,
+        reason="Mantenimiento futuro A",
+        maintenance_description="Ventana A",
+        corrects_id=None,
+        idempotency_key=uuid4(),
+    )
+    second_unavailability = record_unavailability(
+        owner,
+        organization_id,
+        resource_id=resource.pk,
+        serialized_asset_id=asset.pk,
+        location_id=location.pk,
+        quantity="1",
+        starts_at=intervals[1].lower,
+        ends_at=intervals[1].upper,
+        reason="Mantenimiento futuro B",
+        maintenance_description="Ventana B",
+        corrects_id=None,
+        idempotency_key=uuid4(),
+    )
+    disjoint = create_requirement(
+        owner,
+        organization_id,
+        reservation_id=holds[3]["id"],
+        resource_id=resource.pk,
+        quantity="1",
+        reason="Intervalo disjunto",
+        idempotency_key=uuid4(),
+    )
+    reserve_resource(
+        owner,
+        organization_id,
+        requirement_id=disjoint.pk,
+        source_location_id=location.pk,
+        serialized_asset_id=asset.pk,
+        idempotency_key=uuid4(),
+    )
+    blocked_requirements = [
+        create_requirement(
+            owner,
+            organization_id,
+            reservation_id=hold["id"],
+            resource_id=resource.pk,
+            quantity="1",
+            reason="Intervalo indisponible",
+            idempotency_key=uuid4(),
+        )
+        for hold in holds[:2]
+    ]
+    assert all(row.status == ResourceRequirement.Status.SHORTAGE for row in blocked_requirements)
+    close_unavailability(
+        owner,
+        organization_id,
+        unavailability_id=first_unavailability.pk,
+        idempotency_key=uuid4(),
+    )
+    reserve_resource(
+        owner,
+        organization_id,
+        requirement_id=blocked_requirements[0].pk,
+        source_location_id=location.pk,
+        serialized_asset_id=asset.pk,
+        idempotency_key=uuid4(),
+    )
+    with pytest.raises(ResourcesError) as blocked:
+        reserve_resource(
+            owner,
+            organization_id,
+            requirement_id=blocked_requirements[1].pk,
+            source_location_id=location.pk,
+            serialized_asset_id=asset.pk,
+            idempotency_key=uuid4(),
+        )
+    assert blocked.value.code == "resource_shortage"
+    with authorized_tenant_scope(owner, organization_id, Capability.RESOURCE_READ):
+        asset.refresh_from_db()
+        second_unavailability.refresh_from_db()
+        assert asset.status == SerializedAsset.Status.AVAILABLE
+        assert second_unavailability.is_active
+        assert (
+            ResourceUnavailability.objects.filter(serialized_asset=asset, is_active=True).count()
+            == 1
+        )

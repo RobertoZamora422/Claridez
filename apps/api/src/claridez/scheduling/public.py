@@ -39,6 +39,48 @@ class ResourceScheduleProjection:
     status: str
 
 
+@dataclass(frozen=True, slots=True)
+class ResourceAvailabilityContextProjection:
+    event_request_id: UUID
+    reservation_id: UUID
+    root_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+
+
+def resource_availability_context(
+    authorization: TenantAuthorization, event_request_id: UUID
+) -> ResourceAvailabilityContextProjection | None:
+    from django.utils import timezone
+
+    from .models import Reservation
+
+    row = (
+        Reservation.objects.filter(
+            organization_id=authorization.organization_id,
+            event_request_id=event_request_id,
+        )
+        .order_by("-created_at", "-id")
+        .first()
+    )
+    if row is None or row.status not in (
+        Reservation.Status.PROVISIONAL,
+        Reservation.Status.CONFIRMED,
+    ):
+        return None
+    if row.status == Reservation.Status.PROVISIONAL and row.hold_expires_at <= timezone.now():
+        return None
+    return ResourceAvailabilityContextProjection(
+        event_request_id=row.event_request_id,
+        reservation_id=row.pk,
+        root_id=row.root_id,
+        starts_at=row.event_interval.lower,
+        ends_at=row.event_interval.upper,
+        status=row.status,
+    )
+
+
 def resource_schedule(
     authorization: TenantAuthorization, reservation_id: UUID
 ) -> ResourceScheduleProjection | None:
@@ -374,6 +416,7 @@ def reschedule_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
 __all__ = (
     "ReservationProjection",
     "ResourceScheduleProjection",
+    "ResourceAvailabilityContextProjection",
     "ConfirmationReadiness",
     "ConfirmedReservationProjection",
     "ContractualScheduleProjection",
@@ -399,6 +442,7 @@ __all__ = (
     "reservation_for_commercial",
     "reservation_for_quotation",
     "resource_schedule",
+    "resource_availability_context",
     "reschedule_command",
     "schedule_changes",
 )

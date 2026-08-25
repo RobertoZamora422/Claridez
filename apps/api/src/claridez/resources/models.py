@@ -430,9 +430,7 @@ class SupplyReceiptLine(TenantModel):
 class SerializedAsset(TenantModel):
     class Status(models.TextChoices):
         AVAILABLE = "available", "Disponible"
-        RESERVED = "reserved", "Reservado"
         CUSTODY = "custody", "En custodia"
-        MAINTENANCE = "maintenance", "Mantenimiento"
         RETIRED = "retired", "Retirado"
 
     resource = models.ForeignKey(Resource, on_delete=models.PROTECT, related_name="assets")
@@ -455,6 +453,10 @@ class SerializedAsset(TenantModel):
             models.UniqueConstraint(
                 fields=["organization", "resource", "serial_number"],
                 name="resources_asset_serial_uq",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=["available", "custody", "retired"]),
+                name="resources_asset_physical_status_ck",
             ),
         ]
 

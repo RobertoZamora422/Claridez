@@ -494,6 +494,10 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         "/api/v1/organizations/{organization_id}/finance/export/": {"get"},
         "/api/v1/organizations/{organization_id}/resources/capabilities/": {"get"},
         "/api/v1/organizations/{organization_id}/resources/overview/": {"get"},
+        (
+            "/api/v1/organizations/{organization_id}/resources/event-requests/"
+            "{event_request_id}/items/{resource_id}/availability/"
+        ): {"get"},
         "/api/v1/organizations/{organization_id}/resources/units/create/": {"post"},
         "/api/v1/organizations/{organization_id}/resources/unit-conversions/create/": {"post"},
         "/api/v1/organizations/{organization_id}/resources/suppliers/create/": {"post"},

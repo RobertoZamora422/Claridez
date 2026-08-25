@@ -280,18 +280,29 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   `resources_receipt_line`, con cardinalidad 0..1 hacia costo real o gasto y sin caja automática.
   La dependencia física de esquema es `finance.0006` → `resources.0001`; los dominios se coordinan
   por DTO inmutables y puertos públicos estrechos.
+- El cierre correctivo del 24 de agosto añadió `resources.0002`: `reusable_pool` calcula capacidad
+  solo contra reservas/custodias e indisponibilidades solapadas en intervalo y ubicación; los
+  activos serializados conservan únicamente estado físico `available/custody/retired`, mientras
+  asignaciones e indisponibilidades gobiernan la ocupación temporal. Reservas disjuntas coexisten,
+  GiST y guardianes rechazan solapamientos, y cerrar mantenimiento no reescribe el estado físico ni
+  elimina otras restricciones temporales.
+- Comercial ya no recibe disponibilidad global en `resources/overview`; consulta únicamente un
+  recurso relacionado con una solicitud y su reserva vigente mediante un DTO público inmutable de
+  scheduling. Contextos, recursos y organizaciones no relacionados fallan cerradamente.
 - P12 añade quince capabilities atómicas. Propietario y administrador reciben la matriz completa;
   comercial solo `resource:read_availability`; operaciones y finanzas reciben exactamente sus
   capacidades explícitas de ADR 0021. `purchase:materialize_finance` exige además
   `finance:record_actuals` o `finance:allocate_expenses`, según el destino. Las 23 tablas privadas
   resources usan FKs tenant-aware, `ENABLE` + `FORCE RLS`, privilegios mínimos, idempotencia y
   ausencia de `DELETE/TRUNCATE` para hechos/ledgers.
-- La puerta final `npm run check:all` aprobó 230 pruebas API no integración en 297,67 s, 30 pruebas
-  frontend en 13 archivos y 99 integraciones PostgreSQL en 1487,32 s; también aprobó locks,
-  migraciones sin cambios, formato, lint, mypy sobre 317 archivos, TypeScript, system checks,
-  OpenAPI sin warnings y build Vite. `npm run audit` no encontró vulnerabilidades conocidas en
-  Python ni en el workspace web. La evidencia es local; no incluye navegador manual, CI remota,
-  commit, push, despliegue ni cutover.
+- La puerta correctiva repetida `npm run check:all` aprobó 236 pruebas API no integración en
+  452,35 s, 30 pruebas frontend en 13 archivos y 102 integraciones PostgreSQL en 1726,46 s; también
+  aprobó locks, migraciones sin cambios, formato, lint, mypy sobre 318 archivos, TypeScript, system
+  checks, OpenAPI sin warnings y build Vite. Una primera pasada integró 101/102 por un deadlock
+  transitorio de la prueba P8 hold↔block; la prueba pasó 3/3 aislada y la repetición completa
+  102/102 sin cambios P8. La auditoría del cierre inicial permaneció sin vulnerabilidades conocidas.
+  La evidencia es local; no incluye navegador manual, CI remota, commit, push, despliegue ni
+  cutover.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
