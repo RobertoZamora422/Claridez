@@ -7,13 +7,13 @@ from uuid import UUID
 from django.db.models import F
 from django.utils import timezone
 
-from claridez.commercial.normalization import canonical_optional_text, canonical_text
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 
 from ..errors import conflict, invalid, unavailable
 from ..models import EventPreparation, PreparationItem, PreparationTransition
+from ..normalization import canonical_optional_text, canonical_text
 from .shared import (
     EDITABLE_PREPARATION_STATES,
     UNSET,
@@ -141,6 +141,7 @@ def create_item(
             organization_id=authorization.organization_id,
             preparation=preparation,
             client_request_id=client_request_id,
+            source_kind=PreparationItem.SourceKind.MANUAL,
             position=position,
             status=PreparationItem.Status.PENDING,
             status_note="",
@@ -212,6 +213,14 @@ def update_item(
         if item.revision != revision:
             raise conflict("stale_revision", "El ítem cambió. Vuelve a cargarlo.")
         canonical = canonical_item_values(values, current=item)
+        if item.source_kind == PreparationItem.SourceKind.P13_TEMPLATE_READINESS and (
+            set(canonical) & {"title", "section", "is_required", "due_on"}
+            or place_before_item_id is not UNSET
+        ):
+            raise conflict(
+                "authorized_change_required",
+                "La definición de plantilla requiere un cambio operativo autorizado.",
+            )
         if "responsible_membership_id" in values:
             canonical["responsible_membership_id"] = (
                 eligible_membership(

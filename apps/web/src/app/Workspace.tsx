@@ -382,6 +382,12 @@ export function Workspace({
             organizationId={organization.id}
             canManage={capabilities.has("operation:manage")}
             canExecute={capabilities.has("operation:execute")}
+            canReadAdvanced={capabilities.has("operation_incident:read")}
+            canManageTemplates={capabilities.has("operation_template:manage")}
+            canManageIncidents={capabilities.has("operation_incident:manage")}
+            canAuthorizeChanges={capabilities.has("operation_change:authorize")}
+            canManageEvidence={capabilities.has("operation_evidence:manage")}
+            canClose={capabilities.has("operation:close")}
           />
         ) : page === "receivables" ? (
           <ReceivablesView organizationId={organization.id} capabilities={capabilities} />

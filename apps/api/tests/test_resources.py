@@ -112,6 +112,7 @@ def test_resources_domain_imports_other_domains_only_through_public_ports() -> N
                     )
                 ) and name not in {
                     "claridez.people.public",
+                    "claridez.operations.public",
                     "claridez.scheduling.public",
                     "claridez.organizations.public",
                     "claridez.organizations.capabilities",

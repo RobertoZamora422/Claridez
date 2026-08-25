@@ -5,13 +5,13 @@ from uuid import UUID
 
 from django.utils import timezone
 
-from claridez.commercial.normalization import canonical_optional_text
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import authorized_tenant_scope
 
 from ..errors import conflict, invalid
 from ..models import EventPreparation
+from ..normalization import canonical_optional_text
 from ..representations import preparation_representation
 from .shared import (
     EDITABLE_PREPARATION_STATES,

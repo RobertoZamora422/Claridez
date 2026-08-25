@@ -37,6 +37,7 @@ def initialize_preparation(
             preparation=preparation,
             client_request_id=baseline_request_id(reservation.pk, definition.key),
             baseline_key=definition.key,
+            source_kind=PreparationItem.SourceKind.BASELINE_5_2,
             section=definition.section,
             position=position,
             title=definition.title,

@@ -49,6 +49,118 @@ class ResourceAvailabilityContextProjection:
     status: str
 
 
+@dataclass(frozen=True, slots=True)
+class OperationsScheduleAuthorityProjection:
+    organization_id: UUID
+    reservation_id: UUID
+    root_reservation_id: UUID
+    space_id: UUID
+    status: str
+    reservation_revision: int
+    event_starts_at: datetime
+    event_ends_at: datetime
+    occupied_starts_at: datetime
+    occupied_ends_at: datetime
+    allocation_id: UUID
+    allocation_source_revision: int
+    source_event_id: UUID
+    source_event_kind: str
+    source_event_aggregate_revision: int
+    source_event_reservation_id: UUID | None
+    source_event_predecessor_id: UUID | None
+    source_event_successor_id: UUID | None
+
+
+def schedule_authority_for_operations(
+    organization_id: UUID, reservation_id: UUID, *, lock: bool = False
+) -> OperationsScheduleAuthorityProjection | None:
+    from .models import Reservation, ScheduleAllocation
+
+    reservation_rows = Reservation.objects.all()
+    if lock:
+        reservation_rows = reservation_rows.select_for_update()
+    row = reservation_rows.filter(organization_id=organization_id, pk=reservation_id).first()
+    if row is None:
+        return None
+    allocation_rows = ScheduleAllocation.objects.select_related("source_event")
+    if lock:
+        allocation_rows = allocation_rows.select_for_update()
+    allocation = allocation_rows.filter(
+        organization_id=organization_id, reservation_id=row.pk
+    ).first()
+    if allocation is None:
+        return None
+    event = allocation.source_event
+    structurally_current = (
+        allocation.organization_id == row.organization_id
+        and allocation.reservation_id == row.pk
+        and allocation.space_id == row.space_id
+        and allocation.source_revision == row.revision
+        and event.organization_id == row.organization_id
+        and event.event_request_id == row.event_request_id
+        and event.root_reservation_id == row.root_id
+    )
+    ordinary_kind = {
+        "provisional": "reservation_hold_created",
+        "confirmed": "reservation_confirmed",
+        "expired": "reservation_expired",
+        "cancelled": "reservation_cancelled",
+    }.get(row.status)
+    ordinary_current = (
+        ordinary_kind is not None
+        and event.kind == ordinary_kind
+        and event.reservation_id == row.pk
+        and event.aggregate_revision == row.revision
+    )
+    predecessor = (
+        None
+        if row.predecessor_id is None
+        else Reservation.objects.filter(
+            organization_id=row.organization_id,
+            pk=row.predecessor_id,
+            root_id=row.root_id,
+            event_request_id=row.event_request_id,
+            status="rescheduled",
+        ).first()
+    )
+    rescheduled_current = (
+        event.kind == "reservation_rescheduled"
+        and event.reservation_id == row.pk
+        and event.successor_id == row.pk
+        and event.predecessor_id == row.predecessor_id
+        and predecessor is not None
+        and event.aggregate_revision == predecessor.revision
+        and event.new_snapshot.get("revision") == row.revision
+    )
+    cutover_current = (
+        event.kind == "cutover_snapshot"
+        and event.reservation_id == row.pk
+        and event.aggregate_revision == row.revision
+    )
+    if not structurally_current or not (ordinary_current or rescheduled_current or cutover_current):
+        return None
+    return OperationsScheduleAuthorityProjection(
+        organization_id=row.organization_id,
+        reservation_id=row.pk,
+        root_reservation_id=row.root_id,
+        space_id=row.space_id,
+        status=row.status,
+        reservation_revision=row.revision,
+        event_starts_at=row.event_interval.lower,
+        event_ends_at=row.event_interval.upper,
+        occupied_starts_at=allocation.occupied_interval.lower,
+        occupied_ends_at=allocation.occupied_interval.upper,
+        allocation_id=allocation.pk,
+        allocation_source_revision=allocation.source_revision,
+        source_event_id=event.pk,
+        source_event_kind=event.kind,
+        source_event_aggregate_revision=event.aggregate_revision,
+        source_event_reservation_id=event.reservation_id,
+        source_event_predecessor_id=event.predecessor_id,
+        source_event_successor_id=event.successor_id,
+    )
+
+
 def resource_availability_context(
     authorization: TenantAuthorization, event_request_id: UUID
 ) -> ResourceAvailabilityContextProjection | None:
@@ -417,6 +529,7 @@ __all__ = (
     "ReservationProjection",
     "ResourceScheduleProjection",
     "ResourceAvailabilityContextProjection",
+    "OperationsScheduleAuthorityProjection",
     "ConfirmationReadiness",
     "ConfirmedReservationProjection",
     "ContractualScheduleProjection",
@@ -443,6 +556,7 @@ __all__ = (
     "reservation_for_quotation",
     "resource_schedule",
     "resource_availability_context",
+    "schedule_authority_for_operations",
     "reschedule_command",
     "schedule_changes",
 )

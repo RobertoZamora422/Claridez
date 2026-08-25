@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -30,6 +31,9 @@ class ReservationValue(Protocol):
 
     @property
     def organization_id(self) -> UUID: ...
+
+    @property
+    def quotation_version_id(self) -> UUID: ...
 
     @property
     def starts_at(self) -> datetime: ...
@@ -150,6 +154,8 @@ def initialize_from_accepted_snapshot(
     actor_membership_id: UUID,
     occurred_at: datetime,
     responsible_membership_id: UUID | None = None,
+    plan_source_snapshot: object | None = None,
+    materialize_plan: bool = True,
 ) -> PreparationProjection:
     preparation = EventPreparation.objects.create(
         reservation_id=reservation.id,
@@ -167,6 +173,7 @@ def initialize_from_accepted_snapshot(
                 preparation=preparation,
                 client_request_id=baseline_request_id(reservation.id, definition.key),
                 baseline_key=definition.key,
+                source_kind=PreparationItem.SourceKind.BASELINE_5_2,
                 section=definition.section,
                 position=position,
                 title=definition.title,
@@ -190,6 +197,22 @@ def initialize_from_accepted_snapshot(
         occurred_at=occurred_at,
         identifier=transition_id(reservation.id, PreparationTransition.Cause.INITIALIZED),
     )
+    from .advanced import materialize_operational_plan
+    from .advanced_models import OperationalPlanSnapshot
+
+    if materialize_plan:
+        materialize_operational_plan(
+            preparation,
+            quotation_version_id=reservation.quotation_version_id,
+            starts_at=reservation.starts_at,
+            timezone_name=reservation.timezone_name,
+            occurred_at=occurred_at,
+            source_snapshot=(
+                plan_source_snapshot
+                if isinstance(plan_source_snapshot, OperationalPlanSnapshot)
+                else None
+            ),
+        )
     return _projection(preparation)
 
 
@@ -244,7 +267,11 @@ def reschedule_preparation(
         .order_by("position", "id")
     )
     requested = set(carry_free_item_ids)
-    free_items = [item for item in items if item.pk in requested and item.baseline_key is None]
+    free_items = [
+        item
+        for item in items
+        if item.pk in requested and item.source_kind == PreparationItem.SourceKind.MANUAL
+    ]
     if {item.pk for item in free_items} != requested:
         raise conflict(
             "invalid_transition", "Solo pueden trasladarse ítems libres de esta preparación."
@@ -257,6 +284,7 @@ def reschedule_preparation(
         except OperationsError:
             responsible_id = None
 
+    plan_source_snapshot = getattr(preparation, "operational_snapshot", None)
     previous_status = preparation.status
     preparation.status = EventPreparation.Status.RESCHEDULED
     preparation.rescheduled_to_reservation_id = successor.id
@@ -278,6 +306,8 @@ def reschedule_preparation(
         actor_membership_id=actor_membership_id,
         occurred_at=occurred_at,
         responsible_membership_id=responsible_id,
+        plan_source_snapshot=plan_source_snapshot,
+        materialize_plan=False,
     )
     new_preparation = EventPreparation.objects.get(pk=successor.id)
     start_position = len(BASELINE) + 1
@@ -290,6 +320,7 @@ def reschedule_preparation(
             preparation=new_preparation,
             client_request_id=uuid4(),
             baseline_key=None,
+            source_kind=PreparationItem.SourceKind.MANUAL,
             section=item.section,
             position=start_position + offset,
             title=item.title,
@@ -323,6 +354,35 @@ def reschedule_preparation(
     return _projection(preparation), new_projection, tuple(carried_ids)
 
 
+def materialize_rescheduled_plan(
+    previous_reservation_id: UUID,
+    successor: ReservationValue,
+    *,
+    occurred_at: datetime,
+) -> None:
+    from .advanced import materialize_operational_plan
+    from .advanced_models import OperationalPlanSnapshot
+
+    preparation = EventPreparation.objects.select_for_update().get(
+        organization_id=successor.organization_id,
+        reservation_id=successor.id,
+    )
+    if OperationalPlanSnapshot.objects.filter(preparation=preparation).exists():
+        return
+    source = OperationalPlanSnapshot.objects.get(
+        organization_id=successor.organization_id,
+        preparation_id=previous_reservation_id,
+    )
+    materialize_operational_plan(
+        preparation,
+        quotation_version_id=successor.quotation_version_id,
+        starts_at=successor.starts_at,
+        timezone_name=successor.timezone_name,
+        occurred_at=occurred_at,
+        source_snapshot=source,
+    )
+
+
 __all__ = (
     "OperationsError",
     "PreparationProjection",
@@ -334,4 +394,57 @@ __all__ = (
     "execution_evidences_for_finance",
     "preparation_for_schedule",
     "reschedule_preparation",
+    "materialize_rescheduled_plan",
+    "OperationalWindowProjection",
+    "operational_window_for_resources",
 )
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalWindowProjection:
+    id: UUID
+    organization_id: UUID
+    preparation_id: UUID
+    root_reservation_id: UUID
+    reservation_id: UUID
+    resource_id: UUID
+    quantity: Decimal
+    starts_at: datetime
+    ends_at: datetime
+    window_revision: int
+    source_kind: str
+    source_version: str
+    schedule_allocation_id: UUID
+    schedule_event_id: UUID
+    schedule_reservation_revision: int
+    schedule_source_revision: int
+    payload_sha256: str
+
+
+def operational_window_for_resources(
+    organization_id: UUID, window_id: UUID, *, lock: bool = False
+) -> OperationalWindowProjection | None:
+    from .advanced import operational_window_for_resources_projection
+
+    value = operational_window_for_resources_projection(organization_id, window_id, lock=lock)
+    if value is None:
+        return None
+    return OperationalWindowProjection(
+        id=value.id,
+        organization_id=value.organization_id,
+        preparation_id=value.preparation_id,
+        root_reservation_id=value.root_reservation_id,
+        reservation_id=value.reservation_id,
+        resource_id=value.resource_id,
+        quantity=value.quantity,
+        starts_at=value.starts_at,
+        ends_at=value.ends_at,
+        window_revision=value.window_revision,
+        source_kind=value.source_kind,
+        source_version=value.source_version,
+        schedule_allocation_id=value.schedule_allocation_id,
+        schedule_event_id=value.schedule_event_id,
+        schedule_reservation_revision=value.schedule_reservation_revision,
+        schedule_source_revision=value.schedule_source_revision,
+        payload_sha256=value.payload_sha256,
+    )

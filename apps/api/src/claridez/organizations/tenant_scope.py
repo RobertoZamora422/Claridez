@@ -84,6 +84,7 @@ def authorized_tenant_scope(
 
     with transaction.atomic():
         previous_membership_context: str | None = None
+        scope_failed = False
         try:
             current_actor = User.objects.get(pk=actor_id)
         except User.DoesNotExist:
@@ -110,16 +111,23 @@ def authorized_tenant_scope(
             require_capability(membership.role, capability)
             canonical_role = Membership.Role(membership.role)
             previous_membership_context = _set_local_membership_context(str(membership.pk))
-            yield TenantAuthorization(
-                actor_id=current_actor.pk,
-                organization_id=organization.pk,
-                membership_id=membership.pk,
-                role=canonical_role,
-                capability=capability,
-            )
+            try:
+                yield TenantAuthorization(
+                    actor_id=current_actor.pk,
+                    organization_id=organization.pk,
+                    membership_id=membership.pk,
+                    role=canonical_role,
+                    capability=capability,
+                )
+            except BaseException:
+                scope_failed = True
+                raise
         finally:
             _current_organization.reset(token)
-            if not connection.needs_rollback:
+            # A database exception leaves PostgreSQL unable to execute the
+            # restoration queries until this atomic block rolls back. The
+            # savepoint rollback itself restores both transaction-local GUCs.
+            if not scope_failed and not connection.needs_rollback:
                 if previous_membership_context is not None:
                     _restore_local_membership_context(previous_membership_context)
                 _restore_local_organization_context(previous_context)

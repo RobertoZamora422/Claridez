@@ -438,6 +438,9 @@ export interface PreparationItem {
   id: string;
   client_request_id: string;
   baseline_key: string | null;
+  source_kind: "baseline_5_2" | "manual" | "p13_template_readiness";
+  template_readiness_definition_id?: string | null;
+  template_role_key?: string;
   section: "definitions" | "setup" | "final_review";
   position: number;
   title: string;
@@ -450,6 +453,123 @@ export interface PreparationItem {
   revision: number;
   resolved_at?: string;
   resolved_by?: HistoricalOperationActor;
+}
+
+export interface OperationalVerificationEvent {
+  id: string;
+  from_status: string;
+  to_status: "completed" | "not_applicable";
+  reason: string;
+  correction_reason: string;
+  corrects_id: string | null;
+  occurred_at: string;
+}
+
+export interface OperationalVerification {
+  id: string;
+  source_key: string;
+  phase: "setup" | "execution" | "teardown" | "post_event";
+  title: string;
+  is_required: boolean;
+  role_key: string;
+  position: number;
+  status: "pending" | "completed" | "not_applicable";
+  status_reason: string;
+  completed_at: string | null;
+  revision: number;
+  events: OperationalVerificationEvent[];
+}
+
+export interface OperationalPhaseFact {
+  id: string;
+  phase: "setup" | "teardown";
+  fact_kind: "started" | "completed";
+  observed_at: string;
+  preparation_revision: number;
+  provenance: "user_observation" | "authorized_correction";
+  corrects_id: string | null;
+  correction_reason: string;
+}
+
+export interface OperationalIncident {
+  id: string;
+  incident_type: string;
+  severity: "low" | "medium" | "high" | "critical";
+  status: "open" | "contained" | "resolved";
+  description: string;
+  impact: string;
+  responsible_membership_id: string | null;
+  reported_at: string;
+  revision: number;
+  events: { id: string; kind: string; occurred_at: string; corrects_id: string | null }[];
+}
+
+export interface AdvancedOperation {
+  snapshot: {
+    id: string;
+    source_kind: "organization" | "system" | "legacy_cutover";
+    source_version: string;
+    event_type_label: string;
+    content_sha256: string;
+    roles: { key: string; label: string; phase: string }[];
+  };
+  verifications: OperationalVerification[];
+  phase_facts: OperationalPhaseFact[];
+  responsibilities: {
+    id: string;
+    role_key: string;
+    phase: string;
+    membership_id: string | null;
+  }[];
+  incidents: OperationalIncident[];
+  changes: {
+    id: string;
+    scope: string;
+    target_id: string;
+    reason: string;
+    impact: string;
+    status: "pending" | "approved" | "rejected";
+    decision: { approved: boolean; reason: string } | null;
+  }[];
+  resource_windows: {
+    id: string;
+    resource_id: string;
+    quantity: string;
+    starts_at: string;
+    ends_at: string;
+    window_revision: number;
+    source_kind: string;
+  }[];
+  resources: {
+    id: string;
+    operational_window_id: string | null;
+    resource_name: string;
+    status: "open" | "shortage" | "satisfied" | "cancelled";
+    quantity: string;
+    supplier_names: string[];
+    assignments: { id: string; status: string; quantity: string }[];
+  }[];
+  evidence: {
+    id: string;
+    target_kind: string;
+    target_id: string;
+    document_file_id: string;
+    created_at: string;
+  }[];
+  close: { id: string; closed_at: string; preparation_revision: number } | null;
+  metrics: Record<string, number | null | Record<string, number>>;
+}
+
+export interface OperationalTemplateVersion {
+  id: string;
+  template_id: string;
+  event_type_id: string;
+  name: string;
+  version: number;
+  status: "draft" | "published" | "retired";
+  content_sha256: string;
+  published_at: string | null;
+  definitions: Record<string, unknown>;
 }
 
 export interface OperationEvent {

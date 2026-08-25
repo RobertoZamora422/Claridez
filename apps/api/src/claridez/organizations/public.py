@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from .capabilities import Capability, capabilities_for_role
 from .models import Membership, Organization, OrganizationSettings, Space, Venue
 from .tenant_scope import TenantAuthorization
 
@@ -37,6 +38,56 @@ class ResourcesVenueProjection:
     id: UUID
     name: str
     is_active: bool
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalMembershipProjection:
+    id: UUID
+    display_name: str
+    role: str
+    is_active: bool
+    can_manage_operations: bool
+
+
+def membership_for_operations(
+    organization_id: UUID, membership_id: UUID
+) -> OperationalMembershipProjection | None:
+    row = (
+        Membership.objects.select_related("user")
+        .filter(organization_id=organization_id, pk=membership_id)
+        .first()
+    )
+    if row is None:
+        return None
+    return OperationalMembershipProjection(
+        id=row.pk,
+        display_name=row.user.display_name or "Miembro del equipo",
+        role=row.role,
+        is_active=row.status == Membership.Status.ACTIVE,
+        can_manage_operations=Capability.OPERATION_MANAGE in capabilities_for_role(row.role),
+    )
+
+
+def memberships_for_operations(
+    organization_id: UUID,
+) -> tuple[OperationalMembershipProjection, ...]:
+    return tuple(
+        value
+        for row in Membership.objects.select_related("user")
+        .filter(organization_id=organization_id)
+        .order_by("user__display_name", "id")
+        if (
+            value := OperationalMembershipProjection(
+                id=row.pk,
+                display_name=row.user.display_name or "Miembro del equipo",
+                role=row.role,
+                is_active=row.status == Membership.Status.ACTIVE,
+                can_manage_operations=Capability.OPERATION_MANAGE
+                in capabilities_for_role(row.role),
+            )
+        ).is_active
+        and value.can_manage_operations
+    )
 
 
 def venue_for_resources(
@@ -108,10 +159,13 @@ __all__ = (
     "OrganizationContractualProjection",
     "FinanceVenueProjection",
     "ResourcesVenueProjection",
+    "OperationalMembershipProjection",
     "contractual_location",
     "contractual_organization",
     "venue_for_finance",
     "venue_for_resources",
+    "membership_for_operations",
+    "memberships_for_operations",
     "requires_operation_manage_for_finance_evidence",
     "active_organization_ids_for_document_worker",
 )

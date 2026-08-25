@@ -1,5 +1,28 @@
 from django.urls import path
 
+from .advanced_views import (
+    AdvancedEventView,
+    ChangeDecisionView,
+    ChangeProposalView,
+    EvidenceCreateView,
+    EvidenceDownloadView,
+    IncidentAmendView,
+    IncidentCorrectionView,
+    IncidentCreateView,
+    IncidentTransitionView,
+    LegacyAdoptionView,
+    PhaseFactCorrectionView,
+    PhaseFactCreateView,
+    PostEventCloseCorrectionView,
+    PostEventCloseView,
+    ResponsibilityCreateView,
+    TemplateVersionListCreateView,
+    TemplateVersionPublishView,
+    TemplateVersionRetireView,
+    VerificationCorrectionView,
+    VerificationUpdateView,
+    WindowReserveView,
+)
 from .views import (
     AssigneeListView,
     AssignmentView,
@@ -20,6 +43,18 @@ urlpatterns = [
     path("<uuid:organization_id>/operations/capabilities/", OperationsCapabilitiesView.as_view()),
     path("<uuid:organization_id>/operations/assignees/", AssigneeListView.as_view()),
     path("<uuid:organization_id>/operations/events/", EventListView.as_view()),
+    path(
+        "<uuid:organization_id>/operations/templates/",
+        TemplateVersionListCreateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/templates/<uuid:version_id>/publish/",
+        TemplateVersionPublishView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/templates/<uuid:version_id>/retire/",
+        TemplateVersionRetireView.as_view(),
+    ),
     path(
         "<uuid:organization_id>/operations/events/<uuid:reservation_id>/",
         EventDetailView.as_view(),
@@ -51,5 +86,77 @@ urlpatterns = [
     path(
         "<uuid:organization_id>/operations/events/<uuid:reservation_id>/complete/",
         CompleteView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/advanced/",
+        AdvancedEventView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/advanced/adopt-legacy/",
+        LegacyAdoptionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/verifications/<uuid:verification_id>/",
+        VerificationUpdateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/verifications/<uuid:verification_id>/events/<uuid:event_id>/correct/",
+        VerificationCorrectionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/phase-facts/",
+        PhaseFactCreateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/phase-facts/<uuid:fact_id>/correct/",
+        PhaseFactCorrectionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/responsibilities/",
+        ResponsibilityCreateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/incidents/",
+        IncidentCreateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/incidents/<uuid:incident_id>/transition/",
+        IncidentTransitionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/incidents/<uuid:incident_id>/amend/",
+        IncidentAmendView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/incidents/<uuid:incident_id>/events/<uuid:event_id>/correct/",
+        IncidentCorrectionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/changes/",
+        ChangeProposalView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/changes/<uuid:proposal_id>/decide/",
+        ChangeDecisionView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/windows/<uuid:window_id>/reserve/",
+        WindowReserveView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/evidence/",
+        EvidenceCreateView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/evidence/<uuid:file_id>/download/",
+        EvidenceDownloadView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/close/",
+        PostEventCloseView.as_view(),
+    ),
+    path(
+        "<uuid:organization_id>/operations/events/<uuid:reservation_id>/close/<uuid:close_id>/correct/",
+        PostEventCloseCorrectionView.as_view(),
     ),
 ]

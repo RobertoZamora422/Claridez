@@ -117,6 +117,12 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "OperationPreparationStatus": ("claridez.operations.models.EventPreparation.Status"),
         "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
+        "OperationalVerificationResolutionStatus": (
+            "claridez.operations.advanced_serializers.VERIFICATION_RESOLUTION_STATUS_CHOICES"
+        ),
+        "OperationalIncidentTransitionStatus": (
+            "claridez.operations.advanced_serializers.INCIDENT_TRANSITION_STATUS_CHOICES"
+        ),
         "SchedulingReservationStatus": "claridez.scheduling.models.Reservation.Status",
         "SchedulingBlockStatus": "claridez.scheduling.models.ScheduleBlock.Status",
         "SchedulingBlockScope": "claridez.scheduling.models.ScheduleBlock.Scope",

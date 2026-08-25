@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import type { OperationAssignee, OperationEvent, PreparationItem } from "../../api";
 import { Notice } from "../../shared/components";
@@ -22,6 +22,7 @@ export function OperationDetail({
   onReload,
   onReplace,
   onItemUpdated,
+  advancedPanel,
 }: {
   detail: OperationEvent;
   base: string;
@@ -36,6 +37,7 @@ export function OperationDetail({
   onReload: () => Promise<void>;
   onReplace: (updated: OperationEvent, notice: string) => void;
   onItemUpdated: (item: PreparationItem, preparationRevision: number, status?: string) => void;
+  advancedPanel?: ReactNode;
 }) {
   const groupedItems = useMemo(() => {
     const groups: Record<PreparationItem["section"], PreparationItem[]> = {
@@ -154,6 +156,7 @@ export function OperationDetail({
           </section>
         ))}
       </section>
+      {advancedPanel}
       <div className="operation-primary-action">
         {canManage && detail.preparation.status === "preparing" ? (
           <div>

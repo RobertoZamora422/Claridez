@@ -38,6 +38,14 @@ class Capability(StrEnum):
     OPERATION_READ = "operation:read"
     OPERATION_MANAGE = "operation:manage"
     OPERATION_EXECUTE = "operation:execute"
+    OPERATION_TEMPLATE_READ = "operation_template:read"
+    OPERATION_TEMPLATE_MANAGE = "operation_template:manage"
+    OPERATION_INCIDENT_READ = "operation_incident:read"
+    OPERATION_INCIDENT_MANAGE = "operation_incident:manage"
+    OPERATION_CHANGE_AUTHORIZE = "operation_change:authorize"
+    OPERATION_EVIDENCE_READ = "operation_evidence:read"
+    OPERATION_EVIDENCE_MANAGE = "operation_evidence:manage"
+    OPERATION_CLOSE = "operation:close"
     BUSINESS_CONFIGURATION_READ = "business_configuration:read"
     BUSINESS_CONFIGURATION_MANAGE = "business_configuration:manage"
     VENUE_READ = "venue:read"
@@ -124,6 +132,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
+                Capability.OPERATION_TEMPLATE_READ,
+                Capability.OPERATION_TEMPLATE_MANAGE,
+                Capability.OPERATION_INCIDENT_READ,
+                Capability.OPERATION_INCIDENT_MANAGE,
+                Capability.OPERATION_CHANGE_AUTHORIZE,
+                Capability.OPERATION_EVIDENCE_READ,
+                Capability.OPERATION_EVIDENCE_MANAGE,
+                Capability.OPERATION_CLOSE,
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.BUSINESS_CONFIGURATION_MANAGE,
                 Capability.VENUE_READ,
@@ -207,6 +223,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
+                Capability.OPERATION_TEMPLATE_READ,
+                Capability.OPERATION_TEMPLATE_MANAGE,
+                Capability.OPERATION_INCIDENT_READ,
+                Capability.OPERATION_INCIDENT_MANAGE,
+                Capability.OPERATION_CHANGE_AUTHORIZE,
+                Capability.OPERATION_EVIDENCE_READ,
+                Capability.OPERATION_EVIDENCE_MANAGE,
+                Capability.OPERATION_CLOSE,
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.BUSINESS_CONFIGURATION_MANAGE,
                 Capability.VENUE_READ,
@@ -305,6 +329,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
+                Capability.OPERATION_TEMPLATE_READ,
+                Capability.OPERATION_TEMPLATE_MANAGE,
+                Capability.OPERATION_INCIDENT_READ,
+                Capability.OPERATION_INCIDENT_MANAGE,
+                Capability.OPERATION_CHANGE_AUTHORIZE,
+                Capability.OPERATION_EVIDENCE_READ,
+                Capability.OPERATION_EVIDENCE_MANAGE,
+                Capability.OPERATION_CLOSE,
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.VENUE_READ,
                 Capability.CATALOG_READ,

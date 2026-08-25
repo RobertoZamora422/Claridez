@@ -1177,12 +1177,14 @@ def create_requirement(
     quantity: Decimal | int | str,
     reason: str,
     idempotency_key: UUID,
+    operational_window_id: UUID | str | None = None,
 ) -> ResourceRequirement:
     payload = {
         "reservation_id": reservation_id,
         "resource_id": resource_id,
         "quantity": quantity,
         "reason": reason,
+        "operational_window_id": operational_window_id,
     }
     with authorized_tenant_scope(
         actor, organization_reference, Capability.RESOURCE_RESERVE
@@ -1205,7 +1207,26 @@ def create_requirement(
         normalized = _quantity(
             quantity, integral=resource.nature == Resource.Nature.SERIALIZED_ASSET
         )
+        temporal_source = ResourceRequirement.TemporalSource.SCHEDULING_EVENT_INTERVAL
+        operation_window_uuid = None
         resource_interval = Range(schedule.starts_at, schedule.ends_at, bounds="[)")
+        if operational_window_id is not None:
+            from claridez.operations.public import operational_window_for_resources
+
+            operation_window_uuid = _uuid(operational_window_id, "La ventana operacional")
+            window = operational_window_for_resources(
+                authorization.organization_id, operation_window_uuid, lock=True
+            )
+            if (
+                window is None
+                or window.reservation_id != reservation_uuid
+                or window.root_reservation_id != schedule.root_id
+                or window.resource_id != resource.pk
+                or window.quantity != normalized
+            ):
+                raise unavailable("La ventana operacional")
+            temporal_source = ResourceRequirement.TemporalSource.OPERATIONS_WINDOW
+            resource_interval = Range(window.starts_at, window.ends_at, bounds="[)")
         available = _available_quantity(authorization, resource, interval=resource_interval)
         row = ResourceRequirement.objects.create(
             organization_id=authorization.organization_id,
@@ -1214,6 +1235,8 @@ def create_requirement(
             resource=resource,
             quantity=normalized,
             resource_interval=resource_interval,
+            temporal_source=temporal_source,
+            operational_window_id=operation_window_uuid,
             status=(
                 ResourceRequirement.Status.SHORTAGE
                 if available is None or available < normalized
@@ -2195,6 +2218,14 @@ def transfer_assignments_authorized(
                 "assignment_selection_conflict",
                 "La asignación no conserva su requerimiento de origen.",
             )
+        if (
+            previous.requirement.temporal_source
+            != ResourceRequirement.TemporalSource.SCHEDULING_EVENT_INTERVAL
+        ):
+            raise conflict(
+                "assignment_selection_conflict",
+                "Una ventana P13 debe recalcularse y reservarse nuevamente en la sucesora.",
+            )
         successor_requirement = ResourceRequirement.objects.create(
             organization_id=authorization.organization_id,
             root_reservation_id=schedule.root_id,
@@ -2202,6 +2233,7 @@ def transfer_assignments_authorized(
             resource=previous.resource,
             quantity=previous.quantity,
             resource_interval=Range(schedule.starts_at, schedule.ends_at, bounds="[)"),
+            temporal_source=ResourceRequirement.TemporalSource.SCHEDULING_EVENT_INTERVAL,
             status=ResourceRequirement.Status.SATISFIED,
             reason=previous.requirement.reason,
             predecessor_requirement=previous.requirement,

@@ -14,6 +14,35 @@ from .models import EventRequest, EventRequestHistory, QuotationLine, QuotationV
 
 
 @dataclass(frozen=True, slots=True)
+class OperationEventTypeProjection:
+    event_type_id: UUID
+    event_type_label: str
+
+
+def operation_event_type_snapshot(
+    organization_id: UUID, quotation_version_id: UUID
+) -> OperationEventTypeProjection:
+    try:
+        row = QuotationVersion.objects.only(
+            "event_type_definition_snapshot_id", "event_type_snapshot"
+        ).get(organization_id=organization_id, pk=quotation_version_id)
+    except QuotationVersion.DoesNotExist:
+        raise unavailable("El tipo de evento confirmado") from None
+    return OperationEventTypeProjection(
+        event_type_id=row.event_type_definition_snapshot_id,
+        event_type_label=row.event_type_snapshot,
+    )
+
+
+def operational_event_projection_for_operations(
+    reservation: object, *, include_phone: bool
+) -> dict[str, object]:
+    from .services.operations_projection import operational_event_projection
+
+    return operational_event_projection(reservation, include_phone=include_phone)
+
+
+@dataclass(frozen=True, slots=True)
 class OpportunityProjection:
     id: UUID
     person_id: UUID
@@ -383,6 +412,7 @@ __all__ = (
     "EconomicSaleProjection",
     "OpportunityHistoryProjection",
     "OpportunityProjection",
+    "OperationEventTypeProjection",
     "accepted_schedule_evidence",
     "accepted_quotation_for_documents",
     "accepted_quotation_snapshot",
@@ -392,5 +422,7 @@ __all__ = (
     "opportunities_for_crm",
     "opportunity_for_crm",
     "opportunity_history_for_crm",
+    "operation_event_type_snapshot",
+    "operational_event_projection_for_operations",
     "set_request_schedule_status",
 )

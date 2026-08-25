@@ -133,6 +133,25 @@ Las verificaciones de fase nunca cuentan para el gate `ready`. Un hecho cumplido
 corrección se enlaza como hecho adicional. `setup` y `teardown` prueban trabajo real; no alteran los
 minutos, buffers ni `occupied_interval` propiedad de Scheduling.
 
+### 6.1 Hechos temporales observados
+
+- `execution` usa únicamente `execution_started`/`execution_completed` y
+  `EventPreparation.started_at/completed_at` de 5.2. No existe otra cronología de ejecución.
+- `setup` y `teardown` registran inicio y finalización explícitos como hechos append-only con actor,
+  instante observado, revisión esperada, idempotencia, procedencia y hash.
+- Una corrección temporal enlaza el hecho exacto, declara valor efectivo y razón, y nunca reescribe
+  el original.
+- El inicio/finalización efectivo debe ser único y coherente con EventPreparation y la fase. No se
+  admite finalizar antes de iniciar, duplicar un hecho consumado ni fabricar una secuencia mediante
+  bulk o SQL directo.
+- La duración de setup/teardown se calcula solo con esos hechos efectivos; la de execution solo con
+  5.2. Nunca se usan el primer o último cumplimiento de verificaciones como sustituto temporal.
+- Los hechos describen trabajo observado y no modifican minutos, buffers, intervalos ni ocupación
+  de Scheduling.
+- `post_event` no tiene duración de fase artificial. Las verificaciones mantienen exclusivamente
+  `pending`, `completed` y `not_applicable`; no se añade `in_progress` ni una segunda máquina de
+  EventPreparation.
+
 ## 7. Responsabilidades operativas
 
 El coordinador existente de EventPreparation sigue siendo el responsable principal. El snapshot
@@ -296,8 +315,10 @@ infieren jerarquías ni permisos adicionales.
 
 Operations puede informar tiempo hasta readiness, duración observada de fases, cumplimiento de
 verificaciones, incidencias por tipo/severidad y tiempo de resolución, cambios autorizados, tiempo
-hasta cierre y consecuencia operativa de faltantes/devoluciones. Los estados de recursos provienen
-de DTO P12. Ingresos, costos, margen, utilidad y caja permanecen en Finance.
+hasta cierre y consecuencia operativa de faltantes/devoluciones. Setup/teardown se miden solo desde
+sus hechos temporales efectivos y execution solo desde 5.2; post_event no tiene duración sintética.
+Los estados de recursos provienen de DTO P12. Ingresos, costos, margen, utilidad y caja permanecen
+en Finance.
 
 ## 16. Cutover desde P12
 

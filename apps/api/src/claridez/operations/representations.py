@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Protocol, cast
 from zoneinfo import ZoneInfo
 
-from claridez.commercial.services.operations_projection import operational_event_projection
+from claridez.commercial.public import operational_event_projection_for_operations
 from claridez.organizations.capabilities import Capability, capabilities_for_role
 from claridez.organizations.models import Membership
 
@@ -59,6 +59,8 @@ def item_representation(item: PreparationItem) -> dict[str, Any]:
         "id": item.pk,
         "client_request_id": item.client_request_id,
         "baseline_key": item.baseline_key,
+        "source_kind": item.source_kind,
+        "template_role_key": item.template_role_key,
         "section": item.section,
         "position": item.position,
         "title": item.title,
@@ -142,7 +144,7 @@ def attention_summary(preparation: EventPreparation, *, now: datetime) -> dict[s
 def preparation_representation(
     preparation: EventPreparation, *, now: datetime, include_items: bool
 ) -> dict[str, Any]:
-    projection = operational_event_projection(
+    projection = operational_event_projection_for_operations(
         preparation.reservation,
         include_phone=preparation.status in ACTIVE_PHONE_STATES and include_items,
     )

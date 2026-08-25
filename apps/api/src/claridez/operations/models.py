@@ -132,6 +132,11 @@ class EventPreparation(models.Model):
 
 
 class PreparationItem(models.Model):
+    class SourceKind(models.TextChoices):
+        BASELINE_5_2 = "baseline_5_2", "Baseline 5.2"
+        MANUAL = "manual", "Manual"
+        P13_TEMPLATE_READINESS = "p13_template_readiness", "Readiness de plantilla P13"
+
     class Section(models.TextChoices):
         DEFINITIONS = "definitions", "Definiciones"
         SETUP = "setup", "Preparación"
@@ -151,6 +156,17 @@ class PreparationItem(models.Model):
     )
     client_request_id = models.UUIDField()
     baseline_key = models.CharField(max_length=48, null=True, blank=True)  # noqa: DJ001
+    source_kind = models.CharField(
+        max_length=32, choices=SourceKind.choices, default=SourceKind.MANUAL
+    )
+    template_readiness_definition = models.ForeignKey(
+        "operations.TemplateReadinessDefinition",
+        on_delete=models.PROTECT,
+        related_name="preparation_items",
+        null=True,
+        blank=True,
+    )
+    template_role_key = models.CharField(max_length=64, blank=True)
     section = models.CharField(max_length=16, choices=Section.choices)
     position = models.PositiveIntegerField()
     title = models.CharField(max_length=160)
@@ -253,6 +269,26 @@ class PreparationItem(models.Model):
                 condition=~Q(baseline_key="final_readiness_review", status="not_applicable"),
                 name="operations_final_review_applies",
             ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        source_kind="baseline_5_2",
+                        baseline_key__isnull=False,
+                        template_readiness_definition__isnull=True,
+                    )
+                    | Q(
+                        source_kind="manual",
+                        baseline_key__isnull=True,
+                        template_readiness_definition__isnull=True,
+                    )
+                    | Q(
+                        source_kind="p13_template_readiness",
+                        baseline_key__isnull=True,
+                        template_readiness_definition__isnull=False,
+                    )
+                ),
+                name="operations_item_source_shape_valid",
+            ),
         ]
         indexes = [
             models.Index(
@@ -306,3 +342,28 @@ class PreparationTransition(models.Model):
 
     def __str__(self) -> str:
         return f"{self.preparation_id}@{self.preparation_revision}"
+
+
+from .advanced_models import (  # noqa: E402, F401
+    OperationalChangeDecision,
+    OperationalChangeProposal,
+    OperationalEvidence,
+    OperationalIncident,
+    OperationalIncidentEvent,
+    OperationalPhaseFact,
+    OperationalPlanSnapshot,
+    OperationalResourceWindow,
+    OperationalResponsibility,
+    OperationalTemplate,
+    OperationalTemplateVersion,
+    OperationalVerification,
+    OperationalVerificationEvent,
+    OperationCommand,
+    PostEventClose,
+    PostEventCloseCorrection,
+    ReadinessDeviation,
+    TemplatePhaseDefinition,
+    TemplateReadinessDefinition,
+    TemplateResourceNeed,
+    TemplateRoleDefinition,
+)

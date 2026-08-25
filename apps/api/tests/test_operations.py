@@ -623,6 +623,14 @@ def test_operations_http_detail_csrf_and_cross_tenant_are_backend_enforced() -> 
         "operation:read",
         "operation:manage",
         "operation:execute",
+        "operation_template:read",
+        "operation_template:manage",
+        "operation_incident:read",
+        "operation_incident:manage",
+        "operation_change:authorize",
+        "operation_evidence:read",
+        "operation_evidence:manage",
+        "operation:close",
     }
     detail = client.get(f"{base}/events/{reservation['id']}/")
     assert detail.status_code == 200

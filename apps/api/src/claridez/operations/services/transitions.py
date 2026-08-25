@@ -96,6 +96,12 @@ def execute_transition(
         check_revision(preparation, revision)
         if preparation.reservation.status != "confirmed":
             raise conflict("reservation_cancelled", "La reserva ya no está confirmada.")
+        from ..advanced import phase_fact_gate, verification_gate
+
+        phase = "setup" if to_status == EventPreparation.Status.IN_PROGRESS else "execution"
+        verification_gate(preparation, phase)
+        if phase == "setup":
+            phase_fact_gate(preparation, phase)
         now = timezone.now()
         preparation.status = to_status
         fields = ["status"]

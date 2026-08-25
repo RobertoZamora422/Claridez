@@ -93,6 +93,33 @@ ejecutables, servicios, endpoints, frontend ni lógica funcional P13.
 7. Las fases son un catálogo cerrado. No existen subtareas libres, dependencias arbitrarias,
    grafos, tableros, estimaciones genéricas ni otros elementos de gestión de proyectos.
 
+### 3.1. Cronología operativa observada
+
+1. P13 registra hechos temporales explícitos y append-only para el inicio y la finalización de las
+   fases observables que requieren duración operacional.
+2. `execution` conserva una única cronología: usa exclusivamente las transiciones 5.2
+   `execution_started` y `execution_completed` y sus marcas autoritativas
+   `EventPreparation.started_at/completed_at`. P13 no crea hechos paralelos de ejecución.
+3. `setup` y `teardown` registran cada uno un hecho de inicio y otro de finalización con
+   organización, preparación, fase, actor, instante observado, revisión esperada, clave
+   idempotente, procedencia y hash canónico.
+4. Esos hechos describen trabajo observado. No modifican ni reinterpretan `setup_minutes`,
+   `teardown_minutes`, buffers, `event_interval` u `occupied_interval` de Scheduling.
+5. Una corrección temporal es un hecho append-only enlazado al hecho corregido, con valor efectivo,
+   razón, actor, revisión e idempotencia. Nunca actualiza ni elimina el hecho original.
+6. La cronología efectiva debe ser compatible con EventPreparation y la fase: no puede finalizar
+   antes de iniciar, repetir un inicio o finalización ya consumados ni confirmar una secuencia
+   imposible. Constraints y guardianes diferidos protegen la regla también ante ORM bulk y SQL
+   directo.
+7. La duración observada de `setup` y `teardown` se deriva exclusivamente de sus hechos temporales
+   efectivos. No se infiere de la primera o última verificación completada. La duración de
+   `execution` se deriva exclusivamente de los hechos 5.2 existentes.
+8. `post_event` no recibe una duración artificial. Solo podría obtener cronología propia mediante
+   una decisión funcional futura que identifique un hecho concreto y requiera otro ADR si altera
+   este contrato.
+9. Las verificaciones mantienen únicamente `pending`, `completed` y `not_applicable`; no se añade
+   un `in_progress` genérico ni otra máquina de estados de EventPreparation.
+
 ### 4. Inmutabilidad del readiness derivado de plantilla
 
 1. Un `PreparationItem` `p13_template_readiness` mantiene una referencia tenant-aware a su
@@ -368,8 +395,10 @@ inventario, emitir documentos ni registrar finanzas.
 
 P13 puede derivar tiempo hasta readiness, duración observada de setup/ejecución/teardown, avance de
 verificaciones, incidencias por tipo/severidad y tiempo de resolución, cambios autorizados, ciclo
-de cierre y consecuencias de faltantes/devoluciones desde DTO P12. No calcula ni duplica ingreso,
-costo, margen, utilidad, caja ni rentabilidad P11.
+de cierre y consecuencias de faltantes/devoluciones desde DTO P12. Setup/teardown usan
+exclusivamente sus hechos temporales efectivos y execution las marcas 5.2; ninguna duración se
+infiere del orden de resolución de verificaciones. No calcula ni duplica ingreso, costo, margen,
+utilidad, caja ni rentabilidad P11.
 
 ## Aspectos provisionales
 

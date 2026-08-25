@@ -79,6 +79,8 @@ class PreparationItemResponseSerializer(serializers.Serializer[dict[str, object]
     id = serializers.UUIDField()
     client_request_id = serializers.UUIDField()
     baseline_key = serializers.CharField(allow_null=True)
+    source_kind = serializers.ChoiceField(choices=PreparationItem.SourceKind.choices)
+    template_role_key = serializers.CharField(allow_blank=True)
     section = serializers.ChoiceField(choices=PreparationItem.Section.choices)
     position = serializers.IntegerField(min_value=1)
     title = serializers.CharField()
@@ -128,6 +130,7 @@ class OperationEventDetailSerializer(serializers.Serializer[dict[str, object]]):
     event = EventSnapshotSerializer()
     contact = OperationalContactSerializer()
     preparation = PreparationDetailSerializer()
+    advanced = serializers.DictField(required=False)
 
 
 class EventListResponseSerializer(serializers.Serializer[dict[str, object]]):

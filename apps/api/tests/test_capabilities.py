@@ -249,6 +249,20 @@ EXPECTED_MATRIX[Membership.Role.FINANCE].update(
     }
 )
 
+P13_CAPABILITIES = {
+    Capability.OPERATION_TEMPLATE_READ,
+    Capability.OPERATION_TEMPLATE_MANAGE,
+    Capability.OPERATION_INCIDENT_READ,
+    Capability.OPERATION_INCIDENT_MANAGE,
+    Capability.OPERATION_CHANGE_AUTHORIZE,
+    Capability.OPERATION_EVIDENCE_READ,
+    Capability.OPERATION_EVIDENCE_MANAGE,
+    Capability.OPERATION_CLOSE,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(P13_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P13_CAPABILITIES)
+EXPECTED_MATRIX[Membership.Role.OPERATIONS].update(P13_CAPABILITIES)
+
 
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
@@ -279,6 +293,14 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "operation:read",
         "operation:manage",
         "operation:execute",
+        "operation_template:read",
+        "operation_template:manage",
+        "operation_incident:read",
+        "operation_incident:manage",
+        "operation_change:authorize",
+        "operation_evidence:read",
+        "operation_evidence:manage",
+        "operation:close",
         "business_configuration:read",
         "business_configuration:manage",
         "venue:read",

@@ -1275,6 +1275,12 @@ def _perform_reschedule_locked(
         source_event=event,
         is_blocking=True,
     )
+    if successor.status == Reservation.Status.CONFIRMED:
+        operations_port.materialize_rescheduled_plan(
+            row.pk,
+            reservation_projection(successor),
+            occurred_at=now,
+        )
     return {
         "previous": previous_snapshot,
         "reservation": reservation_data(successor),

@@ -35,7 +35,24 @@ APPEND_ONLY_TABLE_PREFIXES = (
     "resources_resourceevent",
     "resources_resourcecommand",
     "resources_custodyevent",
+    "operations_templatereadinessdefinition",
+    "operations_templatephasedefinition",
+    "operations_templateroledefinition",
+    "operations_templateresourceneed",
+    "operations_operationalplansnapshot",
+    "operations_operationalverificationevent",
+    "operations_operationalphasefact",
+    "operations_operationalresponsibility",
+    "operations_operationalincidentevent",
+    "operations_operationalchangedecision",
+    "operations_readinessdeviation",
+    "operations_operationalresourcewindow",
+    "operations_operationalevidence",
+    "operations_posteventclose",
+    "operations_posteventclosecorrection",
+    "operations_operationcommand",
 )
+NO_DELETE_TABLE_PREFIXES = ("resources_",)
 NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",
@@ -50,6 +67,11 @@ NO_DELETE_TABLES = {
     "operations_eventpreparation",
     "operations_preparationitem",
     "operations_preparationtransition",
+    "operations_operationaltemplate",
+    "operations_operationaltemplateversion",
+    "operations_operationalverification",
+    "operations_operationalincident",
+    "operations_operationalchangeproposal",
     "documents_documenttemplate",
     "documents_documenttemplateversion",
     "documents_templateevent",
@@ -85,7 +107,7 @@ RUNTIME_GRANTS_BY_CLASS: dict[str, tuple[str, ...]] = {
 def _runtime_grants_for_table(table_name: str) -> tuple[str, ...]:
     if table_name.startswith(APPEND_ONLY_TABLE_PREFIXES):
         table_class = "append_only"
-    elif table_name in NO_DELETE_TABLES:
+    elif table_name in NO_DELETE_TABLES or table_name.startswith(NO_DELETE_TABLE_PREFIXES):
         table_class = "no_delete"
     else:
         table_class = "mutable"

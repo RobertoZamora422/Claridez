@@ -358,6 +358,80 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/complete/"): {
             "post"
         },
+        "/api/v1/organizations/{organization_id}/operations/templates/": {"get", "post"},
+        ("/api/v1/organizations/{organization_id}/operations/templates/{version_id}/publish/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/operations/templates/{version_id}/retire/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/advanced/"): {
+            "get"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/advanced/adopt-legacy/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/verifications/{verification_id}/"
+        ): {"put"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/verifications/{verification_id}/events/{event_id}/correct/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/phase-facts/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/phase-facts/{fact_id}/correct/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/responsibilities/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/incidents/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/incidents/{incident_id}/transition/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/incidents/{incident_id}/amend/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/incidents/{incident_id}/events/{event_id}/correct/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/changes/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/changes/{proposal_id}/decide/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/windows/{window_id}/reserve/"
+        ): {"post"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/evidence/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/evidence/{file_id}/download/"
+        ): {"get"},
+        ("/api/v1/organizations/{organization_id}/operations/events/{reservation_id}/close/"): {
+            "post"
+        },
+        (
+            "/api/v1/organizations/{organization_id}/operations/events/"
+            "{reservation_id}/close/{close_id}/correct/"
+        ): {"post"},
         "/api/v1/organizations/{organization_id}/documents/capabilities/": {"get"},
         "/api/v1/organizations/{organization_id}/documents/templates/": {"get", "post"},
         "/api/v1/organizations/{organization_id}/documents/templates/{template_id}/versions/": {

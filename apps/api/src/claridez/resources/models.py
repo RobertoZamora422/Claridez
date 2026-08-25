@@ -572,6 +572,10 @@ class StockMovement(TenantModel):
 
 
 class ResourceRequirement(TenantModel):
+    class TemporalSource(models.TextChoices):
+        SCHEDULING_EVENT_INTERVAL = "scheduling_event_interval", "Intervalo del evento"
+        OPERATIONS_WINDOW = "operations_window", "Ventana operacional"
+
     class Status(models.TextChoices):
         OPEN = "open", "Abierto"
         SHORTAGE = "shortage", "Faltante"
@@ -583,6 +587,18 @@ class ResourceRequirement(TenantModel):
     resource = models.ForeignKey(Resource, on_delete=models.PROTECT, related_name="requirements")
     quantity = models.DecimalField(max_digits=20, decimal_places=6)
     resource_interval = DateTimeRangeField()
+    temporal_source = models.CharField(
+        max_length=32,
+        choices=TemporalSource.choices,
+        default=TemporalSource.SCHEDULING_EVENT_INTERVAL,
+    )
+    operational_window = models.ForeignKey(
+        "operations.OperationalResourceWindow",
+        on_delete=models.PROTECT,
+        related_name="resource_requirements",
+        null=True,
+        blank=True,
+    )
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
     reason = models.CharField(max_length=500, blank=True)
     predecessor_requirement = models.ForeignKey(
@@ -603,6 +619,21 @@ class ResourceRequirement(TenantModel):
             ),
             models.CheckConstraint(
                 condition=Q(quantity__gt=0), name="resources_requirement_quantity_ck"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "operational_window"],
+                condition=Q(operational_window__isnull=False),
+                name="resources_requirement_operation_window_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        temporal_source="scheduling_event_interval",
+                        operational_window__isnull=True,
+                    )
+                    | Q(temporal_source="operations_window", operational_window__isnull=False)
+                ),
+                name="resources_requirement_temporal_source_ck",
             ),
         ]
 

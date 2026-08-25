@@ -15,7 +15,19 @@ from ..models import EventPreparation, PreparationItem, PreparationTransition
 from ..representations import item_representation
 
 OPERATION_CAPABILITIES = frozenset(
-    {Capability.OPERATION_READ, Capability.OPERATION_MANAGE, Capability.OPERATION_EXECUTE}
+    {
+        Capability.OPERATION_READ,
+        Capability.OPERATION_MANAGE,
+        Capability.OPERATION_EXECUTE,
+        Capability.OPERATION_TEMPLATE_READ,
+        Capability.OPERATION_TEMPLATE_MANAGE,
+        Capability.OPERATION_INCIDENT_READ,
+        Capability.OPERATION_INCIDENT_MANAGE,
+        Capability.OPERATION_CHANGE_AUTHORIZE,
+        Capability.OPERATION_EVIDENCE_READ,
+        Capability.OPERATION_EVIDENCE_MANAGE,
+        Capability.OPERATION_CLOSE,
+    }
 )
 EDITABLE_PREPARATION_STATES = {
     EventPreparation.Status.PREPARING,

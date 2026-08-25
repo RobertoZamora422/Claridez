@@ -11,10 +11,13 @@ from claridez.organizations.tenant_scope import TenantAuthorization
 from .domain_assets import (
     GeneratedArtifactProjection,
     PrivateFileProjection,
+    download_operational_evidence,
     download_payment_support,
     download_receipt_pdf,
+    list_operational_evidence,
     list_payment_supports,
     receipt_pdf_status,
+    receive_operational_evidence,
     receive_payment_support,
     request_receipt_pdf,
 )
@@ -86,9 +89,12 @@ __all__ = (
     "PrivateFileProjection",
     "documentary_status",
     "download_payment_support",
+    "download_operational_evidence",
     "download_receipt_pdf",
     "list_payment_supports",
+    "list_operational_evidence",
     "receipt_pdf_status",
     "receive_payment_support",
+    "receive_operational_evidence",
     "request_receipt_pdf",
 )

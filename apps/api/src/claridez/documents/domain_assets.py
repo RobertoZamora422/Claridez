@@ -23,6 +23,8 @@ from .storage import opaque_object_key, private_storage, stream_sha256
 RECEIVABLES_DOMAIN = "receivables"
 PAYMENT_SUPPORT_PURPOSE = "payment_support"
 RECEIPT_PDF_PURPOSE = "receipt_pdf"
+OPERATIONS_DOMAIN = "operations"
+OPERATIONAL_EVIDENCE_PURPOSE = "operational_evidence"
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +143,74 @@ def list_payment_supports(
     )
 
 
+def receive_operational_evidence(
+    authorization: TenantAuthorization,
+    *,
+    preparation_id: UUID,
+    display_name: str,
+    declared_media_type: str,
+    source: BinaryIO,
+    correlation_id: str,
+) -> PrivateFileProjection:
+    authorization.require(Capability.OPERATION_EVIDENCE_MANAGE)
+    buffered = buffered_upload(source, max_bytes=document_settings().max_upload_bytes)
+    validated = inspect_upload(
+        display_name=display_name,
+        declared_media_type=declared_media_type,
+        stream=buffered,
+    )
+    size, digest = stream_sha256(buffered)
+    key = opaque_object_key("quarantine")
+    with transaction.atomic():
+        row = PrivateDomainFile.objects.create(
+            organization_id=authorization.organization_id,
+            owner_domain=OPERATIONS_DOMAIN,
+            owner_id=preparation_id,
+            purpose=OPERATIONAL_EVIDENCE_PURPOSE,
+            display_name=validated.display_name,
+            storage_key=key,
+            declared_media_type=declared_media_type,
+            detected_media_type=validated.media_type,
+            extension=validated.extension,
+            sha256=digest,
+            size_bytes=size,
+            state=PrivateDomainFile.State.UPLOADING,
+            uploaded_by_membership_id=authorization.membership_id,
+        )
+        from .jobs import enqueue_job
+
+        enqueue_job(
+            organization_id=authorization.organization_id,
+            job_type=DocumentJob.Type.FINALIZE_DOMAIN_UPLOAD,
+            target_id=row.pk,
+            idempotency_key=f"finalize-domain-upload:{row.pk}",
+            correlation_id=correlation_id[:128],
+        )
+    private_storage().put(
+        key=key,
+        stream=buffered,
+        size_bytes=size,
+        sha256=digest,
+        media_type=validated.media_type,
+    )
+    return _file_projection(row)
+
+
+def list_operational_evidence(
+    authorization: TenantAuthorization, preparation_id: UUID
+) -> tuple[PrivateFileProjection, ...]:
+    authorization.require(Capability.OPERATION_EVIDENCE_READ)
+    return tuple(
+        _file_projection(row)
+        for row in PrivateDomainFile.objects.filter(
+            organization_id=authorization.organization_id,
+            owner_domain=OPERATIONS_DOMAIN,
+            owner_id=preparation_id,
+            purpose=OPERATIONAL_EVIDENCE_PURPOSE,
+        ).order_by("created_at", "id")
+    )
+
+
 def request_receipt_pdf(
     authorization: TenantAuthorization,
     *,
@@ -248,6 +318,35 @@ def download_payment_support(
             owner_domain=RECEIVABLES_DOMAIN,
             owner_id=payment_id,
             purpose=PAYMENT_SUPPORT_PURPOSE,
+        )
+    except PrivateDomainFile.DoesNotExist:
+        raise DocumentsError(
+            "resource_not_available", "El archivo no está disponible.", status_code=404
+        ) from None
+    if row.state != PrivateDomainFile.State.CLEAN:
+        raise DocumentsError(
+            "file_not_clean", "El archivo todavía no es seguro para entrega.", status_code=409
+        )
+    return (
+        _verified_content(
+            key=row.storage_key, expected_sha256=row.sha256, expected_size=row.size_bytes
+        ),
+        row.detected_media_type,
+        row.display_name,
+    )
+
+
+def download_operational_evidence(
+    authorization: TenantAuthorization, *, preparation_id: UUID, file_id: UUID
+) -> tuple[bytes, str, str]:
+    authorization.require(Capability.OPERATION_EVIDENCE_READ)
+    try:
+        row = PrivateDomainFile.objects.get(
+            organization_id=authorization.organization_id,
+            pk=file_id,
+            owner_domain=OPERATIONS_DOMAIN,
+            owner_id=preparation_id,
+            purpose=OPERATIONAL_EVIDENCE_PURPOSE,
         )
     except PrivateDomainFile.DoesNotExist:
         raise DocumentsError(

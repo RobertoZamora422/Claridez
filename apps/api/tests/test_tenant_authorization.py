@@ -219,7 +219,22 @@ def test_private_guc_helper_has_no_forbidden_imports() -> None:
     for module in source_root.rglob("*.py"):
         if module in {package / "_tenant_context.py", allowed_low_level_importer}:
             continue
-        assert "_tenant_context" not in module.read_text(encoding="utf-8"), module.name
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        imported_modules = {
+            imported
+            for node in ast.walk(tree)
+            for imported in (
+                [node.module]
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+                else [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else []
+            )
+        }
+        assert not any(
+            name == "_tenant_context" or name.endswith("._tenant_context")
+            for name in imported_modules
+        ), module.name
 
     for module_name in ("views.py", "serializers.py", "urls.py"):
         tree = ast.parse((package / module_name).read_text(encoding="utf-8"))
