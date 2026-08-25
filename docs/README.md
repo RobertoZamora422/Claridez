@@ -27,6 +27,8 @@ Estas tres fuentes se leen juntas. El Blueprint responde «qué producto debe qu
   internos, compatibilidad y controles automatizados.
 - [Iteración 5.2 — De reserva confirmada a evento preparado](product/ITERATION_5_2_OPERATIONS_SPECIFICATION.md):
   contrato operativo implementado y validado localmente.
+- [P13 — Contrato funcional breve de operación avanzada](product/P13_ADVANCED_OPERATIONS_SPECIFICATION.md):
+  contrato aprobado previo a implementación, gobernado por ADR 0022.
 
 ## Arquitectura y seguridad
 

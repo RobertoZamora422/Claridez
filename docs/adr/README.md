@@ -63,6 +63,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0019](0019-receivables-authority-and-financial-movement-integrity.md)        | Aceptado                            | Autoridad de cuentas por cobrar e integridad financiera P10  |
 | [0020](0020-finance-authority-recognition-and-operational-close-integrity.md) | Aceptado                            | Autoridad financiera operativa, reconocimiento y cierres P11 |
 | [0021](0021-resources-supply-inventory-and-financial-provenance-integrity.md) | Aceptado                            | Autoridad de resources, abastecimiento e integridad P12      |
+| [0022](0022-advanced-operations-plans-and-execution-integrity.md)             | Aceptado                            | Operación avanzada, planes e integridad de ejecución P13     |
 
 ## Modificación y reemplazo
 

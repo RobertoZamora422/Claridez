@@ -574,7 +574,9 @@ mezcla entre catálogo vendible y activo físico.
 
 **Identificador y nombre:** P13 — Preparación, ejecución y cierre ampliados.
 
-**Estado:** Pendiente.
+**Estado:** Arquitectura y contrato funcional formalizados el 25 de agosto de 2026 mediante ADR
+0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md`; implementación pendiente y no autorizada por ese
+cierre documental.
 
 **Objetivo:** Extender 5.2 para coordinar distintos tipos de evento, recursos, incidencias y cierre
 sin convertir Claridez en gestor genérico de proyectos.
@@ -585,14 +587,18 @@ cierre postevento; archivos/evidencias; coordinación de reprogramación; métri
 
 **Exclusiones:** Proyectos libres, dependencias arbitrarias, turnos/nómina y automatización con IA.
 
-**Dependencias:** P12, P9, P8 y preservación de estados/transiciones/revisiones 5.2 mediante ADR si
-se amplía su máquina de estados.
+**Dependencias:** P12, P9, P8, ADR 0022 y el contrato funcional P13 aprobado. La máquina de estados,
+transiciones, revisiones y guardianes 5.2 se preservan sin añadir `closing`/`closed`; las nuevas
+fronteras exigen puertos públicos estrechos y guardianes intermodulares antes de implementar.
 
 **Resultado visible:** Cada evento usa una preparación adecuada, recursos confirmados y cierre
 trazable incluso ante incidencias autorizadas.
 
-**Criterio verificable de finalización:** Plantillas no alteran históricos, coordinación atómica,
-edición/concurrencia segura, anexos privados, flujo de incidencia explícito y web accesible.
+**Criterio verificable de finalización:** El cierre arquitectónico ya fija autoridad, snapshots,
+fases, ventanas, cierre, capabilities, cutover e invariantes. La etapa seguirá incompleta hasta que
+la futura implementación pruebe que las plantillas no alteran históricos, la coordinación es
+atómica, la edición/concurrencia es segura, los anexos son privados, el flujo de incidencia es
+explícito y la web es accesible.
 
 **Riesgos principales:** Romper el guardián 5.2, crear un sistema genérico de tareas o permitir
 correcciones sin auditoría.

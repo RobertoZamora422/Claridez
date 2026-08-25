@@ -1,8 +1,9 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 23 de agosto de 2026
+- **Fecha de corte:** 25 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P12 está cerrada localmente bajo ADR 0021
-- **Siguiente etapa:** P13 — Operación avanzada; no iniciada y pendiente de aprobación explícita
+- **Siguiente etapa:** implementación de P13 — Operación avanzada; arquitectura y contrato
+  aprobados, implementación todavía pendiente de aprobación explícita
 
 ## Qué es Claridez
 
@@ -83,14 +84,15 @@ duplica: registra cómo continuar desde el checkout real.
   asignación/disponibilidad por evento y mantenimiento/indisponibilidad, con faltantes y conflictos
   explícitos.
 
-No existen aún los módulos de P13 en adelante. No hay contabilidad formal ni portal completo, ni
-proveedores productivos de almacenamiento/correo/identidad, staging o producción.
+No existe aún implementación funcional de P13 en adelante. No hay contabilidad formal ni portal
+completo, ni proveedores productivos de almacenamiento/correo/identidad, staging o producción.
 
 ## Estado exacto
 
 - I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P12: completadas y validadas localmente.
-- ADR 0021 gobierna la implementación P12 cerrada localmente; P13 continúa sin modelos,
-  migraciones, capabilities, endpoints ni frontend.
+- ADR 0021 gobierna la implementación P12 cerrada localmente. ADR 0022 y
+  `P13_ADVANCED_OPERATIONS_SPECIFICATION.md` formalizan la arquitectura y el contrato P13; P13
+  continúa sin modelos, migraciones, capabilities ejecutables, servicios, endpoints ni frontend.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -333,8 +335,12 @@ proveedores productivos de almacenamiento/correo/identidad, staging o producció
   tardíos, cierres, locks y frontera estricta con P10: ADR 0020.
 - Autoridad de `claridez.resources`, unidades, recepción/inventario, capacidad concurrente,
   consecuencias de scheduling y procedencia financiera P12: ADR 0021; implementado localmente.
-- Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11; P9
-  se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
+- Autoridad de operación avanzada, planes/snapshots, fases, incidencias, cambios, ventanas de
+  recursos, cierre postevento y su integridad con 5.2/Scheduling/Resources: ADR 0022; arquitectura
+  aceptada, aún no implementada.
+- Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11. El
+  contrato funcional P13 está aprobado como fuente previa a implementación; P9 se rige por ADR
+  0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
@@ -439,9 +445,10 @@ falta.
 
 ## Próximo trabajo
 
-P12 — Proveedores, recursos e inventario está cerrada localmente bajo ADR 0021. La siguiente etapa
-exacta es **P13 — Operación avanzada**, que no está iniciada y requiere planificación y aprobación
-explícitas antes de crear modelos, migraciones, capabilities, servicios, endpoints o frontend P13.
+P12 — Proveedores, recursos e inventario está cerrada localmente bajo ADR 0021. ADR 0022 y el
+contrato funcional breve ya formalizan P13 sin implementarla. El siguiente paso exacto es recibir
+aprobación explícita para la **implementación de P13 — Operación avanzada** antes de crear modelos,
+migraciones, capabilities ejecutables, servicios, endpoints o frontend P13.
 
 ## Riesgos actuales
 
