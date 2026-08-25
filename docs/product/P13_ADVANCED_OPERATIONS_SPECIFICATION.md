@@ -1,9 +1,9 @@
 # P13 — Contrato funcional breve de operación avanzada
 
-- **Estado:** Aprobado como contrato previo a implementación
+- **Estado:** Implementado y validado localmente el 25 de agosto de 2026
 - **Fecha de aprobación:** 2026-08-25
 - **Arquitectura:** ADR 0022
-- **Implementación:** Pendiente; este documento no autoriza código funcional P13
+- **Implementación:** Completa en el checkout local; no presume despliegue ni cutover de destino
 
 ## 1. Propósito y límites
 
@@ -332,7 +332,7 @@ en Finance.
    P13; este registra estado observado y no afirma una plantilla previa.
 5. Eventos terminales anteriores al cutover no reciben cierre P13 retrospectivo.
 
-## 17. Criterios de aceptación de la futura implementación
+## 17. Criterios de aceptación de la implementación
 
 - Las siete baseline y la máquina 5.2 siguen superando sus pruebas sin cambio semántico.
 - Una obligación posterior no bloquea `ready` y cada fase bloquea únicamente su transición/cierre.
@@ -353,5 +353,5 @@ en Finance.
 No se autorizan tareas libres fuera de PreparationItem manual, dependencias entre tareas, Gantt,
 sprints, turnos, nómina, control horario, inventario o logística paralelos, agenda propia,
 almacenamiento de archivos, marketplace, contabilidad, rentabilidad duplicada, microservicios ni
-CRUD genérico. Endpoints, serializers, frontend y nombres físicos finales se definirán solo durante
-una implementación P13 posteriormente aprobada.
+CRUD genérico. La API, serializers y frontend implementados conservan comandos y consultas
+acotados; los nombres físicos respetan ADR 0022 y no alteran estas exclusiones.

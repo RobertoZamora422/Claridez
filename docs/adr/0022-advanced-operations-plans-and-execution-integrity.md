@@ -22,9 +22,10 @@ propiedad de Operations sea utilizada por Resources sin degradar la garantía Po
 hoy exige igualdad entre `resource_interval` y `Reservation.event_interval`.
 
 El propietario aprobó el plan P13 corregido y las decisiones finales sobre inmutabilidad del
-readiness derivado de plantilla y procedencia persistente de ventanas operacionales. Este ADR fija
-la arquitectura previa a implementación. No autoriza todavía modelos, migraciones, capabilities
-ejecutables, servicios, endpoints, frontend ni lógica funcional P13.
+readiness derivado de plantilla y procedencia persistente de ventanas operacionales. Este ADR fijó
+la arquitectura previa a implementación; una autorización posterior aprobó su implementación
+completa dentro de estas decisiones. P13 quedó implementada y validada localmente el 25 de agosto
+de 2026, sin presumir despliegue ni cutover sobre un entorno destino.
 
 ## Decisiones aceptadas
 
@@ -402,10 +403,11 @@ utilidad, caja ni rentabilidad P11.
 
 ## Aspectos provisionales
 
-1. Los nombres físicos `OperationalResourceWindow` y `ReadinessDeviation` pueden ajustarse durante
-   implementación sin cambiar identidad, procedencia, inmutabilidad ni guardianes aceptados.
-2. La representación exacta de anclas relativas y los nombres de índices/checks se cerrarán con la
-   migración, siempre dentro del contrato funcional aprobado.
+1. La implementación conserva los nombres físicos `OperationalResourceWindow` y
+   `ReadinessDeviation`; un cambio posterior no podrá alterar identidad, procedencia,
+   inmutabilidad ni guardianes aceptados.
+2. Las anclas relativas y los índices, checks y guardianes quedaron concretados en las migraciones
+   P13 sin ampliar el contrato funcional aprobado.
 
 ## Asuntos diferidos
 
@@ -414,21 +416,24 @@ utilidad, caja ni rentabilidad P11.
    colaborativos.
 3. Logística avanzada, rutas, transporte, telemetría, IoT y optimización automática de recursos.
 4. Nuevos proveedores externos, almacenamiento alternativo y una agenda paralela.
-5. La forma exacta de endpoints y frontend; requerirá aprobación de implementación y no será CRUD
-   genérico.
+5. La generación futura del cliente TypeScript; la API y el frontend P13 implementados usan
+   consultas y comandos acotados, no CRUD genérico.
 
-## Validación pendiente para la implementación
+## Validación de la implementación
 
-1. Migraciones PostgreSQL reales que prueben RLS/FORCE, privilegios, FKs tenant-aware, checks,
-   triggers inmediatos y guardianes diferidos con dos organizaciones y con SQL directo.
-2. Pruebas de estados 5.2, gates de fases, desviaciones, incidencias, cambios, cierre,
-   reprogramación, cancelación, idempotencia, revisiones y carreras concurrentes.
-3. Pruebas negativas que fabriquen o desalineen `ScheduleEvent.new_snapshot`, Reservation,
-   ScheduleAllocation, `source_event`/`source_revision`, ventana, Requirement, Assignment y
-   CapacityAllocation.
-4. Pruebas de puertos públicos y análisis AST que impidan importaciones privadas cruzadas.
-5. Cutover reproducible desde P12 final sin historia sintética y verificación del rol
-   `claridez_app` después de `migrate` y `db:prepare`.
+1. Las migraciones PostgreSQL implementan y prueban RLS `ENABLE` + `FORCE`, privilegios mínimos,
+   FKs tenant-aware, checks, triggers inmediatos y guardianes diferidos con dos organizaciones y
+   SQL directo.
+2. Las pruebas cubren regresión 5.2, gates de fases, hechos temporales y correcciones,
+   desviaciones, incidencias, cambios, cierre, reprogramación, cancelación, idempotencia y
+   revisiones.
+3. Las pruebas negativas rechazan `ScheduleEvent.new_snapshot` fabricado o incoherente,
+   Reservation/ScheduleAllocation divergentes, revisiones obsoletas, ventanas fuera de ocupación
+   e intervalos inconsistentes en Requirement, Assignment y CapacityAllocation.
+4. Los puertos públicos y pruebas AST impiden dependencias privadas cruzadas; la evidencia P13 se
+   materializa exclusivamente mediante Documents.
+5. El cutover reproducible P12-final -> P13 no inventa historia y la verificación efectiva posterior
+   a `migrate` y `db:prepare` confirma RLS y privilegios mínimos de `claridez_app`.
 
 ## Alternativas consideradas
 
@@ -468,8 +473,8 @@ Rechazada. Duplicaría autoridades ya cerradas y ampliaría P13 fuera del Bluepr
 
 ### Costes y restricciones
 
-- La implementación requerirá guardianes diferidos intermodulares, FKs compuestas y pruebas de
-  concurrencia exigentes.
+- La implementación usa guardianes diferidos intermodulares, FKs compuestas y pruebas de
+  concurrencia exigentes; su despliegue deberá respetar el orden de migración y cutover aprobado.
 - Las desviaciones y cambios no podrán resolverse mediante edición CRUD; requieren ledger,
   autorización e idempotencia.
 - Una necesidad fuera de la ocupación autorizada exige coordinar primero un cambio de Scheduling.

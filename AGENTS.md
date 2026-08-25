@@ -94,7 +94,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2 y P6–P12 están completadas. 4.1 incorpora el usuario
+5.2 y P6–P13 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -139,13 +139,19 @@ El cierre correctivo `resources.0002` separa el estado físico `available/custod
 ocupación temporal de activos serializados; pools, activos e indisponibilidades compiten solo cuando
 se solapan en el intervalo y ubicación aplicables. Comercial no recibe inventario global y solo
 consulta disponibilidad contextual vinculada a una solicitud/reserva y recurso pertinentes.
+P13 amplía `claridez.operations` con plantillas/versiones y snapshots operativos, readiness de
+plantilla sin alterar las siete baseline 5.2, verificaciones tipadas, hechos temporales observados
+de setup/teardown, responsabilidades, incidencias, cambios autorizados, ventanas de necesidad de
+recursos y cierre postevento append-only conforme a ADR 0022 y su contrato funcional. Conserva
+`EventPreparation` y `completed` con significado `execution_completed`; Scheduling mantiene agenda
+y ocupación, Resources capacidad/custodia/movimientos, y Documents toda evidencia privada.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P13 o etapas posteriores.
+- Módulos o pantallas de P14 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 
@@ -170,6 +176,11 @@ explícitos para unidades/conversiones, proveedores/contactos/términos/ofertas,
 compras/recepciones, movimientos, requerimientos/asignaciones, ejecución, mantenimiento e
 indisponibilidad y materialización financiera conjuntiva. No expone CRUD genérico, valoración de
 inventario, `DELETE` ni edición destructiva de hechos consumados.
+P13 aprueba consultas de capabilities, plantillas y operación avanzada, además de comandos
+explícitos para publicación/adopción, snapshots, readiness/desviaciones, verificaciones y hechos de
+fase, responsabilidades, incidencias, cambios autorizados, ventanas/recursos, evidencia y cierre
+postevento. No añade estados a `EventPreparation`, CRUD genérico, agenda, inventario, archivos,
+turnos, nómina ni rentabilidad paralelos.
 PostgreSQL local se publica solo sobre loopback. Django normal usa
 `claridez_app`; las
 migraciones usan `claridez_migrator`; las pruebas usan `claridez_test_runner`; y `postgres` queda

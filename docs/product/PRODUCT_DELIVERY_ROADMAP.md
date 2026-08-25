@@ -574,9 +574,8 @@ mezcla entre catálogo vendible y activo físico.
 
 **Identificador y nombre:** P13 — Preparación, ejecución y cierre ampliados.
 
-**Estado:** Arquitectura y contrato funcional formalizados el 25 de agosto de 2026 mediante ADR
-0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md`; implementación pendiente y no autorizada por ese
-cierre documental.
+**Estado:** Completada y validada localmente el 25 de agosto de 2026 bajo ADR 0022 y
+`P13_ADVANCED_OPERATIONS_SPECIFICATION.md`; sin despliegue ni cutover de destino.
 
 **Objetivo:** Extender 5.2 para coordinar distintos tipos de evento, recursos, incidencias y cierre
 sin convertir Claridez en gestor genérico de proyectos.
@@ -588,17 +587,27 @@ cierre postevento; archivos/evidencias; coordinación de reprogramación; métri
 **Exclusiones:** Proyectos libres, dependencias arbitrarias, turnos/nómina y automatización con IA.
 
 **Dependencias:** P12, P9, P8, ADR 0022 y el contrato funcional P13 aprobado. La máquina de estados,
-transiciones, revisiones y guardianes 5.2 se preservan sin añadir `closing`/`closed`; las nuevas
-fronteras exigen puertos públicos estrechos y guardianes intermodulares antes de implementar.
+transiciones, revisiones y guardianes 5.2 se preservan sin añadir `closing`/`closed`; Operations
+consume Commercial, Scheduling, Resources, Documents, Organizations y Catalog mediante puertos
+públicos estrechos y los guardianes intermodulares verifican sus autoridades persistidas.
 
 **Resultado visible:** Cada evento usa una preparación adecuada, recursos confirmados y cierre
 trazable incluso ante incidencias autorizadas.
 
-**Criterio verificable de finalización:** El cierre arquitectónico ya fija autoridad, snapshots,
-fases, ventanas, cierre, capabilities, cutover e invariantes. La etapa seguirá incompleta hasta que
-la futura implementación pruebe que las plantillas no alteran históricos, la coordinación es
-atómica, la edición/concurrencia es segura, los anexos son privados, el flujo de incidencia es
-explícito y la web es accesible.
+**Criterio verificable de finalización:** P13 implementa versiones publicadas y fallback
+`operations-p13-system-v1`, snapshots inmutables, readiness de plantilla protegido con desviaciones
+autorizadas, verificaciones de fases, cronología observada append-only de setup/teardown,
+responsabilidades, incidencias, cambios, ventanas operativas y cierre postevento separado. La rama
+legacy conserva igualdad con `Reservation.event_interval`; la rama P13 exige igualdad con
+`OperationalResourceWindow` y concordancia estructural con Reservation, ScheduleAllocation y
+ScheduleEvent dentro de `occupied_interval`. Resources conserva capacidad/custodia y Documents la
+evidencia privada. Las migraciones `operations.0005`–`0017` y `resources.0003`–`0006` incorporan
+RLS/FORCE, privilegios mínimos, FKs tenant-aware, locks, revisiones, idempotencia y guardianes ante
+bulk/SQL directo sin inventar historia al migrar desde P12. La puerta oficial aprobó 247 pruebas
+API no integración, 33 frontend, migraciones sin cambios, locks, formato, lint, mypy sobre 343
+archivos, TypeScript, system checks, OpenAPI y build Vite; la repetición PostgreSQL aprobó 104/104
+integraciones en 2536,14 s y las auditorías Python/npm no encontraron vulnerabilidades conocidas.
+La evidencia es local; no afirma CI remota, navegador manual, despliegue ni cutover.
 
 **Riesgos principales:** Romper el guardián 5.2, crear un sistema genérico de tareas o permitir
 correcciones sin auditoría.

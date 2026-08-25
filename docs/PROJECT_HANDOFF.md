@@ -1,9 +1,9 @@
 # Claridez — Handoff del proyecto
 
 - **Fecha de corte:** 25 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P12 está cerrada localmente bajo ADR 0021
-- **Siguiente etapa:** implementación de P13 — Operación avanzada; arquitectura y contrato
-  aprobados, implementación todavía pendiente de aprobación explícita
+- **Etapa funcional activa:** ninguna; P13 está cerrada localmente bajo ADR 0022
+- **Siguiente etapa:** plan e investigación de P14 — Formularios, comunicaciones y portal; su
+  implementación no está autorizada
 
 ## Qué es Claridez
 
@@ -53,8 +53,10 @@ duplica: registra cómo continuar desde el checkout real.
   `QuerySet`; vistas integrales, interacciones inmutables, correcciones enlazadas por conjunto
   canónico que conservan su oportunidad, tareas con historial, próxima acción determinista e
   indicadores.
-- `claridez.operations`: preparación uno-a-uno, checklist, responsables, ejecución, transiciones y
-  coordinación atómica con comercial.
+- `claridez.operations`: preparación uno-a-uno y máquina 5.2 preservadas; plantillas/versiones y
+  snapshots operativos P13, readiness protegido, verificaciones y cronología observada de fases,
+  responsabilidades, incidencias, cambios autorizados, ventanas de recursos y cierre postevento
+  append-only; coordinación intermodular mediante puertos públicos estrechos.
 - `claridez.documents`: plantillas/versiones; expediente por raíz; instrumentos y emisiones
   inmutables; snapshot contractual y artefacto PDF con hashes separados; aceptación propia;
   grants/challenges externos; archivos privados; retención/holds; integridad, malware y jobs
@@ -82,17 +84,17 @@ duplica: registra cómo continuar desde el checkout real.
   baseline, variación, gastos, caja, presupuesto, margen, rentabilidad, cierres y exportación;
   proveedores, recursos, existencias/ubicaciones, movimientos, compras/recepciones,
   asignación/disponibilidad por evento y mantenimiento/indisponibilidad, con faltantes y conflictos
-  explícitos.
+  explícitos; dentro de Operación, administración de plantillas y superficie avanzada responsive
+  para fases, incidencias, cambios, ventanas, evidencia y cierre postevento.
 
-No existe aún implementación funcional de P13 en adelante. No hay contabilidad formal ni portal
+No existe aún implementación funcional de P14 en adelante. No hay contabilidad formal ni portal
 completo, ni proveedores productivos de almacenamiento/correo/identidad, staging o producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P12: completadas y validadas localmente.
-- ADR 0021 gobierna la implementación P12 cerrada localmente. ADR 0022 y
-  `P13_ADVANCED_OPERATIONS_SPECIFICATION.md` formalizan la arquitectura y el contrato P13; P13
-  continúa sin modelos, migraciones, capabilities ejecutables, servicios, endpoints ni frontend.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P13: completadas y validadas localmente.
+- ADR 0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md` gobiernan la implementación P13 cerrada
+  localmente; no se presume despliegue ni cutover sobre un entorno destino.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -305,6 +307,24 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
   102/102 sin cambios P8. La auditoría del cierre inicial permaneció sin vulnerabilidades conocidas.
   La evidencia es local; no incluye navegador manual, CI remota, commit, push, despliegue ni
   cutover.
+- P13 conserva `EventPreparation`, sus siete baseline, estados e historia; `completed` sigue siendo
+  únicamente `execution_completed`. Separa PreparationItem de readiness y verificaciones tipadas,
+  registra setup/teardown con hechos temporales append-only y mantiene execution exclusivamente en
+  las marcas 5.2. Plantillas publicadas y el fallback `operations-p13-system-v1` producen snapshots
+  inmutables; una desviación de readiness exige decisión autorizada y ledger sin reescritura.
+- Operations incorpora responsabilidades sin turnos/nómina, incidencias e historia, propuestas y
+  decisiones de cambio, ventanas de necesidad de recursos, evidencia privada mediante Documents,
+  métricas operativas y cierre postevento separado. Scheduling conserva toda agenda/ocupación y
+  Resources capacidad, asignación, custodia, movimientos y disponibilidad; los guardianes validan
+  ambas procedencias temporales y toda la cadena Reservation–ScheduleAllocation–ScheduleEvent–
+  OperationalResourceWindow–Requirement–Assignment–CapacityAllocation.
+- Las migraciones `operations.0005`–`0017` y `resources.0003`–`0006` clasifican historia P12 sin
+  inventarla, instalan FKs tenant-aware, RLS `ENABLE` + `FORCE`, privilegios mínimos, checks y
+  guardianes diferidos. La puerta oficial aprobó 247 pruebas API no integración, 33 frontend,
+  locks, migraciones sin cambios, formato, lint, tipos, system checks, OpenAPI y build; la repetición
+  completa PostgreSQL aprobó 104/104 en 2536,14 s y las auditorías Python/npm no encontraron
+  vulnerabilidades conocidas. No hubo validación manual en navegador, CI remota, despliegue ni
+  cutover de destino.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
@@ -336,11 +356,10 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
 - Autoridad de `claridez.resources`, unidades, recepción/inventario, capacidad concurrente,
   consecuencias de scheduling y procedencia financiera P12: ADR 0021; implementado localmente.
 - Autoridad de operación avanzada, planes/snapshots, fases, incidencias, cambios, ventanas de
-  recursos, cierre postevento y su integridad con 5.2/Scheduling/Resources: ADR 0022; arquitectura
-  aceptada, aún no implementada.
-- Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contrato funcional P11. El
-  contrato funcional P13 está aprobado como fuente previa a implementación; P9 se rige por ADR
-  0017–0018, Roadmap y el plan consolidado aprobado.
+  recursos, cierre postevento y su integridad con 5.2/Scheduling/Resources: ADR 0022; implementado y
+  validado localmente.
+- Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contratos funcionales P11 y
+  P13. P9 se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
 
 ## Decisiones diferidas
@@ -445,10 +464,10 @@ falta.
 
 ## Próximo trabajo
 
-P12 — Proveedores, recursos e inventario está cerrada localmente bajo ADR 0021. ADR 0022 y el
-contrato funcional breve ya formalizan P13 sin implementarla. El siguiente paso exacto es recibir
-aprobación explícita para la **implementación de P13 — Operación avanzada** antes de crear modelos,
-migraciones, capabilities ejecutables, servicios, endpoints o frontend P13.
+P13 — Operación avanzada está cerrada y validada localmente bajo ADR 0022 y su contrato funcional.
+El siguiente paso exacto es investigar las decisiones bloqueantes y preparar únicamente el plan
+breve de **P14 — Formularios, comunicaciones y portal**. P14 todavía no tiene autorización de
+implementación.
 
 ## Riesgos actuales
 
@@ -473,6 +492,11 @@ migraciones, capabilities ejecutables, servicios, endpoints o frontend P13.
   periodos, cutoffs de receivables, raíces/sedes históricas y ausencia de cierres productivos
   incompatibles; se requiere respaldo y ensayo de migración P10-final. La validación local no prueba
   datos ni operación de un entorno destino.
+- Antes de desplegar P13 se debe ensayar el cutover desde P12 final con los datos reales del destino,
+  verificar clasificaciones baseline/manual, autoridad Scheduling consistente y recursos legacy,
+  ejecutar `migrate -> db:prepare` y auditar RLS/privilegios efectivos. Las preparaciones activas se
+  incorporan solo por adopción explícita; no se fabrican snapshots, ventanas, incidencias, fases ni
+  cierres históricos.
 - El run remoto 22 falló históricamente sobre `36e41ef`; CI #23, run `31757547140`, fue observado
   verde sobre `dab6b7ea367ce3d80dd375f1c41f048d5a9d9906`. No existe evidencia de staging,
   producción, despliegue ni cutover.
