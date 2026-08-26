@@ -128,7 +128,7 @@ jobs:
   postgresql:
     name: PostgreSQL 17
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394

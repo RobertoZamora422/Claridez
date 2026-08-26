@@ -45,7 +45,7 @@
     "typecheck:web": "npm run typecheck --workspace @claridez/web",
     "test": "npm run test:api && npm run test:web",
     "test:api": "uv --directory apps/api run pytest",
-    "test:integration": "uv --directory apps/api run pytest -m integration",
+    "test:integration": "uv --directory apps/api run pytest -m integration --durations=20",
     "test:web": "npm run test --workspace @claridez/web",
     "build": "npm run build:api && npm run build:web",
     "build:api": "uv --directory apps/api run python manage.py check --settings=claridez.settings.test && uv --directory apps/api run python -m compileall -q manage.py src tests && uv --directory apps/api run python manage.py spectacular --settings=claridez.settings.test --file openapi-schema.yaml --validate --fail-on-warn",
