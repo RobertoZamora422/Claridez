@@ -574,8 +574,9 @@ mezcla entre catálogo vendible y activo físico.
 
 **Identificador y nombre:** P13 — Preparación, ejecución y cierre ampliados.
 
-**Estado:** Completada y validada localmente el 25 de agosto de 2026 bajo ADR 0022 y
-`P13_ADVANCED_OPERATIONS_SPECIFICATION.md`; sin despliegue ni cutover de destino.
+**Estado:** Completada y validada localmente; cierre correctivo focalizado de incidencias del 27 de
+agosto de 2026 bajo ADR 0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md`; sin despliegue ni cutover
+de destino.
 
 **Objetivo:** Extender 5.2 para coordinar distintos tipos de evento, recursos, incidencias y cierre
 sin convertir Claridez en gestor genérico de proyectos.
@@ -601,16 +602,26 @@ responsabilidades, incidencias, cambios, ventanas operativas y cierre postevento
 legacy conserva igualdad con `Reservation.event_interval`; la rama P13 exige igualdad con
 `OperationalResourceWindow` y concordancia estructural con Reservation, ScheduleAllocation y
 ScheduleEvent dentro de `occupied_interval`. Resources conserva capacidad/custodia y Documents la
-evidencia privada. Las migraciones `operations.0005`–`0017` y `resources.0003`–`0006` incorporan
+evidencia privada. Las migraciones `operations.0005`–`0018` y `resources.0003`–`0006` incorporan
 RLS/FORCE, privilegios mínimos, FKs tenant-aware, locks, revisiones, idempotencia y guardianes ante
-bulk/SQL directo sin inventar historia al migrar desde P12. La puerta oficial aprobó 247 pruebas
-API no integración, 33 frontend, migraciones sin cambios, locks, formato, lint, mypy sobre 343
-archivos, TypeScript, system checks, OpenAPI y build Vite; la repetición PostgreSQL aprobó 104/104
-integraciones en 2536,14 s y las auditorías Python/npm no encontraron vulnerabilidades conocidas.
-La evidencia es local; no afirma CI remota, navegador manual, despliegue ni cutover.
+bulk/SQL directo sin inventar historia al migrar desde P12. La puerta correctiva oficial aprobó 254
+pruebas API no integración, 34 frontend, migraciones sin cambios, locks, formato, lint, mypy sobre
+344 archivos, TypeScript, system checks, OpenAPI y build Vite; la repetición PostgreSQL aprobó
+104/104 integraciones en 2615,12 s y las auditorías Python/npm no encontraron vulnerabilidades
+conocidas.
+El cierre correctivo añade seguimiento explícito al ledger de incidencias y exige para toda
+`contained low/medium` responsable, impacto y seguimiento efectivos antes del cierre; las
+incidencias `open` y `contained high/critical` siguen bloqueando y `resolved` no hereda ese gate.
+GitHub Actions #37, run `32946154121`, terminó verde sobre
+`609eda2064c3a81b43e176fc0df93ea9fbb9a43b`, incluida la batería PostgreSQL con 104 aprobadas y
+247 deseleccionadas. Esa ejecución remota precede al cierre correctivo; no existe evidencia de
+navegador manual P13, despliegue ni cutover.
 
 **Riesgos principales:** Romper el guardián 5.2, crear un sistema genérico de tareas o permitir
-correcciones sin auditoría.
+correcciones sin auditoría. Antes de aplicar `operations.0018` en un destino se deben auditar
+impactos vacíos/no normalizados y comprobar que no exista un cierre P13 previo con una incidencia
+todavía `contained low/medium`: la migración falla cerradamente en esos casos porque no puede
+inventar ni normalizar historia.
 
 **Siguiente etapa:** P14 — Formularios, comunicaciones y portal.
 

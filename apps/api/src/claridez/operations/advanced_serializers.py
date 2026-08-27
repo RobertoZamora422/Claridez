@@ -83,6 +83,7 @@ class IncidentTransitionSerializer(IdempotentSerializer):
     revision = serializers.IntegerField(min_value=1)
     status = serializers.ChoiceField(choices=INCIDENT_TRANSITION_STATUS_CHOICES)
     detail = serializers.CharField(max_length=1000)
+    follow_up = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")
 
 
 class IncidentAmendSerializer(IdempotentSerializer):
@@ -91,9 +92,11 @@ class IncidentAmendSerializer(IdempotentSerializer):
         choices=[
             "reassigned",
             "impact_updated",
+            "follow_up_updated",
         ]
     )
     impact = serializers.CharField(max_length=1000)
+    follow_up = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")
     responsible_membership_id = serializers.UUIDField(required=False, allow_null=True)
     detail = serializers.CharField(max_length=1000)
 
@@ -102,6 +105,7 @@ class IncidentCorrectionSerializer(IdempotentSerializer):
     revision = serializers.IntegerField(min_value=1)
     severity = serializers.ChoiceField(choices=OperationalIncident.Severity.choices)
     impact = serializers.CharField(max_length=1000)
+    follow_up = serializers.CharField(max_length=1000, allow_blank=True)
     responsible_membership_id = serializers.UUIDField(required=False, allow_null=True)
     detail = serializers.CharField(max_length=1000)
 
@@ -220,6 +224,7 @@ class IncidentResponseSerializer(serializers.Serializer[dict[str, object]]):
     status = serializers.CharField()
     description = serializers.CharField()
     impact = serializers.CharField()
+    follow_up = serializers.CharField(allow_blank=True)
     responsible_membership_id = serializers.UUIDField(allow_null=True)
     reported_by_membership_id = serializers.UUIDField()
     reported_at = serializers.DateTimeField()

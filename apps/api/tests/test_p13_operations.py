@@ -21,8 +21,10 @@ from claridez.documents.domain_assets import PrivateFileProjection
 from claridez.documents.models import PrivateDomainFile
 from claridez.operations.advanced import (
     advanced_event_detail,
+    amend_incident,
     attach_operational_evidence,
     close_post_event,
+    correct_incident_event,
     correct_phase_fact,
     create_template_version,
     decide_change,
@@ -38,10 +40,12 @@ from claridez.operations.advanced_models import (
     OperationalChangeProposal,
     OperationalEvidence,
     OperationalIncident,
+    OperationalIncidentEvent,
     OperationalPhaseFact,
     OperationalPlanSnapshot,
     OperationalResourceWindow,
     OperationalVerification,
+    PostEventClose,
     ReadinessDeviation,
 )
 from claridez.operations.errors import OperationsError
@@ -268,6 +272,52 @@ def _assign_and_resolve_readiness(owner: Any, creation: Any, reservation_id: UUI
         )
         revision = int(changed["preparation_revision"])
     return revision
+
+
+def _completed_fallback_event(owner: Any, creation: Any, *, phone: str) -> tuple[UUID, int]:
+    reservation = _confirmed(owner, creation.organization.pk, phone=phone)
+    reservation_id = UUID(str(reservation["id"]))
+    revision = _assign_and_resolve_readiness(owner, creation, reservation_id)
+    ready = mark_ready(
+        owner, creation.organization.pk, reservation_id=reservation_id, revision=revision
+    )
+    running = start_event(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        revision=ready["preparation"]["revision"],
+    )
+    completed = complete_event(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        revision=running["preparation"]["revision"],
+    )
+    return reservation_id, int(completed["preparation"]["revision"])
+
+
+def _open_incident_for_close(
+    owner: Any,
+    creation: Any,
+    reservation_id: UUID,
+    *,
+    severity: str = OperationalIncident.Severity.MEDIUM,
+    responsible_membership_id: UUID | None,
+) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        open_incident(
+            owner,
+            creation.organization.pk,
+            reservation_id=reservation_id,
+            incident_type=OperationalIncident.Type.SERVICE_QUALITY,
+            severity=severity,
+            description="Incidencia de cierre",
+            impact="Impacto operacional documentado",
+            responsible_membership_id=responsible_membership_id,
+            idempotency_key=uuid4(),
+        ),
+    )
 
 
 def _verification(detail: Any, phase: str) -> dict[str, Any]:
@@ -689,6 +739,304 @@ def test_incident_projection_and_authorized_verification_change_are_ledger_guard
     assert changed.title == "Montaje validado por supervisor"
 
 
+@pytest.mark.django_db
+def test_contained_low_medium_without_responsible_blocks_post_event_close() -> None:
+    owner, creation = _organization("P13 close owner", "p13-close-owner@example.com")
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234580")
+    incident = _open_incident_for_close(
+        owner, creation, reservation_id, responsible_membership_id=None
+    )
+    transition_incident(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        incident_id=UUID(str(incident["id"])),
+        revision=int(incident["revision"]),
+        status=OperationalIncident.Status.CONTAINED,
+        detail="Riesgo contenido",
+        follow_up="Verificar la solución al día siguiente",
+        idempotency_key=uuid4(),
+    )
+
+    with pytest.raises(OperationsError) as blocked:
+        close_post_event(
+            owner,
+            creation.organization.pk,
+            reservation_id=reservation_id,
+            revision=revision,
+            idempotency_key=uuid4(),
+        )
+    assert blocked.value.code == "incident_blocks_close"
+
+
+@pytest.mark.django_db
+def test_contained_low_medium_without_explicit_follow_up_blocks_post_event_close() -> None:
+    owner, creation = _organization("P13 close follow-up", "p13-close-follow@example.com")
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234581")
+    incident = _open_incident_for_close(
+        owner,
+        creation,
+        reservation_id,
+        responsible_membership_id=creation.owner_membership.pk,
+    )
+    transition_incident(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        incident_id=UUID(str(incident["id"])),
+        revision=int(incident["revision"]),
+        status=OperationalIncident.Status.CONTAINED,
+        detail="Riesgo contenido sin seguimiento definido",
+        follow_up="",
+        idempotency_key=uuid4(),
+    )
+
+    with pytest.raises(OperationsError) as blocked:
+        close_post_event(
+            owner,
+            creation.organization.pk,
+            reservation_id=reservation_id,
+            revision=revision,
+            idempotency_key=uuid4(),
+        )
+    assert blocked.value.code == "incident_blocks_close"
+
+
+@pytest.mark.django_db
+def test_contained_low_medium_with_owner_impact_and_follow_up_allows_close() -> None:
+    owner, creation = _organization("P13 close valid", "p13-close-valid@example.com")
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234582")
+    incident = _open_incident_for_close(
+        owner,
+        creation,
+        reservation_id,
+        responsible_membership_id=creation.owner_membership.pk,
+    )
+    contained = transition_incident(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        incident_id=UUID(str(incident["id"])),
+        revision=int(incident["revision"]),
+        status=OperationalIncident.Status.CONTAINED,
+        detail="Riesgo contenido",
+        follow_up="Confirmar estabilidad con el responsable mañana",
+        idempotency_key=uuid4(),
+    )
+
+    closed = close_post_event(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        revision=revision,
+        idempotency_key=uuid4(),
+    )
+    assert contained["follow_up"] == "Confirmar estabilidad con el responsable mañana"
+    assert closed["id"]
+
+
+@pytest.mark.parametrize(
+    "severity", [OperationalIncident.Severity.HIGH, OperationalIncident.Severity.CRITICAL]
+)
+@pytest.mark.django_db
+def test_contained_high_critical_always_blocks_post_event_close(severity: str) -> None:
+    owner, creation = _organization(f"P13 close {severity}", f"p13-close-{severity}@example.com")
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234583")
+    incident = _open_incident_for_close(
+        owner,
+        creation,
+        reservation_id,
+        severity=severity,
+        responsible_membership_id=creation.owner_membership.pk,
+    )
+    transition_incident(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        incident_id=UUID(str(incident["id"])),
+        revision=int(incident["revision"]),
+        status=OperationalIncident.Status.CONTAINED,
+        detail="Contención provisional",
+        follow_up="Escalamiento activo con responsable asignado",
+        idempotency_key=uuid4(),
+    )
+
+    with pytest.raises(OperationsError) as blocked:
+        close_post_event(
+            owner,
+            creation.organization.pk,
+            reservation_id=reservation_id,
+            revision=revision,
+            idempotency_key=uuid4(),
+        )
+    assert blocked.value.code == "incident_blocks_close"
+
+
+@pytest.mark.django_db
+def test_resolved_incident_is_not_subject_to_contained_close_gate() -> None:
+    owner, creation = _organization("P13 close resolved", "p13-close-resolved@example.com")
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234584")
+    incident = _open_incident_for_close(
+        owner, creation, reservation_id, responsible_membership_id=None
+    )
+    resolved = transition_incident(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        incident_id=UUID(str(incident["id"])),
+        revision=int(incident["revision"]),
+        status=OperationalIncident.Status.RESOLVED,
+        detail="Causa corregida definitivamente",
+        idempotency_key=uuid4(),
+    )
+
+    closed = close_post_event(
+        owner,
+        creation.organization.pk,
+        reservation_id=reservation_id,
+        revision=revision,
+        idempotency_key=uuid4(),
+    )
+    assert resolved["status"] == OperationalIncident.Status.RESOLVED
+    assert closed["id"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_incident_corrections_bulk_and_sql_cannot_falsify_effective_close_condition() -> None:
+    owner, creation = _organization("P13 close integrity", "p13-close-integrity@example.com")
+    organization_id = creation.organization.pk
+    reservation_id, revision = _completed_fallback_event(owner, creation, phone="0991234585")
+    incident = _open_incident_for_close(
+        owner,
+        creation,
+        reservation_id,
+        responsible_membership_id=creation.owner_membership.pk,
+    )
+    contained = cast(
+        dict[str, Any],
+        transition_incident(
+            owner,
+            organization_id,
+            reservation_id=reservation_id,
+            incident_id=UUID(str(incident["id"])),
+            revision=int(incident["revision"]),
+            status=OperationalIncident.Status.CONTAINED,
+            detail="Contención inicial",
+            follow_up="Seguimiento inicial documentado",
+            idempotency_key=uuid4(),
+        ),
+    )
+    incident_id = UUID(str(incident["id"]))
+    with authorized_tenant_scope(owner, organization_id, Capability.OPERATION_READ):
+        contained_event = OperationalIncidentEvent.objects.get(
+            incident_id=incident_id, kind=OperationalIncidentEvent.Kind.CONTAINED
+        )
+        opened_event = OperationalIncidentEvent.objects.get(
+            incident_id=incident_id, kind=OperationalIncidentEvent.Kind.OPENED
+        )
+        with pytest.raises((DatabaseError, IntegrityError)), transaction.atomic():
+            OperationalIncident.objects.filter(pk=incident_id).update(follow_up="Fabricado")
+            connection.cursor().execute("SET CONSTRAINTS ALL IMMEDIATE")
+        with pytest.raises((DatabaseError, IntegrityError)), transaction.atomic():
+            connection.cursor().execute(
+                "UPDATE operations_operationalincident SET impact = '' WHERE id = %s",
+                [incident_id],
+            )
+
+    corrected = correct_incident_event(
+        owner,
+        organization_id,
+        reservation_id=reservation_id,
+        incident_id=incident_id,
+        event_id=contained_event.pk,
+        revision=int(contained["revision"]),
+        severity=OperationalIncident.Severity.MEDIUM,
+        impact="Impacto operacional documentado",
+        follow_up="",
+        responsible_membership_id=None,
+        detail="La contención no dejó seguimiento verificable",
+        idempotency_key=uuid4(),
+    )
+    assert corrected["follow_up"] == ""
+    with pytest.raises(OperationsError) as blocked:
+        close_post_event(
+            owner,
+            organization_id,
+            reservation_id=reservation_id,
+            revision=revision,
+            idempotency_key=uuid4(),
+        )
+    assert blocked.value.code == "incident_blocks_close"
+
+    with (
+        authorized_tenant_scope(owner, organization_id, Capability.OPERATION_CLOSE),
+        pytest.raises((DatabaseError, IntegrityError)),
+        transaction.atomic(),
+    ):
+        preparation = EventPreparation.objects.get(pk=reservation_id)
+        PostEventClose.objects.create(
+            organization_id=organization_id,
+            preparation=preparation,
+            closed_by_membership_id=creation.owner_membership.pk,
+            closed_at=timezone.now(),
+            preparation_revision=revision,
+            source_snapshot={},
+            source_sha256="a" * 64,
+            idempotency_key=uuid4(),
+        )
+
+    reassigned = amend_incident(
+        owner,
+        organization_id,
+        reservation_id=reservation_id,
+        incident_id=incident_id,
+        revision=cast(int, corrected["revision"]),
+        kind=OperationalIncidentEvent.Kind.REASSIGNED,
+        impact="Impacto operacional documentado",
+        follow_up="",
+        responsible_membership_id=creation.owner_membership.pk,
+        detail="Responsable restituido",
+        idempotency_key=uuid4(),
+    )
+    followed = amend_incident(
+        owner,
+        organization_id,
+        reservation_id=reservation_id,
+        incident_id=incident_id,
+        revision=cast(int, reassigned["revision"]),
+        kind=OperationalIncidentEvent.Kind.FOLLOW_UP_UPDATED,
+        impact="Impacto operacional documentado",
+        follow_up="Confirmar la medida correctiva en la revisión semanal",
+        responsible_membership_id=creation.owner_membership.pk,
+        detail="Seguimiento explícito restituido",
+        idempotency_key=uuid4(),
+    )
+    close_post_event(
+        owner,
+        organization_id,
+        reservation_id=reservation_id,
+        revision=revision,
+        idempotency_key=uuid4(),
+    )
+
+    with pytest.raises(OperationsError) as inconsistent_correction:
+        correct_incident_event(
+            owner,
+            organization_id,
+            reservation_id=reservation_id,
+            incident_id=incident_id,
+            event_id=opened_event.pk,
+            revision=cast(int, followed["revision"]),
+            severity=OperationalIncident.Severity.MEDIUM,
+            impact="Impacto operacional documentado",
+            follow_up="",
+            responsible_membership_id=None,
+            detail="Intento de degradar el cierre",
+            idempotency_key=uuid4(),
+        )
+    assert inconsistent_correction.value.code == "incident_blocks_close"
+
+
 @pytest.mark.django_db(transaction=True)
 def test_resources_preserve_both_temporal_sources_and_full_scheduling_concordance() -> None:
     owner, creation = _organization("P13 resources", "p13-resources@example.com")
@@ -956,6 +1304,7 @@ def test_historical_shortage_requires_clean_documents_evidence_but_not_false_sat
         revision=int(incident["revision"]),
         status=OperationalIncident.Status.CONTAINED,
         detail="Consecuencia contenida",
+        follow_up="Revisar el abastecimiento antes del próximo evento",
         idempotency_key=uuid4(),
     )
     with pytest.raises(OperationsError) as missing_evidence:

@@ -1,6 +1,6 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 25 de agosto de 2026
+- **Fecha de corte:** 27 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P13 está cerrada localmente bajo ADR 0022
 - **Siguiente etapa:** plan e investigación de P14 — Formularios, comunicaciones y portal; su
   implementación no está autorizada
@@ -318,13 +318,22 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
   Resources capacidad, asignación, custodia, movimientos y disponibilidad; los guardianes validan
   ambas procedencias temporales y toda la cadena Reservation–ScheduleAllocation–ScheduleEvent–
   OperationalResourceWindow–Requirement–Assignment–CapacityAllocation.
-- Las migraciones `operations.0005`–`0017` y `resources.0003`–`0006` clasifican historia P12 sin
+- Las migraciones `operations.0005`–`0018` y `resources.0003`–`0006` clasifican historia P12 sin
   inventarla, instalan FKs tenant-aware, RLS `ENABLE` + `FORCE`, privilegios mínimos, checks y
-  guardianes diferidos. La puerta oficial aprobó 247 pruebas API no integración, 33 frontend,
-  locks, migraciones sin cambios, formato, lint, tipos, system checks, OpenAPI y build; la repetición
-  completa PostgreSQL aprobó 104/104 en 2536,14 s y las auditorías Python/npm no encontraron
-  vulnerabilidades conocidas. No hubo validación manual en navegador, CI remota, despliegue ni
-  cutover de destino.
+  guardianes diferidos. La puerta correctiva oficial aprobó 254 pruebas API no integración, 34
+  frontend, locks, migraciones sin cambios, formato, lint, mypy sobre 344 archivos, TypeScript,
+  system checks, OpenAPI y build; la repetición completa PostgreSQL aprobó 104/104 en 2615,12 s y
+  las auditorías Python/npm no encontraron vulnerabilidades conocidas.
+- El cierre correctivo focalizado P13 persiste `follow_up` como dato explícito en la proyección y el
+  ledger de incidencias. Una `contained low/medium` solo atraviesa el cierre con responsable,
+  impacto y seguimiento efectivos; `open` y `contained high/critical` continúan bloqueando,
+  `resolved` no hereda ese gate y guardianes diferidos impiden divergencia por bulk/SQL directo o
+  correcciones degradantes después del cierre.
+- GitHub Actions #37, run `32946154121`, fue observado verde sobre
+  `609eda2064c3a81b43e176fc0df93ea9fbb9a43b`: Calidad, PostgreSQL 17 y Auditoría finalizaron
+  correctamente, incluida la batería PostgreSQL con `104 passed, 247 deselected`. Esa evidencia
+  remota corresponde a la línea base P13 anterior a este cierre correctivo. No existe evidencia de
+  navegador manual P13, despliegue ni cutover de destino.
 - Los verificadores locales de cutover 5.2 y P8 devolvieron `status=ok`; el de scheduling observó
   cuatro organizaciones y tres reservas sintéticas/locales. No se ejecutó cutover sobre un entorno
   destino. El navegador real validó 1440×900 y 390×844: día, semana, mes, filtros, creación y
@@ -496,7 +505,10 @@ implementación.
   verificar clasificaciones baseline/manual, autoridad Scheduling consistente y recursos legacy,
   ejecutar `migrate -> db:prepare` y auditar RLS/privilegios efectivos. Las preparaciones activas se
   incorporan solo por adopción explícita; no se fabrican snapshots, ventanas, incidencias, fases ni
-  cierres históricos.
+  cierres históricos. El preflight de `operations.0018` debe auditar impactos vacíos/no
+  normalizados y confirmar que no existe un cierre P13 previo con una incidencia todavía
+  `contained low/medium`; la migración falla cerradamente en esos casos porque no puede inventar ni
+  normalizar historia.
 - El run remoto 22 falló históricamente sobre `36e41ef`; CI #23, run `31757547140`, fue observado
   verde sobre `dab6b7ea367ce3d80dd375f1c41f048d5a9d9906`. No existe evidencia de staging,
   producción, despliegue ni cutover.

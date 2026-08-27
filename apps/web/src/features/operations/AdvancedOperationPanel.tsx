@@ -6,6 +6,7 @@ import {
   type AdvancedOperation,
   type OperationAssignee,
   type OperationEvent,
+  type OperationalIncident,
 } from "../../api";
 import { Loading, Notice, StatusBadge } from "../../shared/components";
 import { useInitialLoad } from "../../shared/useInitialLoad";
@@ -67,6 +68,9 @@ export function AdvancedOperationPanel({
   const [incidentImpact, setIncidentImpact] = useState("");
   const [incidentType, setIncidentType] = useState("other_operational");
   const [incidentSeverity, setIncidentSeverity] = useState("medium");
+  const [incidentResponsible, setIncidentResponsible] = useState("");
+  const [incidentFollowUps, setIncidentFollowUps] = useState<Record<string, string>>({});
+  const [incidentResponsibles, setIncidentResponsibles] = useState<Record<string, string>>({});
   const [changeScope, setChangeScope] = useState("verification");
   const [changeTarget, setChangeTarget] = useState("");
   const [changePayload, setChangePayload] = useState("{}");
@@ -94,6 +98,42 @@ export function AdvancedOperationPanel({
   }, [base]);
 
   useInitialLoad(load);
+
+  const persistIncidentCloseData = async (incident: OperationalIncident) => {
+    let current = incident;
+    const responsibleId =
+      incidentResponsibles[incident.id] ?? incident.responsible_membership_id ?? "";
+    const followUp = incidentFollowUps[incident.id] ?? incident.follow_up;
+    if (responsibleId !== (current.responsible_membership_id ?? "")) {
+      current = await api<OperationalIncident>(`${base}/incidents/${incident.id}/amend/`, {
+        method: "POST",
+        body: JSON.stringify({
+          revision: current.revision,
+          kind: "reassigned",
+          impact: current.impact,
+          follow_up: current.follow_up,
+          responsible_membership_id: responsibleId || null,
+          detail: "Responsable de seguimiento actualizado",
+          idempotency_key: key(),
+        }),
+      });
+    }
+    if (followUp.trim() !== current.follow_up) {
+      current = await api<OperationalIncident>(`${base}/incidents/${incident.id}/amend/`, {
+        method: "POST",
+        body: JSON.stringify({
+          revision: current.revision,
+          kind: "follow_up_updated",
+          impact: current.impact,
+          follow_up: followUp,
+          responsible_membership_id: current.responsible_membership_id,
+          detail: "Seguimiento explícito actualizado",
+          idempotency_key: key(),
+        }),
+      });
+    }
+    return current;
+  };
 
   const run = useCallback(
     async (action: () => Promise<unknown>, success: string) => {
@@ -351,60 +391,119 @@ export function AdvancedOperationPanel({
       <section className="operation-panel" aria-labelledby="incidents-title">
         <h3 id="incidents-title">Incidencias</h3>
         <ul className="operation-compact-list">
-          {advanced.incidents.map((incident) => (
-            <li key={incident.id}>
-              <span>
-                <strong>{incident.description}</strong> · {incident.severity} · {incident.impact}
-              </span>
-              <StatusBadge value={incident.status} />
-              {canManageIncidents && incident.status !== "resolved" ? (
-                <span className="operation-inline-actions">
-                  {incident.status === "open" ? (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(
-                          () =>
-                            api(`${base}/incidents/${incident.id}/transition/`, {
-                              method: "POST",
-                              body: JSON.stringify({
-                                revision: incident.revision,
-                                status: "contained",
-                                detail: "Contención registrada",
-                                idempotency_key: key(),
-                              }),
-                            }),
-                          "Incidencia contenida.",
-                        )
-                      }
-                    >
-                      Contener
-                    </button>
-                  ) : null}
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        () =>
-                          api(`${base}/incidents/${incident.id}/transition/`, {
-                            method: "POST",
-                            body: JSON.stringify({
-                              revision: incident.revision,
-                              status: "resolved",
-                              detail: "Corrección aplicada",
-                              idempotency_key: key(),
-                            }),
-                          }),
-                        "Incidencia resuelta.",
-                      )
-                    }
-                  >
-                    Resolver
-                  </button>
+          {advanced.incidents.map((incident) => {
+            const responsibleId =
+              incidentResponsibles[incident.id] ?? incident.responsible_membership_id ?? "";
+            const followUp = incidentFollowUps[incident.id] ?? incident.follow_up;
+            return (
+              <li key={incident.id}>
+                <span>
+                  <strong>{incident.description}</strong> · {incident.severity} · {incident.impact}
                 </span>
-              ) : null}
-            </li>
-          ))}
+                <span>
+                  Seguimiento: {incident.follow_up || "pendiente"} · Responsable:{" "}
+                  {assignees.find(
+                    (assignee) => assignee.membership_id === incident.responsible_membership_id,
+                  )?.display_name ?? "sin asignar"}
+                </span>
+                <StatusBadge value={incident.status} />
+                {canManageIncidents && incident.status !== "resolved" ? (
+                  <div className="operation-grid-form">
+                    <label>
+                      Seguimiento explícito
+                      <input
+                        aria-label={`Seguimiento para ${incident.description}`}
+                        value={followUp}
+                        onChange={(event) => {
+                          setIncidentFollowUps((current) => ({
+                            ...current,
+                            [incident.id]: event.target.value,
+                          }));
+                        }}
+                      />
+                    </label>
+                    <label>
+                      Responsable del seguimiento
+                      <select
+                        aria-label={`Responsable para ${incident.description}`}
+                        value={responsibleId}
+                        onChange={(event) => {
+                          setIncidentResponsibles((current) => ({
+                            ...current,
+                            [incident.id]: event.target.value,
+                          }));
+                        }}
+                      >
+                        <option value="">Sin asignar</option>
+                        {assignees.map((assignee) => (
+                          <option key={assignee.membership_id} value={assignee.membership_id}>
+                            {assignee.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <span className="operation-inline-actions">
+                      {incident.status === "open" ? (
+                        <button
+                          disabled={busy || !responsibleId || !followUp.trim()}
+                          onClick={() =>
+                            void run(async () => {
+                              const current = await persistIncidentCloseData(incident);
+                              return api(`${base}/incidents/${incident.id}/transition/`, {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  revision: current.revision,
+                                  status: "contained",
+                                  detail: "Contención registrada",
+                                  follow_up: followUp,
+                                  idempotency_key: key(),
+                                }),
+                              });
+                            }, "Incidencia contenida.")
+                          }
+                        >
+                          Contener
+                        </button>
+                      ) : (
+                        <button
+                          disabled={busy || !responsibleId || !followUp.trim()}
+                          onClick={() =>
+                            void run(
+                              () => persistIncidentCloseData(incident),
+                              "Seguimiento de incidencia actualizado.",
+                            )
+                          }
+                        >
+                          Guardar seguimiento
+                        </button>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void run(
+                            () =>
+                              api(`${base}/incidents/${incident.id}/transition/`, {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  revision: incident.revision,
+                                  status: "resolved",
+                                  detail: "Corrección aplicada",
+                                  follow_up: "",
+                                  idempotency_key: key(),
+                                }),
+                              }),
+                            "Incidencia resuelta.",
+                          )
+                        }
+                      >
+                        Resolver
+                      </button>
+                    </span>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         {canManageIncidents ? (
           <form
@@ -420,7 +519,7 @@ export function AdvancedOperationPanel({
                       severity: incidentSeverity,
                       description: incidentDescription,
                       impact: incidentImpact,
-                      responsible_membership_id: null,
+                      responsible_membership_id: incidentResponsible || null,
                       idempotency_key: key(),
                     }),
                   }),
@@ -464,6 +563,22 @@ export function AdvancedOperationPanel({
                 setIncidentDescription(event.target.value);
               }}
             />
+            <label>
+              Responsable inicial (opcional)
+              <select
+                value={incidentResponsible}
+                onChange={(event) => {
+                  setIncidentResponsible(event.target.value);
+                }}
+              >
+                <option value="">Sin asignar</option>
+                {assignees.map((assignee) => (
+                  <option key={assignee.membership_id} value={assignee.membership_id}>
+                    {assignee.display_name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <input
               required
               placeholder="Impacto"
@@ -745,25 +860,51 @@ export function AdvancedOperationPanel({
               completed.
             </p>
           ) : canClose ? (
-            <button
-              className="button"
-              disabled={busy}
-              onClick={() =>
-                void run(
-                  () =>
-                    api(`${base}/close/`, {
-                      method: "POST",
-                      body: JSON.stringify({
-                        revision: detail.preparation.revision,
-                        idempotency_key: key(),
+            <>
+              {advanced.incidents.some(
+                (incident) =>
+                  incident.status === "open" ||
+                  (incident.status === "contained" &&
+                    (incident.severity === "high" ||
+                      incident.severity === "critical" ||
+                      !incident.responsible_membership_id ||
+                      !incident.impact.trim() ||
+                      !incident.follow_up.trim())),
+              ) ? (
+                <p>Completa o resuelve las incidencias incompatibles antes de cerrar.</p>
+              ) : null}
+              <button
+                className="button"
+                disabled={
+                  busy ||
+                  advanced.incidents.some(
+                    (incident) =>
+                      incident.status === "open" ||
+                      (incident.status === "contained" &&
+                        (incident.severity === "high" ||
+                          incident.severity === "critical" ||
+                          !incident.responsible_membership_id ||
+                          !incident.impact.trim() ||
+                          !incident.follow_up.trim())),
+                  )
+                }
+                onClick={() =>
+                  void run(
+                    () =>
+                      api(`${base}/close/`, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          revision: detail.preparation.revision,
+                          idempotency_key: key(),
+                        }),
                       }),
-                    }),
-                  "Cierre postevento registrado.",
-                )
-              }
-            >
-              Cerrar postevento
-            </button>
+                    "Cierre postevento registrado.",
+                  )
+                }
+              >
+                Cerrar postevento
+              </button>
+            </>
           ) : (
             <p>El cierre está pendiente.</p>
           )}

@@ -544,6 +544,7 @@ class OperationalIncident(OperationsTenantModel):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
     description = models.CharField(max_length=1000)
     impact = models.CharField(max_length=1000)
+    follow_up = models.CharField(max_length=1000, blank=True, default="")
     responsible_membership = models.ForeignKey(
         "organizations.Membership",
         on_delete=models.PROTECT,
@@ -568,6 +569,14 @@ class OperationalIncident(OperationsTenantModel):
             models.CheckConstraint(
                 condition=Q(revision__gte=1), name="operations_incident_revision_positive"
             ),
+            models.CheckConstraint(
+                condition=Q(impact=Trim("impact")) & ~Q(impact=""),
+                name="operations_incident_impact_nonempty_ck",
+            ),
+            models.CheckConstraint(
+                condition=Q(follow_up="") | Q(follow_up=Trim("follow_up")),
+                name="operations_incident_follow_up_normalized_ck",
+            ),
         ]
 
 
@@ -578,6 +587,7 @@ class OperationalIncidentEvent(OperationsTenantModel):
         RESOLVED = "resolved", "Resuelta"
         REASSIGNED = "reassigned", "Reasignada"
         IMPACT_UPDATED = "impact_updated", "Impacto actualizado"
+        FOLLOW_UP_UPDATED = "follow_up_updated", "Seguimiento actualizado"
         CORRECTED = "corrected", "Corregida"
 
     incident = models.ForeignKey(
@@ -588,6 +598,7 @@ class OperationalIncidentEvent(OperationsTenantModel):
     to_status = models.CharField(max_length=12, choices=OperationalIncident.Status.choices)
     severity = models.CharField(max_length=12, choices=OperationalIncident.Severity.choices)
     impact = models.CharField(max_length=1000)
+    follow_up = models.CharField(max_length=1000, blank=True, default="")
     detail = models.CharField(max_length=1000, blank=True)
     responsible_membership = models.ForeignKey(
         "organizations.Membership",
@@ -625,6 +636,14 @@ class OperationalIncidentEvent(OperationsTenantModel):
             models.CheckConstraint(
                 condition=Q(kind="corrected", corrects__isnull=False) | ~Q(kind="corrected"),
                 name="operations_incident_event_correction_ck",
+            ),
+            models.CheckConstraint(
+                condition=Q(impact=Trim("impact")) & ~Q(impact=""),
+                name="operations_incident_event_impact_nonempty_ck",
+            ),
+            models.CheckConstraint(
+                condition=Q(follow_up="") | Q(follow_up=Trim("follow_up")),
+                name="operations_incident_event_follow_up_normalized_ck",
             ),
         ]
 

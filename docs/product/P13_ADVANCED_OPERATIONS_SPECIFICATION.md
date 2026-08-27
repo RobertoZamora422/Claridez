@@ -168,11 +168,21 @@ laboral.
 - Severidades: `low`, `medium`, `high`, `critical`.
 - Estados: `open`, `contained`, `resolved`.
 
-La apertura fija evento, tipo, severidad inicial, instante, descripción, reportante, impacto y
-responsable opcional. Contención, reasignación, cambio de impacto, resolución y corrección son
-eventos append-only. Las transiciones ordinarias son `open -> contained`, `open -> resolved` y
-`contained -> resolved`. Una recurrencia abre una incidencia enlazada nueva; una corrección no
-sobrescribe la secuencia.
+La apertura fija evento, tipo, severidad inicial, instante, descripción, reportante, impacto no
+vacío y responsable opcional. Contención, reasignación, cambio de impacto, cambio de seguimiento,
+resolución y corrección son eventos append-only. Las transiciones ordinarias son
+`open -> contained`, `open -> resolved` y `contained -> resolved`. Una recurrencia abre una
+incidencia enlazada nueva; una corrección no sobrescribe la secuencia.
+
+El seguimiento es un campo estrecho y explícito en la proyección y en cada hecho del ledger. Su
+valor efectivo procede del último evento canónico y describe la acción posterior comprometida para
+una incidencia contenida; `detail` conserva exclusivamente el relato del evento y nunca cuenta como
+seguimiento. `follow_up_updated` cambia solo ese dato. Una corrección enlaza el hecho corregido y
+publica una nueva proyección completa; constraints y guardianes impiden divergencia por ORM bulk o
+SQL directo. Abrir o resolver no exige inventar seguimiento, pero una incidencia que permanezca
+`contained low/medium` solo es compatible con el cierre si tiene responsable, impacto no vacío y
+seguimiento no vacío. Una `contained high/critical` siempre bloquea y una `resolved` no hereda ese
+gate.
 
 La evidencia se enlaza exclusivamente con Documents y queda sujeta a sus permisos, estado y
 retención.
@@ -260,14 +270,18 @@ Bloquean el cierre:
 - verificaciones obligatorias `teardown`/`post_event` pendientes;
 - cambios propuestos sin decisión;
 - cualquier incidencia `open`;
-- incidencia `contained` `high` o `critical`;
+- toda incidencia `contained high/critical`;
+- incidencia `contained low/medium` cuya proyección efectiva y ledger canónico no conserven
+  responsable, impacto no vacío y seguimiento explícito no vacío;
 - ResourceRequirement `open`;
 - ResourceAssignment `reserved` o `custody`;
 - cualquier custodia o compromiso físico pendiente incompatible con cierre.
 
 Se permiten:
 
-- incidencia `contained` `low`/`medium` con responsable, impacto y seguimiento;
+- incidencia `contained` `low`/`medium` con responsable, impacto no vacío y seguimiento explícito
+  no vacío; `detail` no satisface esta condición;
+- incidencia `resolved`, sin imponerle responsable o seguimiento propios del estado `contained`;
 - Requirement `shortage` histórico si existe incidencia/evidencia de consecuencia y no queda
   custodia o compromiso físico pendiente;
 - Requirement `satisfied` con asignaciones terminales coherentes;
@@ -276,7 +290,9 @@ Se permiten:
 - Assignment `issued` para consumible, `fulfilled` para servicio, `returned` para reutilizable o
   activo, y `released`/`cancelled` cuando un cambio autorizado o incidencia explica que no se usó.
 
-Una corrección posterior añade un hecho enlazado; no reabre `completed` ni el cierre.
+Una corrección posterior añade un hecho enlazado; no reabre `completed` ni el cierre y no puede
+degradar retrospectivamente una incidencia contenida por debajo de las condiciones con las que se
+autorizó cerrar.
 
 ## 13. Capabilities
 

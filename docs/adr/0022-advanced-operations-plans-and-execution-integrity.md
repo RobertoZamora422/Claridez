@@ -203,9 +203,20 @@ de 2026, sin presumir despliegue ni cutover sobre un entorno destino.
    `open -> resolved` y `contained -> resolved`. No hay mutación regresiva: una recurrencia abre una
    incidencia enlazada nueva y una corrección agrega un hecho sin reescribir los anteriores.
 3. La identidad, tipo, evento, instante reportado y autor son inmutables. Responsable, impacto,
-   contención, resolución y correcciones se registran como eventos append-only con revisión y
-   claves idempotentes; no se reescribe la historia.
-4. Toda evidencia es una referencia autorizada a Documents. La incidencia no contiene blobs,
+   seguimiento, contención, resolución y correcciones se registran como eventos append-only con
+   revisión y claves idempotentes; no se reescribe la historia. El impacto efectivo nunca puede
+   quedar vacío.
+4. El seguimiento es un dato estrecho y explícito de la incidencia y de su ledger, distinto de
+   `detail`: describe la acción posterior todavía comprometida para una incidencia contenida. La
+   proyección efectiva toma responsable, impacto y seguimiento del último evento canónico; un
+   cambio de seguimiento usa `follow_up_updated` y una corrección enlaza el evento corregido. El
+   texto genérico de contención, resolución o corrección no satisface por sí mismo el seguimiento.
+5. Una incidencia puede abrirse sin responsable y resolverse sin fabricar responsable o
+   seguimiento. Sin embargo, mientras permanezca `contained`, solo `low`/`medium` con responsable,
+   impacto no vacío y seguimiento explícito puede atravesar el cierre postevento. Correcciones,
+   bulk o SQL directo no pueden producir una proyección efectiva distinta de su ledger ni degradar
+   retrospectivamente esas condiciones después del cierre.
+6. Toda evidencia es una referencia autorizada a Documents. La incidencia no contiene blobs,
    rutas públicas ni un almacenamiento paralelo.
 
 ### 8. Cambios autorizados durante ejecución
@@ -317,8 +328,10 @@ de 2026, sin presumir despliegue ni cutover sobre un entorno destino.
    fija revisiones y fuentes consultadas y crea un hecho único append-only con hash e idempotencia.
 2. Para cerrar deben cumplirse o estar justificadamente `not_applicable` las verificaciones
    obligatorias `teardown` y `post_event`; no puede haber cambios propuestos pendientes ni
-   incidencias `open`. Una incidencia `contained` de severidad `low` o `medium` puede quedar con
-   responsable, impacto y seguimiento explícitos; `high` o `critical` debe estar `resolved`.
+   incidencias `open`. Una incidencia `contained` solo puede atravesar el cierre cuando es
+   `low`/`medium` y su proyección efectiva, respaldada por el ledger canónico, conserva responsable,
+   impacto no vacío y seguimiento explícito no vacío. Toda `contained high/critical` bloquea. Una
+   incidencia `resolved` no queda sometida artificialmente a requisitos propios de `contained`.
 3. Los estados reales de `ResourceRequirement` se interpretan así:
 
    - `open` bloquea;

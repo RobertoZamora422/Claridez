@@ -498,10 +498,17 @@ export interface OperationalIncident {
   status: "open" | "contained" | "resolved";
   description: string;
   impact: string;
+  follow_up: string;
   responsible_membership_id: string | null;
   reported_at: string;
   revision: number;
-  events: { id: string; kind: string; occurred_at: string; corrects_id: string | null }[];
+  events: {
+    id: string;
+    kind: string;
+    follow_up: string;
+    occurred_at: string;
+    corrects_id: string | null;
+  }[];
 }
 
 export interface AdvancedOperation {

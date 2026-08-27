@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdvancedOperation, OperationEvent } from "../../api";
@@ -9,6 +9,13 @@ function json(body: unknown): Response {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  return input instanceof URL ? input.href : input.url;
 }
 
 const reservationId = "11111111-1111-4111-8111-111111111111";
@@ -85,6 +92,7 @@ const advanced: AdvancedOperation = {
       status: "contained",
       description: "Faltante conocido",
       impact: "Alternativa operacional aplicada",
+      follow_up: "Confirmar reposición con el proveedor",
       responsible_membership_id: null,
       reported_at: "2026-10-08T23:30:00Z",
       revision: 2,
@@ -159,12 +167,88 @@ describe("operación avanzada P13", () => {
     expect(screen.getByText("30 min")).toBeVisible();
     expect(screen.getByText("Evidencia final validada")).toBeVisible();
     expect(screen.getByText("Faltante conocido")).toBeVisible();
+    expect(screen.getByText(/Confirmar reposición con el proveedor/)).toBeVisible();
     expect(screen.getByText("Equipo de respaldo")).toBeVisible();
     expect(screen.getByText(/Proveedor A/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Cerrar postevento" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cerrar postevento" })).toBeDisabled();
+    expect(screen.getByText(/Completa o resuelve las incidencias incompatibles/)).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Registrar inicio" })).toHaveLength(2);
     for (const button of screen.getAllByRole("button", { name: "Registrar inicio" })) {
       expect(button).toBeDisabled();
     }
+  });
+
+  it("exige responsable y seguimiento antes de contener y los persiste por el ledger", async () => {
+    const openIncident = {
+      ...advanced.incidents[0],
+      status: "open" as const,
+      follow_up: "",
+      responsible_membership_id: null,
+      revision: 1,
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (!init?.method || init.method === "GET") {
+        return Promise.resolve(json({ ...advanced, incidents: [openIncident] }));
+      }
+      if (url.endsWith("/amend/")) {
+        return Promise.resolve(
+          json({ ...openIncident, responsible_membership_id: "membership-1", revision: 2 }),
+        );
+      }
+      return Promise.resolve(
+        json({
+          ...openIncident,
+          status: "contained",
+          responsible_membership_id: "membership-1",
+          follow_up: "Confirmar la medida mañana",
+          revision: 3,
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <AdvancedOperationPanel
+        organizationId="org-1"
+        detail={detail}
+        assignees={[{ membership_id: "membership-1", display_name: "Ana", role: "operaciones" }]}
+        canManage={false}
+        canExecute={false}
+        canManageIncidents
+        canAuthorizeChanges={false}
+        canManageEvidence={false}
+        canClose
+        onPreparationReload={() => Promise.resolve()}
+      />,
+    );
+
+    const contain = await screen.findByRole("button", { name: "Contener" });
+    expect(contain).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Responsable para Faltante conocido"), {
+      target: { value: "membership-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Seguimiento para Faltante conocido"), {
+      target: { value: "Confirmar la medida mañana" },
+    });
+    expect(contain).toBeEnabled();
+    fireEvent.click(contain);
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => requestUrl(url).endsWith("/transition/"))).toBe(
+        true,
+      );
+    });
+    const transitionCall = fetchMock.mock.calls.find(([url]) =>
+      requestUrl(url).endsWith("/transition/"),
+    );
+    const transitionBody = transitionCall?.[1]?.body;
+    expect(typeof transitionBody).toBe("string");
+    if (typeof transitionBody !== "string") {
+      throw new Error("La transición debe enviarse como JSON serializado.");
+    }
+    expect(JSON.parse(transitionBody)).toMatchObject({
+      status: "contained",
+      follow_up: "Confirmar la medida mañana",
+    });
   });
 });

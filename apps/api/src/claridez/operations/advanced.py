@@ -1368,6 +1368,54 @@ def assign_operational_responsibility(
         return responsibility_representation(row)
 
 
+def _contained_incident_is_close_compatible(
+    *, severity: str, impact: str, responsible_membership_id: UUID | None, follow_up: str
+) -> bool:
+    return (
+        severity in {OperationalIncident.Severity.LOW, OperationalIncident.Severity.MEDIUM}
+        and responsible_membership_id is not None
+        and bool(impact.strip())
+        and bool(follow_up.strip())
+    )
+
+
+def _incident_blocks_close(incident: OperationalIncident) -> bool:
+    if incident.status == OperationalIncident.Status.OPEN:
+        return True
+    if incident.status == OperationalIncident.Status.RESOLVED:
+        return False
+    return not _contained_incident_is_close_compatible(
+        severity=incident.severity,
+        impact=incident.impact,
+        responsible_membership_id=incident.responsible_membership_id,
+        follow_up=incident.follow_up,
+    )
+
+
+def _ensure_incident_close_consistency(
+    incident: OperationalIncident,
+    *,
+    severity: str,
+    impact: str,
+    responsible_membership_id: UUID | None,
+    follow_up: str,
+) -> None:
+    if (
+        incident.status == OperationalIncident.Status.CONTAINED
+        and PostEventClose.objects.filter(preparation=incident.preparation).exists()
+        and not _contained_incident_is_close_compatible(
+            severity=severity,
+            impact=impact,
+            responsible_membership_id=responsible_membership_id,
+            follow_up=follow_up,
+        )
+    ):
+        raise conflict(
+            "incident_blocks_close",
+            "La corrección dejaría el cierre postevento con una incidencia incompatible.",
+        )
+
+
 def open_incident(
     actor: User,
     organization_reference: UUID | str,
@@ -1421,6 +1469,7 @@ def open_incident(
             severity=severity,
             description=canonical_text(description, field="La descripción", max_length=1000),
             impact=canonical_text(impact, field="El impacto", max_length=1000),
+            follow_up="",
             responsible_membership_id=responsible_membership_id,
             reported_by_membership_id=authorization.membership_id,
             reported_at=now,
@@ -1433,6 +1482,7 @@ def open_incident(
             to_status=OperationalIncident.Status.OPEN,
             severity=row.severity,
             impact=row.impact,
+            follow_up="",
             responsible_membership_id=responsible_membership_id,
             actor_membership_id=authorization.membership_id,
             incident_revision=1,
@@ -1459,6 +1509,7 @@ def transition_incident(
     revision: int,
     status: str,
     detail: str,
+    follow_up: str = "",
     idempotency_key: UUID,
 ) -> dict[str, object]:
     payload = {
@@ -1466,6 +1517,7 @@ def transition_incident(
         "revision": revision,
         "status": status,
         "detail": detail,
+        "follow_up": follow_up,
     }
     with (
         authorized_tenant_scope(
@@ -1503,9 +1555,17 @@ def transition_incident(
         if status not in transitions[row.status]:
             raise conflict("invalid_transition", "La transición de incidencia no es válida.")
         old = row.status
+        normalized_follow_up = row.follow_up
+        if status == OperationalIncident.Status.CONTAINED:
+            normalized_follow_up = canonical_optional_text(
+                follow_up, field="El seguimiento", max_length=1000
+            )
+        elif follow_up not in (None, ""):
+            raise invalid("El seguimiento explícito solo se registra al contener la incidencia.")
         row.status = status
+        row.follow_up = normalized_follow_up
         row.revision += 1
-        row.save(update_fields=["status", "revision", "updated_at"])
+        row.save(update_fields=["status", "follow_up", "revision", "updated_at"])
         kind = (
             OperationalIncidentEvent.Kind.CONTAINED
             if status == OperationalIncident.Status.CONTAINED
@@ -1519,6 +1579,7 @@ def transition_incident(
             to_status=status,
             severity=row.severity,
             impact=row.impact,
+            follow_up=row.follow_up,
             detail=canonical_text(detail, field="El detalle", max_length=1000),
             responsible_membership=row.responsible_membership,
             actor_membership_id=authorization.membership_id,
@@ -1546,6 +1607,7 @@ def amend_incident(
     revision: int,
     kind: str,
     impact: str,
+    follow_up: str,
     responsible_membership_id: UUID | None,
     detail: str,
     idempotency_key: UUID,
@@ -1555,6 +1617,7 @@ def amend_incident(
         "revision": revision,
         "kind": kind,
         "impact": impact,
+        "follow_up": follow_up,
         "responsible_membership_id": responsible_membership_id,
         "detail": detail,
     }
@@ -1588,6 +1651,7 @@ def amend_incident(
         allowed = {
             OperationalIncidentEvent.Kind.REASSIGNED,
             OperationalIncidentEvent.Kind.IMPACT_UPDATED,
+            OperationalIncidentEvent.Kind.FOLLOW_UP_UPDATED,
         }
         if kind not in allowed:
             raise invalid("El tipo de actualización de incidencia no es válido.")
@@ -1598,14 +1662,38 @@ def amend_incident(
             if member is None or not member.is_active:
                 raise unavailable("La membresía responsable")
         normalized_impact = canonical_text(impact, field="El impacto", max_length=1000)
+        normalized_follow_up = canonical_optional_text(
+            follow_up, field="El seguimiento", max_length=1000
+        )
         if kind == OperationalIncidentEvent.Kind.REASSIGNED:
             normalized_impact = incident.impact
+            normalized_follow_up = incident.follow_up
+        elif kind == OperationalIncidentEvent.Kind.FOLLOW_UP_UPDATED:
+            normalized_impact = incident.impact
+            responsible_membership_id = incident.responsible_membership_id
         else:
             responsible_membership_id = incident.responsible_membership_id
+            normalized_follow_up = incident.follow_up
+        _ensure_incident_close_consistency(
+            incident,
+            severity=incident.severity,
+            impact=normalized_impact,
+            responsible_membership_id=responsible_membership_id,
+            follow_up=normalized_follow_up,
+        )
         incident.impact = normalized_impact
+        incident.follow_up = normalized_follow_up
         incident.responsible_membership_id = responsible_membership_id
         incident.revision += 1
-        incident.save(update_fields=["impact", "responsible_membership", "revision", "updated_at"])
+        incident.save(
+            update_fields=[
+                "impact",
+                "follow_up",
+                "responsible_membership",
+                "revision",
+                "updated_at",
+            ]
+        )
         OperationalIncidentEvent.objects.create(
             organization_id=authorization.organization_id,
             incident=incident,
@@ -1614,6 +1702,7 @@ def amend_incident(
             to_status=incident.status,
             severity=incident.severity,
             impact=incident.impact,
+            follow_up=incident.follow_up,
             detail=canonical_text(detail, field="El detalle", max_length=1000),
             responsible_membership_id=incident.responsible_membership_id,
             actor_membership_id=authorization.membership_id,
@@ -1642,6 +1731,7 @@ def correct_incident_event(
     revision: int,
     severity: str,
     impact: str,
+    follow_up: str,
     responsible_membership_id: UUID | None,
     detail: str,
     idempotency_key: UUID,
@@ -1652,6 +1742,7 @@ def correct_incident_event(
         "revision": revision,
         "severity": severity,
         "impact": impact,
+        "follow_up": follow_up,
         "responsible_membership_id": responsible_membership_id,
         "detail": detail,
     }
@@ -1693,14 +1784,27 @@ def correct_incident_event(
             )
             if member is None or not member.is_active:
                 raise unavailable("La membresía responsable")
+        normalized_impact = canonical_text(impact, field="El impacto", max_length=1000)
+        normalized_follow_up = canonical_optional_text(
+            follow_up, field="El seguimiento", max_length=1000
+        )
+        _ensure_incident_close_consistency(
+            incident,
+            severity=severity,
+            impact=normalized_impact,
+            responsible_membership_id=responsible_membership_id,
+            follow_up=normalized_follow_up,
+        )
         incident.severity = severity
-        incident.impact = canonical_text(impact, field="El impacto", max_length=1000)
+        incident.impact = normalized_impact
+        incident.follow_up = normalized_follow_up
         incident.responsible_membership_id = responsible_membership_id
         incident.revision += 1
         incident.save(
             update_fields=[
                 "severity",
                 "impact",
+                "follow_up",
                 "responsible_membership",
                 "revision",
                 "updated_at",
@@ -1714,6 +1818,7 @@ def correct_incident_event(
             to_status=incident.status,
             severity=severity,
             impact=incident.impact,
+            follow_up=incident.follow_up,
             detail=canonical_text(detail, field="La corrección", max_length=1000),
             responsible_membership_id=responsible_membership_id,
             actor_membership_id=authorization.membership_id,
@@ -2440,12 +2545,7 @@ def close_post_event(
                 organization_id=authorization.organization_id, preparation=preparation
             )
         )
-        if any(row.status == OperationalIncident.Status.OPEN for row in incidents) or any(
-            row.status == OperationalIncident.Status.CONTAINED
-            and row.severity
-            in {OperationalIncident.Severity.HIGH, OperationalIncident.Severity.CRITICAL}
-            for row in incidents
-        ):
+        if any(_incident_blocks_close(row) for row in incidents):
             raise conflict("incident_blocks_close", "Existen incidencias incompatibles con cierre.")
         resource_rows = resources_port.operational_resource_state(authorization, reservation_id)
         resource_incident_ids = {
@@ -2726,6 +2826,7 @@ def incident_representation(row: OperationalIncident) -> dict[str, object]:
         "status": row.status,
         "description": row.description,
         "impact": row.impact,
+        "follow_up": row.follow_up,
         "responsible_membership_id": row.responsible_membership_id,
         "reported_by_membership_id": row.reported_by_membership_id,
         "reported_at": row.reported_at,
@@ -2738,6 +2839,7 @@ def incident_representation(row: OperationalIncident) -> dict[str, object]:
                 "to_status": event.to_status,
                 "severity": event.severity,
                 "impact": event.impact,
+                "follow_up": event.follow_up,
                 "detail": event.detail,
                 "responsible_membership_id": event.responsible_membership_id,
                 "occurred_at": event.occurred_at,
