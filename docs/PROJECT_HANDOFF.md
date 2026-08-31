@@ -1,9 +1,9 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 27 de agosto de 2026
+- **Fecha de corte:** 31 de agosto de 2026
 - **Etapa funcional activa:** ninguna; P13 está cerrada localmente bajo ADR 0022
-- **Siguiente etapa:** plan e investigación de P14 — Formularios, comunicaciones y portal; su
-  implementación no está autorizada
+- **Siguiente etapa:** implementación de P14 — Formularios, comunicaciones y portal, únicamente
+  después de aprobación explícita; ADR 0023 ya formaliza su arquitectura
 
 ## Qué es Claridez
 
@@ -95,6 +95,9 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
 - I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P13: completadas y validadas localmente.
 - ADR 0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md` gobiernan la implementación P13 cerrada
   localmente; no se presume despliegue ni cutover sobre un entorno destino.
+- ADR 0023 formaliza la arquitectura previa de P14: dos módulos técnicos para un único dominio
+  funcional, identidad Portal separada de grants, captación tenant-safe y outbox PostgreSQL
+  transversal. P14 continúa sin implementación y no tiene autorización para iniciarla.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -367,6 +370,9 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
 - Autoridad de operación avanzada, planes/snapshots, fases, incidencias, cambios, ventanas de
   recursos, cierre postevento y su integridad con 5.2/Scheduling/Resources: ADR 0022; implementado y
   validado localmente.
+- Experiencia externa P14, límites de Communications/Portal, resolución pública tenant-safe,
+  principal/grants externos, integración documental y outbox transversal: ADR 0023; arquitectura
+  aceptada, sin implementación.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contratos funcionales P11 y
   P13. P9 se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -375,9 +381,12 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
 
 - Proveedores de staging/producción, correo, WhatsApp, almacenamiento y malware gestionado;
   dimensionamiento/observabilidad productivos del renderer y worker.
-- MFA productiva, OIDC y `ExternalIdentity`; identidad/autorización siguen siendo locales.
+- MFA productiva y OIDC de usuarios internos. ADR 0023 acepta `PortalPrincipal` como identidad
+  externa tenant-aware separada, pero P14 continúa sin implementación.
 - P9 implementa el ledger durable PostgreSQL y runner canónico; dimensionamiento y una eventual
   cola/broker externos continúan abiertos detrás del puerto operativo.
+- P14 mantiene pendientes proveedor de correo/WhatsApp/antiabuso, TTL exactos, matriz final de
+  capabilities y políticas legales/producto de consentimiento, unsubscribe y retención.
 - Datos legales obligatorios, representación, política de materialidad, política detallada de
   privacidad/retención, mecanismos de atribución superiores y firma electrónica acreditada. El
   método base se identifica únicamente como aceptación electrónica propia.
@@ -474,9 +483,9 @@ falta.
 ## Próximo trabajo
 
 P13 — Operación avanzada está cerrada y validada localmente bajo ADR 0022 y su contrato funcional.
-El siguiente paso exacto es investigar las decisiones bloqueantes y preparar únicamente el plan
-breve de **P14 — Formularios, comunicaciones y portal**. P14 todavía no tiene autorización de
-implementación.
+ADR 0023 formaliza la arquitectura de **P14 — Formularios, comunicaciones y portal**. El siguiente
+paso exacto es recibir aprobación explícita antes de implementar P14; todavía no están autorizados
+módulos, modelos, migraciones, endpoints, frontend, workers, dependencias ni proveedores.
 
 ## Riesgos actuales
 

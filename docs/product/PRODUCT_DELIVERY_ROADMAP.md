@@ -629,7 +629,7 @@ inventar ni normalizar historia.
 
 **Identificador y nombre:** P14 — Experiencia externa del cliente.
 
-**Estado:** Pendiente; requiere investigación de correo, WhatsApp y antiabuso.
+**Estado:** Arquitectura aceptada bajo ADR 0023; implementación pendiente y no autorizada.
 
 **Objetivo:** Captar consultas y mantener al cliente informado sin exponer el workspace interno.
 
@@ -640,8 +640,9 @@ preferencias; plantillas; estados de entrega; reintentos y auditoría.
 **Exclusiones:** Constructor libre, campañas avanzadas, chatbot con IA, app nativa y acceso general
 de proveedores.
 
-**Dependencias:** P13, P10 y P9; proveedores evaluados; ADR del primer proceso asíncrono, outbox,
-retención y autenticación del cliente.
+**Dependencias:** P13, P10 y P9; ADR 0023 para módulos P14, acceso externo y primer outbox
+transaccional transversal; selección de proveedores y políticas legales/producto todavía
+pendientes.
 
 **Resultado visible:** Un interesado consulta y un cliente sigue su evento, documentos y saldo desde
 una superficie segura y clara.
