@@ -9,6 +9,7 @@ import { CRMView } from "../features/crm/CRMView";
 import { DocumentsView } from "../features/documents/DocumentsView";
 import { FinanceView } from "../features/finance/FinanceView";
 import { OperationsView } from "../features/operations/OperationsView";
+import { P14WorkspaceView } from "../features/p14/P14WorkspaceView";
 import { ReceivablesView } from "../features/receivables/ReceivablesView";
 import { ResourcesView } from "../features/resources/ResourcesView";
 import { RequestsView } from "../features/requests/RequestsView";
@@ -25,6 +26,7 @@ type Page =
   | "resources"
   | "catalog"
   | "documents"
+  | "external-experience"
   | "configuration";
 
 export function Workspace({
@@ -75,6 +77,7 @@ export function Workspace({
       api<{ capabilities: string[] }>(
         `/api/v1/organizations/${organization.id}/resources/capabilities/`,
       ),
+      api<{ capabilities: string[] }>(`/api/v1/organizations/${organization.id}/p14/capabilities/`),
     ])
       .then(
         ([
@@ -88,6 +91,7 @@ export function Workspace({
           receivablesBody,
           financeBody,
           resourcesBody,
+          p14Body,
         ]) => {
           setCapabilities(
             new Set([
@@ -100,6 +104,7 @@ export function Workspace({
               ...receivablesBody.capabilities,
               ...financeBody.capabilities,
               ...resourcesBody.capabilities,
+              ...p14Body.capabilities,
             ]),
           );
           setTimeZone(settingsBody.settings.timezone);
@@ -213,6 +218,22 @@ export function Workspace({
                 }}
               >
                 <span aria-hidden="true">▤</span>Documentos
+              </button>
+            ) : null}
+            {[
+              "public_form:read",
+              "communication_template:read",
+              "communication_delivery:read",
+              "portal_grant:read",
+            ].some((capability) => capabilities.has(capability)) ? (
+              <button
+                aria-current={page === "external-experience" ? "page" : undefined}
+                onClick={() => {
+                  setPage("external-experience");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">↗</span>Experiencia externa
               </button>
             ) : null}
             {capabilities.has("business_configuration:manage") ? (
@@ -342,6 +363,22 @@ export function Workspace({
             Documentos
           </button>
         ) : null}
+        {[
+          "public_form:read",
+          "communication_template:read",
+          "communication_delivery:read",
+          "portal_grant:read",
+        ].some((capability) => capabilities.has(capability)) ? (
+          <button
+            aria-current={page === "external-experience" ? "page" : undefined}
+            onClick={() => {
+              setPage("external-experience");
+              setSelectedRequest(null);
+            }}
+          >
+            Externo
+          </button>
+        ) : null}
         {capabilities.has("business_configuration:manage") ? (
           <button
             aria-current={page === "configuration" ? "page" : undefined}
@@ -405,6 +442,12 @@ export function Workspace({
           />
         ) : page === "documents" ? (
           <DocumentsView organizationId={organization.id} capabilities={capabilities} />
+        ) : page === "external-experience" ? (
+          <P14WorkspaceView
+            organizationId={organization.id}
+            capabilities={capabilities}
+            timezone={timeZone}
+          />
         ) : (
           <ConfigurationView
             organizationId={organization.id}

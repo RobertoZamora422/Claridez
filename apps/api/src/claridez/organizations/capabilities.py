@@ -99,6 +99,21 @@ class Capability(StrEnum):
     PURCHASE_MANAGE = "purchase:manage"
     PURCHASE_RECEIVE = "purchase:receive"
     PURCHASE_MATERIALIZE_FINANCE = "purchase:materialize_finance"
+    PUBLIC_FORM_READ = "public_form:read"
+    PUBLIC_FORM_MANAGE = "public_form:manage"
+    PUBLIC_FORM_PUBLISH = "public_form:publish"
+    COMMUNICATION_TEMPLATE_READ = "communication_template:read"
+    COMMUNICATION_TEMPLATE_MANAGE = "communication_template:manage"
+    COMMUNICATION_TEMPLATE_PUBLISH = "communication_template:publish"
+    COMMUNICATION_INTENT_REQUEST = "communication_intent:request"
+    COMMUNICATION_DELIVERY_READ = "communication_delivery:read"
+    COMMUNICATION_DELIVERY_RETRY = "communication_delivery:retry"
+    COMMUNICATION_PREFERENCE_READ = "communication_preference:read"
+    COMMUNICATION_PREFERENCE_SUPPRESS = "communication_preference:suppress"
+    COMMUNICATION_PREFERENCE_RESTORE = "communication_preference:restore"
+    PORTAL_GRANT_READ = "portal_grant:read"
+    PORTAL_GRANT_ISSUE = "portal_grant:issue"
+    PORTAL_GRANT_REVOKE = "portal_grant:revoke"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -193,6 +208,21 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PURCHASE_MANAGE,
                 Capability.PURCHASE_RECEIVE,
                 Capability.PURCHASE_MATERIALIZE_FINANCE,
+                Capability.PUBLIC_FORM_READ,
+                Capability.PUBLIC_FORM_MANAGE,
+                Capability.PUBLIC_FORM_PUBLISH,
+                Capability.COMMUNICATION_TEMPLATE_READ,
+                Capability.COMMUNICATION_TEMPLATE_MANAGE,
+                Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+                Capability.COMMUNICATION_INTENT_REQUEST,
+                Capability.COMMUNICATION_DELIVERY_READ,
+                Capability.COMMUNICATION_DELIVERY_RETRY,
+                Capability.COMMUNICATION_PREFERENCE_READ,
+                Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+                Capability.COMMUNICATION_PREFERENCE_RESTORE,
+                Capability.PORTAL_GRANT_READ,
+                Capability.PORTAL_GRANT_ISSUE,
+                Capability.PORTAL_GRANT_REVOKE,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -284,6 +314,21 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PURCHASE_MANAGE,
                 Capability.PURCHASE_RECEIVE,
                 Capability.PURCHASE_MATERIALIZE_FINANCE,
+                Capability.PUBLIC_FORM_READ,
+                Capability.PUBLIC_FORM_MANAGE,
+                Capability.PUBLIC_FORM_PUBLISH,
+                Capability.COMMUNICATION_TEMPLATE_READ,
+                Capability.COMMUNICATION_TEMPLATE_MANAGE,
+                Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+                Capability.COMMUNICATION_INTENT_REQUEST,
+                Capability.COMMUNICATION_DELIVERY_READ,
+                Capability.COMMUNICATION_DELIVERY_RETRY,
+                Capability.COMMUNICATION_PREFERENCE_READ,
+                Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+                Capability.COMMUNICATION_PREFERENCE_RESTORE,
+                Capability.PORTAL_GRANT_READ,
+                Capability.PORTAL_GRANT_ISSUE,
+                Capability.PORTAL_GRANT_REVOKE,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -316,6 +361,20 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
                 Capability.RECEIVABLES_READ_SUMMARY,
                 Capability.RESOURCE_READ_AVAILABILITY,
+                Capability.PUBLIC_FORM_READ,
+                Capability.PUBLIC_FORM_MANAGE,
+                Capability.PUBLIC_FORM_PUBLISH,
+                Capability.COMMUNICATION_TEMPLATE_READ,
+                Capability.COMMUNICATION_TEMPLATE_MANAGE,
+                Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+                Capability.COMMUNICATION_INTENT_REQUEST,
+                Capability.COMMUNICATION_DELIVERY_READ,
+                Capability.COMMUNICATION_DELIVERY_RETRY,
+                Capability.COMMUNICATION_PREFERENCE_READ,
+                Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+                Capability.PORTAL_GRANT_READ,
+                Capability.PORTAL_GRANT_ISSUE,
+                Capability.PORTAL_GRANT_REVOKE,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -355,6 +414,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.INVENTORY_RECORD_MOVEMENT,
                 Capability.PURCHASE_READ,
                 Capability.PURCHASE_RECEIVE,
+                Capability.COMMUNICATION_TEMPLATE_READ,
+                Capability.COMMUNICATION_TEMPLATE_MANAGE,
+                Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+                Capability.COMMUNICATION_INTENT_REQUEST,
+                Capability.COMMUNICATION_DELIVERY_READ,
+                Capability.COMMUNICATION_DELIVERY_RETRY,
+                Capability.COMMUNICATION_PREFERENCE_READ,
+                Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
             }
         ),
         Membership.Role.FINANCE: frozenset(
@@ -397,6 +464,14 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PURCHASE_READ,
                 Capability.PURCHASE_MANAGE,
                 Capability.PURCHASE_MATERIALIZE_FINANCE,
+                Capability.COMMUNICATION_TEMPLATE_READ,
+                Capability.COMMUNICATION_TEMPLATE_MANAGE,
+                Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+                Capability.COMMUNICATION_INTENT_REQUEST,
+                Capability.COMMUNICATION_DELIVERY_READ,
+                Capability.COMMUNICATION_DELIVERY_RETRY,
+                Capability.COMMUNICATION_PREFERENCE_READ,
+                Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
             }
         ),
     }

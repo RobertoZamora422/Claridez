@@ -6,8 +6,13 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from .capabilities import Capability, capabilities_for_role
+from .exceptions import AuthorizationDenied, TenantAccessDenied
 from .models import Membership, Organization, OrganizationSettings, Space, Venue
-from .tenant_scope import TenantAuthorization
+from .tenant_scope import (
+    ExternalTenantAuthorization,
+    TenantAuthorization,
+    _mint_external_tenant_authorization,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +52,33 @@ class OperationalMembershipProjection:
     role: str
     is_active: bool
     can_manage_operations: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PublicOrganizationProjection:
+    id: UUID
+    name: str
+    timezone_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class PublicLocationProjection:
+    venue_id: UUID
+    venue_name: str
+    venue_revision: int
+    space_id: UUID
+    space_name: str
+    space_revision: int
+    is_active: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PublicResponsibleProjection:
+    membership_id: UUID
+    display_name: str
+    role: str
+    is_active: bool
+    can_manage_sales: bool
 
 
 def membership_for_operations(
@@ -154,12 +186,98 @@ def active_organization_ids_for_document_worker() -> tuple[UUID, ...]:
     )
 
 
+def authorize_external_entry(
+    organization_id: UUID, *, purpose: str, locator_reference: UUID
+) -> ExternalTenantAuthorization:
+    """Confirma el tenant global antes de permitir una entrada externa restringida."""
+    if not Organization.objects.filter(
+        pk=organization_id, status=Organization.Status.ACTIVE
+    ).exists():
+        raise TenantAccessDenied("La entrada externa no está disponible.")
+    return _mint_external_tenant_authorization(
+        organization_id, purpose=purpose, locator_reference=locator_reference
+    )
+
+
+def public_organization(organization_id: UUID) -> PublicOrganizationProjection:
+    organization = Organization.objects.filter(
+        pk=organization_id, status=Organization.Status.ACTIVE
+    ).first()
+    settings = OrganizationSettings.objects.filter(organization_id=organization_id).first()
+    if organization is None or settings is None:
+        raise TenantAccessDenied("La organización no está disponible.")
+    return PublicOrganizationProjection(
+        id=organization.pk,
+        name=organization.name,
+        timezone_name=settings.timezone,
+    )
+
+
+def public_location(organization_id: UUID, *, space_id: UUID) -> PublicLocationProjection | None:
+    row = (
+        Space.objects.select_related("venue")
+        .filter(
+            organization_id=organization_id,
+            pk=space_id,
+        )
+        .first()
+    )
+    if row is None:
+        return None
+    return PublicLocationProjection(
+        venue_id=row.venue_id,
+        venue_name=row.venue.name,
+        venue_revision=row.venue.revision,
+        space_id=row.pk,
+        space_name=row.name,
+        space_revision=row.revision,
+        is_active=row.is_active and row.venue.is_active,
+    )
+
+
+def public_responsible(
+    organization_id: UUID, *, membership_id: UUID
+) -> PublicResponsibleProjection | None:
+    row = (
+        Membership.objects.select_related("user")
+        .filter(
+            organization_id=organization_id,
+            pk=membership_id,
+        )
+        .first()
+    )
+    if row is None:
+        return None
+    try:
+        can_manage_sales = Capability.SALES_MANAGE in capabilities_for_role(row.role)
+    except AuthorizationDenied:
+        can_manage_sales = False
+    return PublicResponsibleProjection(
+        membership_id=row.pk,
+        display_name=row.user.display_name or "Miembro del equipo",
+        role=row.role,
+        is_active=row.status == Membership.Status.ACTIVE and row.user.is_active,
+        can_manage_sales=can_manage_sales,
+    )
+
+
+def active_organization_ids_for_communications_worker() -> tuple[UUID, ...]:
+    return tuple(
+        Organization.objects.filter(status=Organization.Status.ACTIVE)
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+
+
 __all__ = (
     "LocationContractualProjection",
     "OrganizationContractualProjection",
     "FinanceVenueProjection",
     "ResourcesVenueProjection",
     "OperationalMembershipProjection",
+    "PublicLocationProjection",
+    "PublicOrganizationProjection",
+    "PublicResponsibleProjection",
     "contractual_location",
     "contractual_organization",
     "venue_for_finance",
@@ -168,4 +286,9 @@ __all__ = (
     "memberships_for_operations",
     "requires_operation_manage_for_finance_evidence",
     "active_organization_ids_for_document_worker",
+    "active_organization_ids_for_communications_worker",
+    "authorize_external_entry",
+    "public_location",
+    "public_organization",
+    "public_responsible",
 )

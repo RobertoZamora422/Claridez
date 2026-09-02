@@ -24,5 +24,6 @@ LOGGING = build_logging_configuration("WARNING")
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
+PORTAL_EXPOSE_TEST_CHALLENGE_CODE = True
 
 del _local

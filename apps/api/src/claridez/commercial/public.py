@@ -155,6 +155,151 @@ class EconomicSaleProjection:
     accepted_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ClientEventRequestProjection:
+    id: UUID
+    person_id: UUID
+    status: str
+    event_type: str
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+    venue_name: str
+    space_name: str
+    estimated_guests: int
+    revision: int
+
+
+@dataclass(frozen=True, slots=True)
+class ClientQuotationLineProjection:
+    position: int
+    description: str
+    unit_label: str
+    quantity: Decimal
+    unit_price: Decimal
+    discount_amount: Decimal
+    line_total: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class ClientQuotationProjection:
+    id: UUID
+    visible_number: str
+    version: int
+    status: str
+    withdrawn: bool
+    is_expired: bool
+    currency: str | None
+    event_type: str | None
+    venue_name: str | None
+    space_name: str | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    timezone_name: str | None
+    subtotal: Decimal | None
+    discount_total: Decimal | None
+    total: Decimal | None
+    issued_at: datetime | None
+    valid_until: datetime | None
+    accepted_at: datetime | None
+    lines: tuple[ClientQuotationLineProjection, ...]
+
+
+def create_public_event_request(organization_id: UUID, **values: object) -> UUID:
+    from .services.requests import create_event_request_from_public_capture
+
+    return create_event_request_from_public_capture(organization_id, **values).pk  # type: ignore[arg-type]
+
+
+def client_event_request(
+    organization_id: UUID, event_request_id: UUID
+) -> ClientEventRequestProjection:
+    try:
+        row = EventRequest.objects.select_related("space", "space__venue").get(
+            organization_id=organization_id, pk=event_request_id
+        )
+    except EventRequest.DoesNotExist:
+        raise unavailable("La solicitud") from None
+    return ClientEventRequestProjection(
+        id=row.pk,
+        person_id=row.person_id,
+        status=row.status,
+        event_type=row.event_type,
+        starts_at=row.starts_at,
+        ends_at=row.ends_at,
+        timezone_name=row.event_timezone,
+        venue_name=row.space.venue.name,
+        space_name=row.space.name,
+        estimated_guests=row.estimated_guests,
+        revision=row.revision,
+    )
+
+
+def client_quotations(
+    organization_id: UUID, event_request_id: UUID
+) -> tuple[ClientQuotationProjection, ...]:
+    from django.utils import timezone
+
+    rows = QuotationVersion.objects.select_related("quotation").filter(
+        organization_id=organization_id,
+        quotation__event_request_id=event_request_id,
+        status__in=[
+            QuotationVersion.Status.ISSUED,
+            QuotationVersion.Status.SUPERSEDED,
+            QuotationVersion.Status.ACCEPTED,
+            QuotationVersion.Status.WITHDRAWN,
+        ],
+    )
+    result: list[ClientQuotationProjection] = []
+    for row in rows.order_by("version", "id"):
+        withdrawn = row.status == QuotationVersion.Status.WITHDRAWN
+        line_rows: tuple[ClientQuotationLineProjection, ...] = ()
+        if not withdrawn:
+            line_rows = tuple(
+                ClientQuotationLineProjection(
+                    position=line.position,
+                    description=line.description,
+                    unit_label=line.unit_label,
+                    quantity=line.quantity,
+                    unit_price=line.unit_price,
+                    discount_amount=line.discount_amount,
+                    line_total=line.line_total,
+                )
+                for line in QuotationLine.objects.filter(
+                    organization_id=organization_id, quotation_version_id=row.pk
+                ).order_by("position", "id")
+            )
+        result.append(
+            ClientQuotationProjection(
+                id=row.pk,
+                visible_number=row.quotation.visible_number,
+                version=row.version,
+                status=row.status,
+                withdrawn=withdrawn,
+                is_expired=(
+                    not withdrawn
+                    and row.status == QuotationVersion.Status.ISSUED
+                    and row.valid_until < timezone.now()
+                ),
+                currency=None if withdrawn else row.currency,
+                event_type=None if withdrawn else row.event_type_snapshot,
+                venue_name=None if withdrawn else row.venue_name_snapshot,
+                space_name=None if withdrawn else row.space_name_snapshot,
+                starts_at=None if withdrawn else row.event_starts_at_snapshot,
+                ends_at=None if withdrawn else row.event_ends_at_snapshot,
+                timezone_name=None if withdrawn else row.event_timezone_snapshot,
+                subtotal=None if withdrawn else row.subtotal,
+                discount_total=None if withdrawn else row.discount_total,
+                total=None if withdrawn else row.total,
+                issued_at=None if withdrawn else row.issued_at,
+                valid_until=None if withdrawn else row.valid_until,
+                accepted_at=None if withdrawn else row.accepted_at,
+                lines=line_rows,
+            )
+        )
+    return tuple(result)
+
+
 def economic_sale_for_finance(
     authorization: TenantAuthorization, quotation_version_id: UUID
 ) -> EconomicSaleProjection:
@@ -410,6 +555,9 @@ __all__ = (
     "AcceptedQuotationLineProjection",
     "AcceptedQuotationProjection",
     "EconomicSaleProjection",
+    "ClientEventRequestProjection",
+    "ClientQuotationLineProjection",
+    "ClientQuotationProjection",
     "OpportunityHistoryProjection",
     "OpportunityProjection",
     "OperationEventTypeProjection",
@@ -425,4 +573,7 @@ __all__ = (
     "operation_event_type_snapshot",
     "operational_event_projection_for_operations",
     "set_request_schedule_status",
+    "create_public_event_request",
+    "client_event_request",
+    "client_quotations",
 )

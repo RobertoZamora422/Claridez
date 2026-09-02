@@ -285,4 +285,7 @@ def test_root_routes_keep_health_and_mount_only_the_approved_api_groups() -> Non
         "api/v1/auth/",
         "api/v1/organizations/",
         "api/v1/external/documents/",
+        "api/v1/public/",
+        "api/v1/portal/",
+        "api/v1/webhooks/communications/",
     }

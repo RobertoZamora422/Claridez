@@ -72,6 +72,10 @@ class Person(models.Model):
 
 
 class PersonRevision(models.Model):
+    class ActorKind(models.TextChoices):
+        INTERNAL_USER = "internal_user", "Usuario interno"
+        EXTERNAL_SUBJECT = "external_subject", "Titular externo"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
     person = models.ForeignKey(
@@ -83,7 +87,14 @@ class PersonRevision(models.Model):
     email = models.EmailField(max_length=254, blank=True)
     origin = models.CharField(max_length=24, choices=ContactOrigin.choices)
     origin_detail = models.CharField(max_length=160, blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor_kind = models.CharField(
+        max_length=20, choices=ActorKind.choices, default=ActorKind.INTERNAL_USER
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
+    )
+    external_evidence_reference = models.CharField(max_length=240, blank=True)
+    external_evidence_sha256 = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -99,6 +110,26 @@ class PersonRevision(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(revision__gte=1), name="commercial_personrevision_revision_positive"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        actor_kind="internal_user",
+                        changed_by__isnull=False,
+                        external_evidence_reference="",
+                        external_evidence_sha256="",
+                    )
+                    | (
+                        Q(
+                            actor_kind="external_subject",
+                            changed_by__isnull=True,
+                            external_evidence_reference=Trim("external_evidence_reference"),
+                            external_evidence_sha256__regex=r"^[0-9a-f]{64}$",
+                        )
+                        & ~Q(external_evidence_reference="")
+                    )
+                ),
+                name="commercial_personrevision_actor_valid",
             ),
         ]
 
@@ -225,6 +256,10 @@ class ConsentEvent(models.Model):
         GRANTED = "granted", "Concedido"
         REVOKED = "revoked", "Revocado"
 
+    class RecorderKind(models.TextChoices):
+        INTERNAL_MEMBERSHIP = "internal_membership", "Membresía interna"
+        EXTERNAL_SUBJECT = "external_subject", "Titular externo"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
     person = models.ForeignKey(
@@ -240,9 +275,21 @@ class ConsentEvent(models.Model):
     corrects = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="corrections"
     )
-    recorded_by_membership = models.ForeignKey(
-        Membership, on_delete=models.PROTECT, related_name="recorded_consents", db_index=False
+    recorder_kind = models.CharField(
+        max_length=24, choices=RecorderKind.choices, default=RecorderKind.INTERNAL_MEMBERSHIP
     )
+    recorded_by_membership = models.ForeignKey(
+        Membership,
+        on_delete=models.PROTECT,
+        related_name="recorded_consents",
+        db_index=False,
+        null=True,
+        blank=True,
+    )
+    external_submission_reference = models.CharField(max_length=240, blank=True)
+    external_evidence_sha256 = models.CharField(max_length=64, blank=True)
+    observed_text_sha256 = models.CharField(max_length=64, blank=True)
+    presentation_version = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -274,6 +321,31 @@ class ConsentEvent(models.Model):
             models.CheckConstraint(
                 condition=Q(decision__in=["granted", "revoked"]),
                 name="people_consentevent_decision_valid",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        recorder_kind="internal_membership",
+                        recorded_by_membership__isnull=False,
+                        external_submission_reference="",
+                        external_evidence_sha256="",
+                        observed_text_sha256="",
+                        presentation_version="",
+                    )
+                    | (
+                        Q(
+                            recorder_kind="external_subject",
+                            recorded_by_membership__isnull=True,
+                            external_submission_reference=Trim("external_submission_reference"),
+                            external_evidence_sha256__regex=r"^[0-9a-f]{64}$",
+                            observed_text_sha256__regex=r"^[0-9a-f]{64}$",
+                            presentation_version=Trim("presentation_version"),
+                        )
+                        & ~Q(external_submission_reference="")
+                        & ~Q(presentation_version="")
+                    )
+                ),
+                name="people_consentevent_recorder_valid",
             ),
         ]
 

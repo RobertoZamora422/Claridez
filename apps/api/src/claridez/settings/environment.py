@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
-from pydantic import Field, SecretStr, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
@@ -58,6 +58,26 @@ class RuntimeSettings(_LocalConnectionSettings):
     db_user: Literal["claridez_app"]
     db_password: LocalSecret
     auth_link_base_url: str = "http://127.0.0.1:5173"
+    communications_provider: Literal["deterministic", "resend"] = "deterministic"
+    communications_resend_api_key: SecretStr = SecretStr("")
+    communications_resend_api_url: str = "https://api.resend.com/emails"
+    communications_webhook_secret: SecretStr = SecretStr("")
+    communications_worker_lease_seconds: int = Field(default=120, ge=30, le=900)
+    communications_webhook_replay_seconds: int = Field(default=300, ge=60, le=900)
+    portal_antiabuse_provider: Literal["deterministic", "turnstile"] = "deterministic"
+    portal_turnstile_secret_key: SecretStr = SecretStr("")
+    portal_turnstile_site_key: str = ""
+    portal_turnstile_expected_hostnames: str = ""
+    portal_challenge_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    portal_session_idle_ttl_seconds: int = Field(default=1800, ge=300, le=86400)
+    portal_session_absolute_ttl_seconds: int = Field(default=28800, ge=900, le=604800)
+    portal_ephemeral_locator_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+
+    @model_validator(mode="after")
+    def validate_portal_session_ttls(self) -> RuntimeSettings:
+        if self.portal_session_idle_ttl_seconds > self.portal_session_absolute_ttl_seconds:
+            raise ValueError("la expiración idle de Portal no puede superar la absoluta")
+        return self
 
     @field_validator("allowed_hosts")
     @classmethod

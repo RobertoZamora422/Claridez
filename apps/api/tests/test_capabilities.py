@@ -263,6 +263,53 @@ EXPECTED_MATRIX[Membership.Role.OWNER].update(P13_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P13_CAPABILITIES)
 EXPECTED_MATRIX[Membership.Role.OPERATIONS].update(P13_CAPABILITIES)
 
+P14_OWNER_ADMIN = {
+    Capability.PUBLIC_FORM_READ,
+    Capability.PUBLIC_FORM_MANAGE,
+    Capability.PUBLIC_FORM_PUBLISH,
+    Capability.COMMUNICATION_TEMPLATE_READ,
+    Capability.COMMUNICATION_TEMPLATE_MANAGE,
+    Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+    Capability.COMMUNICATION_INTENT_REQUEST,
+    Capability.COMMUNICATION_DELIVERY_READ,
+    Capability.COMMUNICATION_DELIVERY_RETRY,
+    Capability.COMMUNICATION_PREFERENCE_READ,
+    Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+    Capability.COMMUNICATION_PREFERENCE_RESTORE,
+    Capability.PORTAL_GRANT_READ,
+    Capability.PORTAL_GRANT_ISSUE,
+    Capability.PORTAL_GRANT_REVOKE,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(P14_OWNER_ADMIN)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(P14_OWNER_ADMIN)
+EXPECTED_MATRIX[Membership.Role.COMMERCIAL].update(
+    P14_OWNER_ADMIN - {Capability.COMMUNICATION_PREFERENCE_RESTORE}
+)
+EXPECTED_MATRIX[Membership.Role.OPERATIONS].update(
+    {
+        Capability.COMMUNICATION_TEMPLATE_READ,
+        Capability.COMMUNICATION_TEMPLATE_MANAGE,
+        Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+        Capability.COMMUNICATION_INTENT_REQUEST,
+        Capability.COMMUNICATION_DELIVERY_READ,
+        Capability.COMMUNICATION_DELIVERY_RETRY,
+        Capability.COMMUNICATION_PREFERENCE_READ,
+        Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+    }
+)
+EXPECTED_MATRIX[Membership.Role.FINANCE].update(
+    {
+        Capability.COMMUNICATION_TEMPLATE_READ,
+        Capability.COMMUNICATION_TEMPLATE_MANAGE,
+        Capability.COMMUNICATION_TEMPLATE_PUBLISH,
+        Capability.COMMUNICATION_INTENT_REQUEST,
+        Capability.COMMUNICATION_DELIVERY_READ,
+        Capability.COMMUNICATION_DELIVERY_RETRY,
+        Capability.COMMUNICATION_PREFERENCE_READ,
+        Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+    }
+)
+
 
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
@@ -354,6 +401,21 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "purchase:manage",
         "purchase:receive",
         "purchase:materialize_finance",
+        "public_form:read",
+        "public_form:manage",
+        "public_form:publish",
+        "communication_template:read",
+        "communication_template:manage",
+        "communication_template:publish",
+        "communication_intent:request",
+        "communication_delivery:read",
+        "communication_delivery:retry",
+        "communication_preference:read",
+        "communication_preference:suppress",
+        "communication_preference:restore",
+        "portal_grant:read",
+        "portal_grant:issue",
+        "portal_grant:revoke",
     }
 
 

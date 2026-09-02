@@ -82,6 +82,25 @@ def _space(organization_id: UUID, reference: UUID | str) -> Space:
         raise unavailable("El espacio") from None
 
 
+def _responsible_membership_for_public_capture(
+    organization_id: UUID, reference: UUID | str
+) -> Membership:
+    try:
+        membership = Membership.objects.get(
+            pk=_uuid(reference, "La membresía"),
+            organization_id=organization_id,
+            status=Membership.Status.ACTIVE,
+            user__is_active=True,
+        )
+    except Membership.DoesNotExist:
+        raise unavailable("La membresía") from None
+    try:
+        require_capability(membership.role, Capability.SALES_MANAGE)
+    except AuthorizationDenied:
+        raise invalid("El responsable no puede gestionar solicitudes.") from None
+    return membership
+
+
 def create_event_request(
     actor: User,
     organization_reference: UUID | str,
@@ -140,6 +159,76 @@ def create_event_request(
             responsible_membership=responsible,
         )
         return _request_data(row, authorization)
+
+
+def create_event_request_from_public_capture(
+    organization_id: UUID,
+    *,
+    person_id: UUID | str,
+    event_type_id: UUID | str,
+    event_type_revision: int,
+    space_id: UUID | str,
+    space_revision: int,
+    venue_revision: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    estimated_guests: int,
+    general_need: str,
+    notes: str,
+    origin: str,
+    origin_detail: str | None,
+    responsible_membership_id: UUID | str,
+    timezone_name: str,
+) -> EventRequest:
+    """Crea la oportunidad desde un scope externo ya autorizado, sin inventar actor interno."""
+    try:
+        canonical_person_id = lock_canonical_person_id(organization_id, person_id)
+    except PeopleError as error:
+        raise CommercialError(error.code, error.message, status=error.status) from error
+    event_type = _event_type(organization_id, event_type_id)
+    space = _space(organization_id, space_id)
+    responsible = _responsible_membership_for_public_capture(
+        organization_id, responsible_membership_id
+    )
+    settings = OrganizationSettings.objects.get(organization_id=organization_id)
+    if (
+        event_type.revision != event_type_revision
+        or space.revision != space_revision
+        or space.venue.revision != venue_revision
+        or settings.timezone != timezone_name
+    ):
+        raise conflict(
+            "published_form_configuration_changed",
+            "La configuración publicada ya no está disponible.",
+        )
+    start, end = _validate_interval(starts_at, ends_at)
+    try:
+        canonical_need = canonical_text(general_need, field="La necesidad general", max_length=500)
+        canonical_notes = canonical_optional_text(notes, field="Las notas", max_length=4000)
+        canonical_origin = _origin(origin)
+        canonical_detail = canonical_optional_text(
+            origin_detail, field="El detalle del origen", max_length=160
+        )
+    except ValueError as error:
+        raise invalid(str(error)) from error
+    if estimated_guests < 1:
+        raise invalid("Los invitados estimados deben ser mayores que cero.")
+    return EventRequest.objects.create(
+        organization_id=organization_id,
+        person_id=canonical_person_id,
+        event_type_definition=event_type,
+        space=space,
+        event_type=event_type.name,
+        starts_at=start,
+        ends_at=end,
+        event_timezone=timezone_name,
+        estimated_guests=estimated_guests,
+        general_need=canonical_need,
+        notes=canonical_notes,
+        origin=canonical_origin,
+        origin_detail=canonical_detail,
+        responsible_membership=responsible,
+    )
 
 
 def list_event_requests(

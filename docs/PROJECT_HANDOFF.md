@@ -1,9 +1,9 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 31 de agosto de 2026
-- **Etapa funcional activa:** ninguna; P13 está cerrada localmente bajo ADR 0022
-- **Siguiente etapa:** implementación de P14 — Formularios, comunicaciones y portal, únicamente
-  después de aprobación explícita; ADR 0023 ya formaliza su arquitectura
+- **Fecha de corte:** 2 de septiembre de 2026
+- **Etapa funcional activa:** ninguna; P14 está cerrada localmente bajo ADR 0023
+- **Siguiente etapa:** planificación de P15 — Analítica, reportes y exportaciones; su
+  implementación requiere aprobación explícita
 
 ## Qué es Claridez
 
@@ -74,6 +74,13 @@ duplica: registra cómo continuar desde el checkout real.
   recepciones, activos serializados, movimientos/saldos, requerimientos/faltantes,
   reservas/asignaciones/capacidad, custodia, mantenimiento e indisponibilidad; ledger append-only,
   RLS, idempotencia, locks y guardianes PostgreSQL.
+- `claridez.communications`: plantillas/versiones inmutables, catálogo deny-by-default de
+  propósitos, preferencias y supresiones append-only, intents, mensajes lógicos, outbox durable,
+  intentos, eventos de proveedor y conciliación técnica tenant-aware; adaptadores deterministas y
+  Resend detrás de puerto, sin entregar marketing ni asumir proveedor productivo.
+- `claridez.portal`: formularios públicos versionados, locators opacos mínimos, submissions,
+  `PortalPrincipal`, challenges, sesiones server-side y grants por solicitud; autentica identidades
+  externas sin `User`/`Membership` y consume proyecciones tipadas de los dominios fuente.
 - Web: autenticación, selector organizacional, agenda responsive diaria/semanal/mensual con
   filtros y carriles/listas, políticas, bloqueos, reprogramación guiada, cancelación, historia y
   exportación; solicitudes/cotizaciones/reservas, operación, configuración/catálogo y CRM con
@@ -85,19 +92,40 @@ duplica: registra cómo continuar desde el checkout real.
   proveedores, recursos, existencias/ubicaciones, movimientos, compras/recepciones,
   asignación/disponibilidad por evento y mantenimiento/indisponibilidad, con faltantes y conflictos
   explícitos; dentro de Operación, administración de plantillas y superficie avanzada responsive
-  para fases, incidencias, cambios, ventanas, evidencia y cierre postevento.
+  para fases, incidencias, cambios, ventanas, evidencia y cierre postevento; captación pública,
+  Portal autenticado y workspace P14 separados y responsive.
 
-No existe aún implementación funcional de P14 en adelante. No hay contabilidad formal ni portal
-completo, ni proveedores productivos de almacenamiento/correo/identidad, staging o producción.
+No existe aún implementación funcional de P15 en adelante. No hay contabilidad formal ni
+proveedores productivos de almacenamiento/correo/WhatsApp/identidad, staging o producción.
 
 ## Estado exacto
 
-- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P13: completadas y validadas localmente.
+- I0–I4, I5.1, 5.1.1, 5.1.2, I5.2 y P6–P14: completadas y validadas localmente.
 - ADR 0022 y `P13_ADVANCED_OPERATIONS_SPECIFICATION.md` gobiernan la implementación P13 cerrada
   localmente; no se presume despliegue ni cutover sobre un entorno destino.
-- ADR 0023 formaliza la arquitectura previa de P14: dos módulos técnicos para un único dominio
-  funcional, identidad Portal separada de grants, captación tenant-safe y outbox PostgreSQL
-  transversal. P14 continúa sin implementación y no tiene autorización para iniciarla.
+- ADR 0023 gobierna P14: dos módulos técnicos para un único dominio funcional, identidad Portal
+  separada de grants, captación tenant-safe y outbox PostgreSQL transversal. La implementación
+  local preserva las autoridades fuente y no reutiliza el ORM ni el estado externo de Documents.
+- P14 incorpora captación estructurada hacia la persona canónica y `EventRequest`, consentimiento
+  externo con procedencia verificable, disponibilidad pública booleana informativa, propuesta
+  comercial de lectura, agenda/documentos/aceptación/saldo mediante puertos tipados y recordatorios
+  decididos por su dominio propietario.
+- Communications usa claim ordenado con `SKIP LOCKED`, lease, commit antes del I/O, entrega
+  at-least-once, idempotencia, backoff/jitter, `Retry-After`, reclaim, cancelación por obsolescencia,
+  fallo terminal y reintento manual auditado. El dispatcher enumera organizaciones por el puerto
+  público existente y entra en un scope de infraestructura concreto sin `BYPASSRLS`.
+- Las migraciones aditivas de Communications/Portal y las extensiones People/CRM/Documents no
+  fabrican formularios, principals, grants, sesiones, consentimientos, preferencias, mensajes,
+  aceptaciones ni webhooks históricos. Las tablas privadas nuevas aplican RLS forzado y
+  privilegios mínimos para `claridez_app`.
+- La puerta local de cierre aprobó 280 pruebas API no integración, 109 integraciones PostgreSQL y
+  37 pruebas frontend, además de locks, migraciones sin cambios, formato, lint, mypy, TypeScript,
+  OpenAPI y builds. La integración cubrió dos tenants, SQL directo/RLS, concurrencia, locators,
+  captación, sesiones/grants, merge/contactos, Documents, Receivables, outbox y webhooks. El
+  navegador real comprobó 320 y 1280 px sin overflow horizontal y navegación por teclado. La
+  auditoría Python/npm cerró sin vulnerabilidades conocidas con DRF 3.17.2 y pypdf 6.16.1.
+- Esta evidencia es local y no afirma CI remota, credenciales o entrega de proveedores
+  productivos, commit, push, despliegue ni cutover.
 - El guardián PostgreSQL y el procedimiento de cutover 5.2 están implementados y probados
   localmente.
 - El cutover de 5.2 sobre un entorno destino, el cierre real de tráfico y la reapertura no se han
@@ -371,8 +399,8 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
   recursos, cierre postevento y su integridad con 5.2/Scheduling/Resources: ADR 0022; implementado y
   validado localmente.
 - Experiencia externa P14, límites de Communications/Portal, resolución pública tenant-safe,
-  principal/grants externos, integración documental y outbox transversal: ADR 0023; arquitectura
-  aceptada, sin implementación.
+  principal/grants externos, integración documental y outbox transversal: ADR 0023; implementado
+  y validado localmente.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contratos funcionales P11 y
   P13. P9 se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -381,12 +409,14 @@ completo, ni proveedores productivos de almacenamiento/correo/identidad, staging
 
 - Proveedores de staging/producción, correo, WhatsApp, almacenamiento y malware gestionado;
   dimensionamiento/observabilidad productivos del renderer y worker.
-- MFA productiva y OIDC de usuarios internos. ADR 0023 acepta `PortalPrincipal` como identidad
-  externa tenant-aware separada, pero P14 continúa sin implementación.
+- MFA productiva y OIDC de usuarios internos. `PortalPrincipal` cubre únicamente identidad externa
+  tenant-aware y no sustituye `User` ni `Membership`.
 - P9 implementa el ledger durable PostgreSQL y runner canónico; dimensionamiento y una eventual
   cola/broker externos continúan abiertos detrás del puerto operativo.
-- P14 mantiene pendientes proveedor de correo/WhatsApp/antiabuso, TTL exactos, matriz final de
-  capabilities y políticas legales/producto de consentimiento, unsubscribe y retención.
+- P14 mantiene pendientes credenciales/activación productiva de correo y antiabuso, onboarding de
+  WABA/sender por organización, proveedor definitivo y políticas legales/producto de
+  consentimiento, propósitos y retención. Los TTL iniciales y la matriz de capabilities son
+  configurables y están implementados; marketing y WhatsApp productivo fallan cerradamente.
 - Datos legales obligatorios, representación, política de materialidad, política detallada de
   privacidad/retención, mecanismos de atribución superiores y firma electrónica acreditada. El
   método base se identifica únicamente como aceptación electrónica propia.
@@ -482,10 +512,9 @@ falta.
 
 ## Próximo trabajo
 
-P13 — Operación avanzada está cerrada y validada localmente bajo ADR 0022 y su contrato funcional.
-ADR 0023 formaliza la arquitectura de **P14 — Formularios, comunicaciones y portal**. El siguiente
-paso exacto es recibir aprobación explícita antes de implementar P14; todavía no están autorizados
-módulos, modelos, migraciones, endpoints, frontend, workers, dependencias ni proveedores.
+P14 — Formularios, comunicaciones y portal está cerrada y validada localmente bajo ADR 0023. La
+siguiente etapa exacta es preparar el plan breve de **P15 — Analítica, reportes y exportaciones**.
+P15 permanece pendiente y su implementación no está autorizada.
 
 ## Riesgos actuales
 

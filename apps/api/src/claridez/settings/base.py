@@ -29,6 +29,8 @@ INSTALLED_APPS = [
     "claridez.receivables.apps.ReceivablesConfig",
     "claridez.resources.apps.ResourcesConfig",
     "claridez.finance.apps.FinanceConfig",
+    "claridez.communications.apps.CommunicationsConfig",
+    "claridez.portal.apps.PortalConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -90,6 +92,22 @@ AUTH_LINK_BASE_URL = "http://testserver"
 DEFAULT_FROM_EMAIL = "Claridez <no-reply@claridez.local>"
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
+PORTAL_CHALLENGE_TTL_SECONDS = 15 * 60
+PORTAL_SESSION_IDLE_TTL_SECONDS = 30 * 60
+PORTAL_SESSION_ABSOLUTE_TTL_SECONDS = 8 * 60 * 60
+PORTAL_EPHEMERAL_LOCATOR_TTL_SECONDS = 15 * 60
+COMMUNICATIONS_WORKER_LEASE_SECONDS = 120
+COMMUNICATIONS_WEBHOOK_REPLAY_SECONDS = 5 * 60
+COMMUNICATIONS_PROVIDER = "deterministic"
+PORTAL_EXPOSE_TEST_CHALLENGE_CODE = False
+COMMUNICATIONS_RESEND_API_KEY = ""
+COMMUNICATIONS_RESEND_API_URL = "https://api.resend.com/emails"
+COMMUNICATIONS_WEBHOOK_SECRET = ""
+PORTAL_ANTIABUSE_PROVIDER = "deterministic"
+PORTAL_TURNSTILE_SECRET_KEY = ""
+PORTAL_TURNSTILE_SITE_KEY = ""
+PORTAL_TURNSTILE_EXPECTED_HOSTNAMES: list[str] = []
+
 AXES_HANDLER = "axes.handlers.database.AxesDatabaseHandler"
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
@@ -142,6 +160,8 @@ SPECTACULAR_SETTINGS = {
         "FinanceExpenseAllocationScope": "claridez.finance.models.ExpenseAllocation.Scope",
         "ResourcesNature": "claridez.resources.models.Resource.Nature",
         "ResourcesMovementKind": "claridez.resources.models.StockMovement.Kind",
+        "CommunicationsChannel": "claridez.communications.models.Channel",
+        "CommunicationsPurpose": "claridez.communications.models.Purpose",
     },
 }
 

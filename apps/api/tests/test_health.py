@@ -77,4 +77,7 @@ def test_health_routes_and_approved_api_groups_are_the_only_root_routes() -> Non
         "api/v1/auth/",
         "api/v1/organizations/",
         "api/v1/external/documents/",
+        "api/v1/public/",
+        "api/v1/portal/",
+        "api/v1/webhooks/communications/",
     }

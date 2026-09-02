@@ -24,6 +24,10 @@ _current_organization: ContextVar[UUID | None] = ContextVar(
     "claridez_current_organization",
     default=None,
 )
+_EXTERNAL_PROOF = object()
+_EXTERNAL_PURPOSES = frozenset(
+    {"public_form", "portal_authentication", "portal_session", "communications_webhook"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +42,29 @@ class TenantAuthorization:
 
     def require(self, capability: Capability | str) -> Capability:
         return require_capability(self.role, capability)
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalTenantAuthorization:
+    """Autorización server-side emitida tras resolver un locator técnico válido."""
+
+    organization_id: UUID
+    purpose: str
+    locator_reference: UUID
+    _proof: object
+
+
+def _mint_external_tenant_authorization(
+    organization_id: UUID, *, purpose: str, locator_reference: UUID
+) -> ExternalTenantAuthorization:
+    if purpose not in _EXTERNAL_PURPOSES:
+        raise TenantAccessDenied("El propósito externo no está autorizado.")
+    return ExternalTenantAuthorization(
+        organization_id=organization_id,
+        purpose=purpose,
+        locator_reference=locator_reference,
+        _proof=_EXTERNAL_PROOF,
+    )
 
 
 def _organization_id(reference: Organization | UUID | str) -> UUID:
@@ -138,18 +165,59 @@ def infrastructure_tenant_scope(
     organization_reference: UUID | str, *, purpose: str
 ) -> Iterator[None]:
     """Scope privado para workers y sesiones externas autenticadas por su propio mecanismo."""
-    if purpose not in {"document_worker", "external_document_session"}:
+    if purpose not in {
+        "communications_worker",
+        "document_worker",
+        "external_document_session",
+    }:
         raise TenantAccessDenied("El propósito de infraestructura no está autorizado.")
     organization_id = _organization_id(organization_reference)
     active_organization = _current_organization.get()
     if active_organization is not None and active_organization != organization_id:
         raise ConflictingTenantScope("No se permite cambiar de organización dentro del scope.")
     with transaction.atomic():
+        scope_failed = False
         previous_context = _set_local_organization_context(str(organization_id))
         token = _current_organization.set(organization_id)
         try:
             yield
+        except BaseException:
+            scope_failed = True
+            raise
         finally:
             _current_organization.reset(token)
-            if not connection.needs_rollback:
+            if not scope_failed and not connection.needs_rollback:
+                _restore_local_organization_context(previous_context)
+
+
+@contextmanager
+def external_tenant_scope(
+    authorization: ExternalTenantAuthorization,
+) -> Iterator[ExternalTenantAuthorization]:
+    """Scope restringido para ingress externo ya localizado por el servidor."""
+    if (
+        authorization._proof is not _EXTERNAL_PROOF
+        or authorization.purpose not in _EXTERNAL_PURPOSES
+    ):
+        raise TenantAccessDenied("La entrada externa no está autorizada.")
+    organization_id = authorization.organization_id
+    active_organization = _current_organization.get()
+    if active_organization is not None and active_organization != organization_id:
+        raise ConflictingTenantScope("No se permite cambiar de organización dentro del scope.")
+    with transaction.atomic():
+        scope_failed = False
+        previous_context = _set_local_organization_context(str(organization_id))
+        token = _current_organization.set(organization_id)
+        try:
+            if not Organization.objects.filter(
+                pk=organization_id, status=Organization.Status.ACTIVE
+            ).exists():
+                raise TenantAccessDenied("La entrada externa no está disponible.")
+            yield authorization
+        except BaseException:
+            scope_failed = True
+            raise
+        finally:
+            _current_organization.reset(token)
+            if not scope_failed and not connection.needs_rollback:
                 _restore_local_organization_context(previous_context)

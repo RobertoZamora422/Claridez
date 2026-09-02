@@ -61,6 +61,10 @@ La matriz concreta se registra en `docs/architecture/TOOLCHAIN_COMPATIBILITY.md`
 - Toda validación organizacional, consulta privada y materialización de respuesta deberá completar
   dentro de `authorized_tenant_scope`; el helper de bajo nivel del GUC no será accesible desde
   vistas, serializers ni código de dominio ordinario.
+- ADR 0023 admite, exclusivamente para las superficies externas P14, un scope restringido creado
+  server-side después de resolver y revalidar un locator opaco. Ese scope no acepta un tenant
+  elegido por el cliente, no crea `Membership` y no sustituye ni debilita
+  `authorized_tenant_scope` para actores internos.
 
 ## 6. Perfiles iniciales provisionales
 
@@ -94,7 +98,7 @@ Está prohibido inferir jerarquías, excepciones o accesos adicionales.
 ## 8. Alcance técnico establecido
 
 Las Iteraciones 0 a 3, la Iteración 4, la Iteración 5.1, la implementación local de la Iteración
-5.2 y P6–P13 están completadas. 4.1 incorpora el usuario
+5.2 y P6–P14 están completadas. 4.1 incorpora el usuario
 global `claridez.identity.User`; 4.2 incorpora `claridez.organizations.Organization` y
 `Membership` como tablas globales de control, sus servicios transaccionales y el bootstrap local;
 4.3 incorpora autenticación HTTP con sesiones Django, CSRF, recuperación y verificación local. El
@@ -145,13 +149,17 @@ de setup/teardown, responsabilidades, incidencias, cambios autorizados, ventanas
 recursos y cierre postevento append-only conforme a ADR 0022 y su contrato funcional. Conserva
 `EventPreparation` y `completed` con significado `execution_completed`; Scheduling mantiene agenda
 y ocupación, Resources capacidad/custodia/movimientos, y Documents toda evidencia privada.
+P14 — Formularios, comunicaciones y portal — está implementada y validada localmente bajo ADR
+0023 como un único dominio funcional mediante los módulos técnicos `claridez.communications` y
+`claridez.portal`. La evidencia local no presume proveedores productivos, despliegue ni cutover.
+No autoriza P15 ni etapas posteriores.
 Django y React/Vite se ejecutan nativamente en Windows; PostgreSQL y el perfil documental canónico
 usan contenedores locales.
 El Blueprint define el destino, pero no autoriza por sí solo una etapa. Hasta que el propietario
 apruebe la siguiente etapa del Roadmap, no se deben crear:
 
 - Nuevas tablas privadas, políticas RLS, capacidades, endpoints o migraciones funcionales.
-- Módulos o pantallas de P14 o etapas posteriores.
+- Módulos o pantallas de P15 o etapas posteriores.
 - Contenedores, infraestructura, integraciones o proveedores externos.
 - Cliente TypeScript generado.
 

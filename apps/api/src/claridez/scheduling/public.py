@@ -7,9 +7,127 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .errors import SchedulingError
+
+
+@dataclass(frozen=True, slots=True)
+class PublicAvailabilityProjection:
+    available: bool
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClientScheduleProjection:
+    root_reservation_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    timezone_name: str
+    venue_name: str
+    space_name: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class EventReminderDecision:
+    event_request_id: UUID
+    current_reservation_id: UUID
+    root_reservation_id: UUID
+    source_version: int
+    starts_at: datetime
+    timezone_name: str
+
+
+def event_reminder_decision(
+    authorization: TenantAuthorization, event_request_id: UUID
+) -> EventReminderDecision:
+    """Decide desde Scheduling si existe un evento confirmado que recordar."""
+    from .models import Reservation
+
+    authorization.require(Capability.AVAILABILITY_READ)
+    chain = tuple(
+        Reservation.objects.filter(
+            organization_id=authorization.organization_id,
+            event_request_id=event_request_id,
+        ).order_by("created_at", "id")
+    )
+    if not chain or chain[-1].status != Reservation.Status.CONFIRMED:
+        raise SchedulingError(
+            "reminder_not_applicable",
+            "No existe un evento confirmado apto para recordatorio.",
+            status=409,
+        )
+    current = chain[-1]
+    return EventReminderDecision(
+        event_request_id=current.event_request_id,
+        current_reservation_id=current.pk,
+        root_reservation_id=current.root_id,
+        source_version=len(chain),
+        starts_at=current.event_interval.lower,
+        timezone_name=current.event_timezone,
+    )
+
+
+def public_interval_availability(
+    organization_id: UUID,
+    *,
+    space_id: UUID,
+    starts_at: datetime,
+    ends_at: datetime,
+    timezone_name: str,
+) -> PublicAvailabilityProjection:
+    from psycopg.types.range import Range
+
+    from .models import ScheduleAllocation
+
+    if starts_at >= ends_at:
+        raise SchedulingError("invalid_interval", "El intervalo no es válido.", status=400)
+    occupied = ScheduleAllocation.objects.filter(
+        organization_id=organization_id,
+        space_id=space_id,
+        is_blocking=True,
+        occupied_interval__overlap=Range(starts_at, ends_at, "[)"),
+    ).exists()
+    return PublicAvailabilityProjection(
+        available=not occupied,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        timezone_name=timezone_name,
+    )
+
+
+def client_schedule(
+    organization_id: UUID, event_request_id: UUID
+) -> ClientScheduleProjection | None:
+    from .models import Reservation
+
+    row = (
+        Reservation.objects.select_related("space", "space__venue")
+        .filter(organization_id=organization_id, event_request_id=event_request_id)
+        .order_by("-created_at", "-id")
+        .first()
+    )
+    if row is None:
+        return None
+    client_status = {
+        Reservation.Status.PROVISIONAL.value: "pending_confirmation",
+        Reservation.Status.CONFIRMED.value: "confirmed",
+        Reservation.Status.CANCELLED.value: "cancelled",
+        Reservation.Status.EXPIRED.value: "not_confirmed",
+    }[row.status]
+    return ClientScheduleProjection(
+        root_reservation_id=row.root_id,
+        starts_at=row.event_interval.lower,
+        ends_at=row.event_interval.upper,
+        timezone_name=row.event_timezone,
+        venue_name=row.space.venue.name,
+        space_name=row.space.name,
+        status=client_status,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -527,6 +645,9 @@ def reschedule_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 __all__ = (
     "ReservationProjection",
+    "PublicAvailabilityProjection",
+    "ClientScheduleProjection",
+    "EventReminderDecision",
     "ResourceScheduleProjection",
     "ResourceAvailabilityContextProjection",
     "OperationsScheduleAuthorityProjection",
@@ -559,4 +680,7 @@ __all__ = (
     "schedule_authority_for_operations",
     "reschedule_command",
     "schedule_changes",
+    "public_interval_availability",
+    "client_schedule",
+    "event_reminder_decision",
 )

@@ -15,4 +15,10 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/organizations/", include("claridez.resources.urls")),
     path("api/v1/organizations/", include("claridez.finance.urls")),
     path("api/v1/external/documents/", include("claridez.documents.external_urls")),
+    path("api/v1/public/", include("claridez.portal.public_urls")),
+    path("api/v1/portal/", include("claridez.portal.urls")),
+    path("api/v1/organizations/", include("claridez.portal.internal_urls")),
+    path("api/v1/organizations/", include("claridez.communications.urls")),
+    path("api/v1/organizations/", include("claridez.application.reminder_urls")),
+    path("api/v1/webhooks/communications/", include("claridez.portal.webhook_urls")),
 ]

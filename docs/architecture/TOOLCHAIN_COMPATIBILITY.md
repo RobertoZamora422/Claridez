@@ -1,7 +1,7 @@
 # Matriz de compatibilidad de toolchains
 
 - **Iteración:** 1 — Toolchains reproducibles
-- **Fecha de evaluación:** 31 de julio de 2026
+- **Fecha de evaluación:** 2 de septiembre de 2026
 - **Estado:** validada y aceptada
 
 Este documento registra versiones exactas y evidencia observada. No define arquitectura funcional, despliegue ni configuración productiva.
@@ -12,15 +12,15 @@ Este documento registra versiones exactas y evidencia observada. No define arqui
 |---|---:|---|
 | Python | 3.13.14 | Línea 3.13 aprobada |
 | uv | 0.12.0 | Gestor Python fijado |
-| Django | 5.2.16 | Último parche estable de 5.2 LTS al evaluar |
-| Django REST Framework | 3.16.1 | Último parche estable de 3.16 al evaluar |
+| Django | 5.2.17 | Parche de seguridad vigente de la línea 5.2 LTS |
+| Django REST Framework | 3.17.2 | Corrige CVE-2026-73228 y CVE-2026-73229 |
 | drf-spectacular | 0.30.0 | Candidato compatible para OpenAPI |
 | Psycopg | 3.3.4 | Driver PostgreSQL |
 | pydantic-settings | 2.14.2 | Configuración local tipada y validada; añadido en la Iteración 2 |
 | django-axes | 8.3.1 | Protección de login persistida en PostgreSQL; añadido en 4.3 |
 | boto3 | 1.43.53 | Adaptador sustituible S3-compatible de P9 |
 | WeasyPrint | 69.0 | Renderer PDF server-side dentro de la imagen canónica P9 |
-| pypdf | 6.15.0 | Validación estructural conservadora de uploads PDF |
+| pypdf | 6.16.1 | Validación estructural conservadora de uploads PDF; corrige CVE-2026-84309–84311 |
 | Pillow | 12.3.0 | Decodificación real de uploads JPEG/PNG |
 | djangorestframework-stubs | 3.16.9 | Tipos y plugin mypy para DRF; añadido en 4.3 |
 | PostgreSQL | 17.10 | Imagen local `17.10-bookworm` fijada por digest en la Iteración 2 |
@@ -53,7 +53,7 @@ No se utilizan versiones preliminares ni etiquetas flotantes. Los parches exacto
 
 - Ruff: formato y lint.
 - mypy, django-stubs y djangorestframework-stubs: tipos estrictos compatibles con Django 5.2 y
-  DRF 3.16.
+  DRF 3.17.
 - pytest y pytest-django: pruebas técnicas.
 - coverage.py y pytest-cov: cobertura sin umbral global inicial.
 - pip-audit: auditoría separada y dependiente de red.

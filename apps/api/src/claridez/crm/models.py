@@ -22,6 +22,10 @@ class Interaction(models.Model):
         INBOUND = "inbound", "Entrante"
         OUTBOUND = "outbound", "Saliente"
 
+    class RecorderKind(models.TextChoices):
+        INTERNAL_MEMBERSHIP = "internal_membership", "Membresía interna"
+        COMMUNICATIONS = "communications", "Comunicación semántica"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, db_index=False)
     person = models.ForeignKey(
@@ -43,6 +47,8 @@ class Interaction(models.Model):
         on_delete=models.PROTECT,
         related_name="responsible_crm_interactions",
         db_index=False,
+        null=True,
+        blank=True,
     )
     summary = models.CharField(max_length=1000)
     correction_of = models.ForeignKey(
@@ -58,7 +64,14 @@ class Interaction(models.Model):
         on_delete=models.PROTECT,
         related_name="recorded_crm_interactions",
         db_index=False,
+        null=True,
+        blank=True,
     )
+    recorder_kind = models.CharField(
+        max_length=24, choices=RecorderKind.choices, default=RecorderKind.INTERNAL_MEMBERSHIP
+    )
+    communication_purpose = models.CharField(max_length=32, blank=True)
+    communication_reference = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -91,6 +104,34 @@ class Interaction(models.Model):
             models.CheckConstraint(
                 condition=~Q(id=models.F("correction_of")),
                 name="crm_interaction_not_self_correction",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        recorder_kind="internal_membership",
+                        responsible_membership__isnull=False,
+                        recorded_by_membership__isnull=False,
+                        communication_purpose="",
+                        communication_reference__isnull=True,
+                    )
+                    | (
+                        Q(
+                            recorder_kind="communications",
+                            responsible_membership__isnull=True,
+                            recorded_by_membership__isnull=True,
+                            communication_purpose=Trim("communication_purpose"),
+                            communication_reference__isnull=False,
+                            correction_of__isnull=True,
+                        )
+                        & ~Q(communication_purpose="")
+                    )
+                ),
+                name="crm_interaction_recorder_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "communication_reference"],
+                condition=Q(recorder_kind="communications"),
+                name="crm_interaction_communication_ref_uq",
             ),
         ]
 

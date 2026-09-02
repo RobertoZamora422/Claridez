@@ -61,6 +61,26 @@ export async function externalApi<T>(path: string, init: RequestInit = {}): Prom
   return body as T;
 }
 
+export async function p14ExternalApi<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body !== undefined) headers.set("Content-Type", "application/json");
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRFToken", await csrf());
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string };
+  } | null;
+  if (!response.ok) {
+    throw new ApiError(
+      body?.error?.code ?? "external_access_failed",
+      body?.error?.message ?? "El acceso externo no está disponible.",
+      response.status,
+    );
+  }
+  return body as T;
+}
+
 export async function login(email: string, password: string): Promise<User> {
   const response = await api<{ user: User }>("/api/v1/auth/login/", {
     method: "POST",
@@ -152,9 +172,12 @@ export interface CrmInteraction {
   channel: string;
   direction: "inbound" | "outbound";
   occurred_at: string;
-  responsible_membership_id: string;
+  responsible_membership_id: string | null;
   summary: string;
   correction_of_id: string | null;
+  recorder_kind?: "internal_membership" | "communications";
+  communication_purpose?: string | null;
+  communication_reference?: string | null;
   created_at: string;
 }
 

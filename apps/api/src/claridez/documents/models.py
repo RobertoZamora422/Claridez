@@ -473,7 +473,19 @@ class AcceptanceChallenge(TenantModel):
 
 
 class AcceptanceEvidence(TenantModel):
-    challenge = models.OneToOneField(AcceptanceChallenge, on_delete=models.PROTECT)
+    class Provenance(models.TextChoices):
+        DOCUMENT_LINK = "document_link", "Acceso documental P9"
+        PORTAL_SESSION = "portal_session", "Sesión Portal P14"
+
+    challenge = models.OneToOneField(
+        AcceptanceChallenge, on_delete=models.PROTECT, null=True, blank=True
+    )
+    provenance = models.CharField(
+        max_length=20, choices=Provenance.choices, default=Provenance.DOCUMENT_LINK
+    )
+    portal_principal_reference = models.UUIDField(null=True, blank=True)
+    portal_grant_reference = models.UUIDField(null=True, blank=True)
+    portal_idempotency_key = models.UUIDField(null=True, blank=True)
     issued_version = models.ForeignKey(IssuedInstrumentVersion, on_delete=models.PROTECT)
     artifact = models.ForeignKey(GeneratedArtifact, on_delete=models.PROTECT)
     artifact_sha256 = models.CharField(max_length=64)
@@ -495,7 +507,31 @@ class AcceptanceEvidence(TenantModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "id"], name="documents_acceptance_org_id_uq"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "portal_idempotency_key"],
+                condition=Q(portal_idempotency_key__isnull=False),
+                name="documents_acceptance_portal_idempotency_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        provenance="document_link",
+                        challenge__isnull=False,
+                        portal_principal_reference__isnull=True,
+                        portal_grant_reference__isnull=True,
+                        portal_idempotency_key__isnull=True,
+                    )
+                    | Q(
+                        provenance="portal_session",
+                        challenge__isnull=True,
+                        portal_principal_reference__isnull=False,
+                        portal_grant_reference__isnull=False,
+                        portal_idempotency_key__isnull=False,
+                    )
+                ),
+                name="documents_acceptance_provenance_valid",
+            ),
         ]
 
 

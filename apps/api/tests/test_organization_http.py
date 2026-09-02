@@ -615,5 +615,37 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
             "/api/v1/organizations/{organization_id}/resources/unavailability/"
             "{unavailability_id}/close/"
         ): {"post"},
+        "/api/v1/organizations/{organization_id}/p14/capabilities/": {"get"},
+        "/api/v1/organizations/{organization_id}/public-forms/": {"get", "post"},
+        ("/api/v1/organizations/{organization_id}/public-forms/{form_id}/versions/"): {"post"},
+        ("/api/v1/organizations/{organization_id}/public-forms/{form_id}/locator/rotate/"): {
+            "post"
+        },
+        ("/api/v1/organizations/{organization_id}/public-forms/{form_id}/retire/"): {"post"},
+        ("/api/v1/organizations/{organization_id}/public-forms/versions/{version_id}/publish/"): {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/portal-grants/": {"get", "post"},
+        ("/api/v1/organizations/{organization_id}/portal-grants/{grant_id}/revoke/"): {"post"},
+        ("/api/v1/organizations/{organization_id}/communications/webhook-locators/"): {"post"},
+        "/api/v1/organizations/{organization_id}/communications/templates/": {"get", "post"},
+        (
+            "/api/v1/organizations/{organization_id}/communications/templates/"
+            "{template_id}/versions/"
+        ): {"post"},
+        (
+            "/api/v1/organizations/{organization_id}/communications/templates/versions/"
+            "{version_id}/publish/"
+        ): {"post"},
+        "/api/v1/organizations/{organization_id}/communications/intents/": {"post"},
+        "/api/v1/organizations/{organization_id}/communications/deliveries/": {"get"},
+        ("/api/v1/organizations/{organization_id}/communications/deliveries/{message_id}/retry/"): {
+            "post"
+        },
+        "/api/v1/organizations/{organization_id}/communications/policies/": {"post"},
+        "/api/v1/organizations/{organization_id}/communications/senders/": {"post"},
+        "/api/v1/organizations/{organization_id}/communications/preferences/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/reminders/": {"post"},
+        ("/api/v1/organizations/{organization_id}/reminders/{intent_id}/cancel/"): {"post"},
     }
     assert organization_paths == expected_paths

@@ -688,10 +688,12 @@ def test_postgresql_cluster_guardians_allow_corrections_but_keep_original_contex
                 INSERT INTO public.crm_interaction (
                     id, organization_id, person_id, event_request_id, channel, direction,
                     occurred_at, responsible_membership_id, summary, correction_of_id,
-                    recorded_by_membership_id, created_at
+                    recorded_by_membership_id, recorder_kind, communication_purpose,
+                    communication_reference, created_at
                 ) VALUES (
                     %s, %s, %s, %s, 'email', 'inbound', CURRENT_TIMESTAMP,
-                    %s, 'Corrección SQL dentro del cluster.', %s, %s, CURRENT_TIMESTAMP
+                    %s, 'Corrección SQL dentro del cluster.', %s, %s,
+                    'internal_membership', '', NULL, CURRENT_TIMESTAMP
                 )
                 """,
                 [
@@ -713,10 +715,12 @@ def test_postgresql_cluster_guardians_allow_corrections_but_keep_original_contex
                 INSERT INTO public.crm_interaction (
                     id, organization_id, person_id, event_request_id, channel, direction,
                     occurred_at, responsible_membership_id, summary, correction_of_id,
-                    recorded_by_membership_id, created_at
+                    recorded_by_membership_id, recorder_kind, communication_purpose,
+                    communication_reference, created_at
                 ) VALUES (
                     %s, %s, %s, NULL, 'email', 'inbound', CURRENT_TIMESTAMP,
-                    %s, 'Contexto alterado.', %s, %s, CURRENT_TIMESTAMP
+                    %s, 'Contexto alterado.', %s, %s,
+                    'internal_membership', '', NULL, CURRENT_TIMESTAMP
                 )
                 """,
                 [
@@ -736,11 +740,13 @@ def test_postgresql_cluster_guardians_allow_corrections_but_keep_original_contex
                 INSERT INTO public.people_consentevent (
                     id, organization_id, person_id, purpose, channel, event_type,
                     decision, source, occurred_at, evidence_reference, corrects_id,
-                    recorded_by_membership_id, created_at
+                    recorder_kind, recorded_by_membership_id,
+                    external_submission_reference, external_evidence_sha256,
+                    observed_text_sha256, presentation_version, created_at
                 ) VALUES (
                     %s, %s, %s, 'seguimiento_comercial', 'email', 'correction',
                     'revoked', 'rectificacion_sql', CURRENT_TIMESTAMP, 'SQL-CONSENT-002',
-                    %s, %s, CURRENT_TIMESTAMP
+                    %s, 'internal_membership', %s, '', '', '', '', CURRENT_TIMESTAMP
                 )
                 """,
                 [

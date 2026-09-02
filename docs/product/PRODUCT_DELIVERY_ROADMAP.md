@@ -629,7 +629,7 @@ inventar ni normalizar historia.
 
 **Identificador y nombre:** P14 — Experiencia externa del cliente.
 
-**Estado:** Arquitectura aceptada bajo ADR 0023; implementación pendiente y no autorizada.
+**Estado:** Completada y validada localmente bajo ADR 0023.
 
 **Objetivo:** Captar consultas y mantener al cliente informado sin exponer el workspace interno.
 
@@ -640,16 +640,25 @@ preferencias; plantillas; estados de entrega; reintentos y auditoría.
 **Exclusiones:** Constructor libre, campañas avanzadas, chatbot con IA, app nativa y acceso general
 de proveedores.
 
-**Dependencias:** P13, P10 y P9; ADR 0023 para módulos P14, acceso externo y primer outbox
-transaccional transversal; selección de proveedores y políticas legales/producto todavía
-pendientes.
+**Dependencias:** P13, P10 y P9; ADR 0023 gobierna módulos P14, acceso externo y primer outbox
+transaccional transversal. Proveedores productivos y políticas legales/producto continúan
+pendientes sin abrir entregas que requieren esa aprobación.
 
 **Resultado visible:** Un interesado consulta y un cliente sigue su evento, documentos y saldo desde
 una superficie segura y clara.
 
 **Criterio verificable de finalización:** Consentimiento y rate limit probados, enlaces/portal con
 alcance mínimo, entregas idempotentes/observables, unsubscribe donde aplique, accesibilidad y dos
-tenants.
+tenants. La implementación aditiva incorpora formularios/versiones/submissions, principal y grants
+Portal separados, challenges/sesiones, preferencias e historia, templates/mensajes/intentos/eventos
+de proveedor y outbox PostgreSQL tenant-scoped; conserva People, Commercial, Scheduling,
+Documents y Receivables como autoridades fuente. La puerta local aprobó 280 pruebas API no
+integración, 109 integraciones PostgreSQL y 37 pruebas frontend, además de locks, migraciones sin
+cambios, formato, lint, mypy, TypeScript, OpenAPI y builds. El navegador real comprobó el fallo
+público no enumerativo y el acceso Portal a 320 y 1280 px, sin overflow horizontal y con orden de
+foco por teclado. Las auditorías Python/npm no encontraron vulnerabilidades conocidas después de
+actualizar DRF a 3.17.2 y pypdf a 6.16.1. La evidencia es local: no incluye CI remota, proveedor
+productivo, commit, push, despliegue ni cutover.
 
 **Riesgos principales:** Spam, costos o bloqueo del proveedor, fuga por enlaces, suplantación del
 cliente y datos sensibles en mensajes/logs.

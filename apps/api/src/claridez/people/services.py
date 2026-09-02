@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
@@ -146,6 +147,25 @@ def _snapshot(person: Person, actor_id: UUID) -> PersonRevision:
         origin=person.origin,
         origin_detail=person.origin_detail,
         changed_by_id=actor_id,
+    )
+
+
+def _external_snapshot(
+    person: Person, *, evidence_reference: str, evidence_sha256: str
+) -> PersonRevision:
+    return PersonRevision.objects.create(
+        organization_id=person.organization_id,
+        person=person,
+        revision=person.revision,
+        full_name=person.full_name,
+        phone_e164=person.phone_e164,
+        email=person.email,
+        origin=person.origin,
+        origin_detail=person.origin_detail,
+        actor_kind=PersonRevision.ActorKind.EXTERNAL_SUBJECT,
+        changed_by=None,
+        external_evidence_reference=evidence_reference,
+        external_evidence_sha256=evidence_sha256,
     )
 
 
@@ -582,7 +602,12 @@ def list_consents(
                     "occurred_at": row.occurred_at,
                     "evidence_reference": row.evidence_reference,
                     "corrects_id": row.corrects_id,
+                    "recorder_kind": row.recorder_kind,
                     "recorded_by_membership_id": row.recorded_by_membership_id,
+                    "external_submission_reference": row.external_submission_reference or None,
+                    "external_evidence_sha256": row.external_evidence_sha256 or None,
+                    "observed_text_sha256": row.observed_text_sha256 or None,
+                    "presentation_version": row.presentation_version or None,
                     "created_at": row.created_at,
                 }
                 for row in rows
@@ -657,3 +682,157 @@ def record_consent(
             "corrects_id": row.corrects_id,
             "created_at": row.created_at,
         }
+
+
+def resolve_or_create_for_capture(
+    organization_id: UUID,
+    *,
+    full_name: str,
+    phone: str,
+    email: str | None,
+    origin: str,
+    origin_detail: str | None,
+    evidence_reference: str,
+    evidence_sha256: str,
+) -> Person:
+    """Resuelve identidad externa dentro de un scope previamente autorizado."""
+    try:
+        name = canonical_text(full_name, field="El nombre", max_length=150)
+        phone_value = canonical_phone(phone)
+        email_value = canonical_email(email)
+        origin_value = _origin(origin)
+        detail = canonical_optional_text(
+            origin_detail, field="El detalle del origen", max_length=160
+        )
+        evidence = canonical_text(evidence_reference, field="La evidencia", max_length=240)
+    except ValueError as error:
+        raise invalid(str(error)) from error
+    if re.fullmatch(r"[0-9a-f]{64}", evidence_sha256) is None:
+        raise invalid("El hash de evidencia no es válido.")
+
+    def matching_roots() -> set[UUID]:
+        direct = Q(phone_e164=phone_value)
+        aliases = Q(kind=PersonContactAlias.Kind.PHONE, normalized_value=phone_value)
+        if email_value:
+            direct |= Q(email=email_value)
+            aliases |= Q(kind=PersonContactAlias.Kind.EMAIL, normalized_value=email_value)
+        identifiers = set(
+            Person.objects.filter(organization_id=organization_id)
+            .filter(direct)
+            .values_list("id", flat=True)
+        )
+        identifiers.update(
+            PersonContactAlias.objects.filter(organization_id=organization_id)
+            .filter(aliases)
+            .values_list("person_id", flat=True)
+        )
+        return {canonical_person_id(organization_id, identifier) for identifier in identifiers}
+
+    roots = matching_roots()
+    if len(roots) > 1:
+        raise conflict(
+            "contact_identity_conflict",
+            "Los contactos no permiten resolver una única persona.",
+        )
+    if roots:
+        return require_canonical_person(organization_id, next(iter(roots)), lock=True)
+    try:
+        with transaction.atomic():
+            person = Person.objects.create(
+                organization_id=organization_id,
+                full_name=name,
+                phone_e164=phone_value,
+                email=email_value,
+                origin=origin_value,
+                origin_detail=detail,
+            )
+            _external_snapshot(
+                person,
+                evidence_reference=evidence,
+                evidence_sha256=evidence_sha256,
+            )
+            return person
+    except IntegrityError as error:
+        roots = matching_roots()
+        if len(roots) == 1:
+            return require_canonical_person(organization_id, next(iter(roots)), lock=True)
+        raise conflict(
+            "contact_identity_conflict",
+            "Los contactos no permiten resolver una única persona.",
+        ) from error
+
+
+def record_external_consent(
+    organization_id: UUID,
+    *,
+    person_id: UUID,
+    purpose: str,
+    channel: str,
+    decision: str,
+    occurred_at: datetime,
+    evidence_reference: str,
+    submission_reference: str,
+    evidence_sha256: str,
+    observed_text_sha256: str,
+    presentation_version: str,
+) -> ConsentEvent:
+    person = require_canonical_person(organization_id, person_id, lock=True)
+    try:
+        purpose_value = canonical_text(purpose, field="El propósito", max_length=80)
+        evidence = canonical_text(evidence_reference, field="La evidencia", max_length=240)
+        submission = canonical_text(
+            submission_reference, field="La referencia del envío", max_length=240
+        )
+        presentation = canonical_text(
+            presentation_version, field="La versión de presentación", max_length=64
+        )
+        channel_value = ConsentEvent.Channel(channel)
+        decision_value = ConsentEvent.Decision(decision)
+    except ValueError as error:
+        raise invalid(str(error) or "El consentimiento no es válido.") from error
+    if not all(
+        re.fullmatch(r"[0-9a-f]{64}", value) for value in (evidence_sha256, observed_text_sha256)
+    ):
+        raise invalid("La evidencia de consentimiento no es válida.")
+    event_type = (
+        ConsentEvent.EventType.GRANT
+        if decision_value == ConsentEvent.Decision.GRANTED
+        else ConsentEvent.EventType.REVOKE
+    )
+    try:
+        return ConsentEvent.objects.create(
+            organization_id=organization_id,
+            person=person,
+            purpose=purpose_value,
+            channel=channel_value,
+            event_type=event_type,
+            decision=decision_value,
+            source="public_form_subject",
+            occurred_at=_aware(occurred_at, "La fecha"),
+            evidence_reference=evidence,
+            recorder_kind=ConsentEvent.RecorderKind.EXTERNAL_SUBJECT,
+            recorded_by_membership=None,
+            external_submission_reference=submission,
+            external_evidence_sha256=evidence_sha256,
+            observed_text_sha256=observed_text_sha256,
+            presentation_version=presentation,
+        )
+    except IntegrityError as error:
+        raise conflict("consent_conflict", "El consentimiento no pudo registrarse.") from error
+
+
+def effective_consent(
+    organization_id: UUID, *, person_id: UUID, purpose: str, channel: str
+) -> str | None:
+    canonical_id = canonical_person_id(organization_id, person_id)
+    cluster = canonical_cluster_ids(organization_id, canonical_id)
+    rows = tuple(
+        ConsentEvent.objects.filter(
+            organization_id=organization_id,
+            person_id__in=cluster,
+            purpose=purpose,
+            channel=channel,
+        ).order_by("occurred_at", "created_at", "id")
+    )
+    effective = _effective_consents(rows, canonical_id=canonical_id)
+    return None if not effective else str(effective[0]["decision"])

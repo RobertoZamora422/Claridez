@@ -164,6 +164,9 @@ def _interaction_data(row: Interaction) -> dict[str, Any]:
         "summary": row.summary,
         "correction_of_id": row.correction_of_id,
         "recorded_by_membership_id": row.recorded_by_membership_id,
+        "recorder_kind": row.recorder_kind,
+        "communication_purpose": row.communication_purpose or None,
+        "communication_reference": row.communication_reference,
         "created_at": row.created_at,
     }
 

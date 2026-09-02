@@ -179,6 +179,196 @@
   }
 }
 
+/* P14 — captación pública, portal del cliente y administración tenant-aware */
+.external-surface,
+.p14-workspace,
+.portal-content,
+.portal-card,
+.portal-item {
+  min-width: 0;
+}
+
+.external-surface {
+  width: min(100% - 2rem, 72rem);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2.5rem) 0 4rem;
+}
+
+.external-heading,
+.client-portal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.external-card,
+.portal-card,
+.portal-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.client-portal-shell {
+  min-height: 100vh;
+  background: #f3f7f6;
+}
+
+.client-portal-header {
+  padding: 1rem max(1rem, calc((100% - 72rem) / 2));
+  color: white;
+  background: var(--accent);
+}
+
+.client-portal-main {
+  display: grid;
+  grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  width: min(100% - 2rem, 72rem);
+  margin: 0 auto;
+  padding: 1.5rem 0 4rem;
+  align-items: start;
+}
+
+.external-card {
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  box-shadow: var(--shadow-md);
+}
+
+.structured-form,
+.structured-form fieldset,
+.portal-card,
+.portal-item {
+  display: grid;
+  gap: 1rem;
+}
+
+.structured-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+}
+
+.structured-form legend {
+  padding: 0 0.4rem;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.structured-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.structured-form small,
+.portal-item small {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.availability-note,
+.antiabuse {
+  padding: 0.85rem 1rem;
+  border: 1px solid #99d5ca;
+  border-radius: 0.75rem;
+  background: #f0fdfa;
+}
+
+.p14-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
+.portal-item,
+.portal-card {
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.portal-event-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.portal-event-list button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+}
+
+.portal-event-list button[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--surface-subtle);
+}
+
+.portal-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.portal-login {
+  max-width: 38rem;
+}
+
+.p14-workspace details {
+  margin-top: 1rem;
+}
+
+.p14-workspace summary {
+  min-height: 44px;
+  padding: 0.7rem 0;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .portal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .external-heading,
+  .client-portal-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .client-portal-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .external-surface {
+    width: min(100% - 1rem, 72rem);
+  }
+
+  .external-card,
+  .portal-card,
+  .portal-item,
+  .structured-form fieldset {
+    padding: 0.75rem;
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
 /* P8 — agenda conectada a reservas, bloqueos y operación */
 .schedule-page,
 .schedule-layout,

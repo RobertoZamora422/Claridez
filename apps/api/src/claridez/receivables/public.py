@@ -5,14 +5,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import UUID
+from zoneinfo import ZoneInfo
+
+from django.utils import timezone
 
 from claridez.organizations.capabilities import Capability
+from claridez.organizations.public import public_organization
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from .errors import ReceivablesError, conflict, unavailable
-from .models import MovementReversal, ReceivableObligation, ReceivedPayment, RefundRecord
+from .models import (
+    MovementReversal,
+    PaymentApplication,
+    Receipt,
+    ReceivableObligation,
+    ReceivedPayment,
+    RefundRecord,
+)
 from .money import amount
 from .services import (
     adjusted_obligation_amount,
@@ -20,6 +31,7 @@ from .services import (
     command_replay,
     complete_command,
     create_obligation_authorized,
+    obligation_aging,
     obligation_balance,
     record_payment_authorized,
 )
@@ -27,6 +39,17 @@ from .services import (
 if TYPE_CHECKING:
     from claridez.commercial.public import AcceptedQuotationProjection
     from claridez.scheduling.public import ReservationProjection
+
+
+def _next_open_due(
+    organization_id: UUID, obligation: ReceivableObligation
+) -> dict[str, object] | None:
+    organization = public_organization(organization_id)
+    local_date = timezone.now().astimezone(ZoneInfo(organization.timezone_name)).date()
+    return next(
+        (item for item in obligation_aging(obligation, local_date) if item["due_on"] is not None),
+        None,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +106,126 @@ class FinanceCashContributionProjection:
     currency: str
     economic_at: datetime
     registered_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ClientPaymentProjection:
+    id: UUID
+    amount: Decimal
+    currency: str
+    reported_at: datetime
+    method: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClientReceiptProjection:
+    id: UUID
+    visible_number: str
+    issued_at: datetime
+    document_available: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ClientReceivableProjection:
+    currency: str
+    original_total: Decimal
+    balance: Decimal
+    derived_status: str
+    next_due_on: object | None
+    next_due_amount: Decimal | None
+    payments: tuple[ClientPaymentProjection, ...]
+    receipts: tuple[ClientReceiptProjection, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PaymentReminderDecision:
+    obligation_id: UUID
+    event_request_id: UUID
+    person_id: UUID
+    source_version: int
+    currency: str
+    balance: Decimal
+    next_due_on: object | None
+    next_due_amount: Decimal | None
+
+
+def payment_reminder_decision(
+    authorization: TenantAuthorization, event_request_id: UUID
+) -> PaymentReminderDecision:
+    """Decide desde Receivables si persiste una obligación que recordar."""
+    authorization.require(Capability.RECEIVABLES_READ_SUMMARY)
+    row = ReceivableObligation.objects.filter(
+        organization_id=authorization.organization_id,
+        event_request_id=event_request_id,
+    ).first()
+    if row is None:
+        raise unavailable("La obligación")
+    balance = obligation_balance(row)
+    if balance <= Decimal("0.00"):
+        raise conflict("reminder_not_applicable", "La obligación no tiene saldo pendiente.")
+    latest_schedule = row.schedule_revisions.order_by("-revision", "-id").first()
+    due = _next_open_due(authorization.organization_id, row)
+    return PaymentReminderDecision(
+        obligation_id=row.pk,
+        event_request_id=row.event_request_id,
+        person_id=row.counterparty_person_id,
+        source_version=latest_schedule.revision if latest_schedule else 1,
+        currency=row.currency,
+        balance=balance,
+        next_due_on=due["due_on"] if due else None,
+        next_due_amount=cast(Decimal, due["open_amount"]) if due else None,
+    )
+
+
+def client_receivables(
+    organization_id: UUID, event_request_id: UUID
+) -> ClientReceivableProjection | None:
+    row = ReceivableObligation.objects.filter(
+        organization_id=organization_id, event_request_id=event_request_id
+    ).first()
+    if row is None:
+        return None
+    balance = obligation_balance(row)
+    applied = adjusted_obligation_amount(row) - balance
+    payment_ids = PaymentApplication.objects.filter(
+        organization_id=organization_id, obligation=row
+    ).values_list("payment_id", flat=True)
+    payments = tuple(
+        ClientPaymentProjection(
+            id=payment.pk,
+            amount=payment.amount,
+            currency=payment.currency,
+            reported_at=payment.reported_at,
+            method=payment.method,
+        )
+        for payment in ReceivedPayment.objects.filter(
+            organization_id=organization_id, pk__in=payment_ids
+        ).order_by("reported_at", "id")
+    )
+    due = _next_open_due(organization_id, row)
+    receipts = tuple(
+        ClientReceiptProjection(
+            id=receipt.pk,
+            visible_number=receipt.visible_number,
+            issued_at=receipt.issued_at,
+            document_available=receipt.document_artifact_id is not None,
+        )
+        for receipt in Receipt.objects.filter(
+            organization_id=organization_id, obligation=row
+        ).order_by("issued_at", "id")
+    )
+    return ClientReceivableProjection(
+        currency=row.currency,
+        original_total=row.original_total,
+        balance=balance,
+        derived_status=(
+            "satisfied" if balance == Decimal("0.00") else "partial" if applied > 0 else "open"
+        ),
+        next_due_on=due["due_on"] if due else None,
+        next_due_amount=cast(Decimal, due["open_amount"]) if due else None,
+        payments=payments,
+        receipts=receipts,
+    )
 
 
 def obligation_for_finance(
@@ -352,6 +495,10 @@ __all__ = (
     "ReceivableSummaryProjection",
     "FinanceObligationProjection",
     "FinanceCashContributionProjection",
+    "ClientPaymentProjection",
+    "ClientReceiptProjection",
+    "ClientReceivableProjection",
+    "PaymentReminderDecision",
     "ReceivablesError",
     "apply_confirmation_payment",
     "complete_reservation_confirmation_command",
@@ -363,4 +510,6 @@ __all__ = (
     "replay_reservation_confirmation_command",
     "summary_for_commercial",
     "validate_confirmation_deposit",
+    "client_receivables",
+    "payment_reminder_decision",
 )
