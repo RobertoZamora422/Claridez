@@ -17,10 +17,8 @@ from claridez.organizations.exceptions import AuthorizationDenied
 from .errors import CommunicationsError
 from .serializers import (
     CommunicationTemplateVersionCreateSerializer,
-    IntentCreateSerializer,
     PolicySerializer,
     PreferenceActionSerializer,
-    RetrySerializer,
     SenderSerializer,
     TemplateCreateSerializer,
 )
@@ -33,9 +31,7 @@ from .services import (
     list_deliveries,
     list_preferences,
     list_templates,
-    manual_retry,
     publish_template,
-    request_intent_internal,
 )
 
 SUCCESS = OpenApiResponse(description="Respuesta tenant-aware de Communications.")
@@ -124,23 +120,6 @@ class TemplateVersionCreateView(CommunicationsAPIView):
         )
 
 
-class IntentCreateView(CommunicationsAPIView):
-    @extend_schema(
-        request=IntentCreateSerializer, responses={201: SUCCESS}, tags=["Comunicaciones"]
-    )
-    def post(self, request: Request, organization_id: UUID) -> Response:
-        actor = self.actor(request)
-        if isinstance(actor, Response):
-            return actor
-        serializer = IntentCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return _error("invalid_request", "La solicitud no es válida.", 400)
-        return _safe(
-            lambda: request_intent_internal(actor, organization_id, **serializer.validated_data),
-            created=True,
-        )
-
-
 class DeliveryListView(CommunicationsAPIView):
     @extend_schema(responses={200: SUCCESS}, tags=["Comunicaciones"])
     def get(self, request: Request, organization_id: UUID) -> Response:
@@ -148,25 +127,6 @@ class DeliveryListView(CommunicationsAPIView):
         if isinstance(actor, Response):
             return actor
         return _safe(lambda: {"deliveries": list_deliveries(actor, organization_id)})
-
-
-class DeliveryRetryView(CommunicationsAPIView):
-    @extend_schema(request=RetrySerializer, responses={200: SUCCESS}, tags=["Comunicaciones"])
-    def post(self, request: Request, organization_id: UUID, message_id: UUID) -> Response:
-        actor = self.actor(request)
-        if isinstance(actor, Response):
-            return actor
-        serializer = RetrySerializer(data=request.data)
-        if not serializer.is_valid():
-            return _error("invalid_request", "La solicitud no es válida.", 400)
-        return _safe(
-            lambda: manual_retry(
-                actor,
-                organization_id,
-                message_id=message_id,
-                reason=str(serializer.validated_data["reason"]),
-            )
-        )
 
 
 class PolicyCreateView(CommunicationsAPIView):

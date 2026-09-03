@@ -7,6 +7,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from claridez.commercial.public import client_event_request
+from claridez.communications.authorization import source_rule
 from claridez.communications.models import Purpose
 from claridez.communications.public import cancel_intent, request_intent
 from claridez.documents.public import document_reminder_decision
@@ -29,9 +30,14 @@ _PURPOSE = {
     ReminderKind.DOCUMENT: Purpose.DOCUMENT_REMINDER,
 }
 _CAPABILITY = {
-    ReminderKind.EVENT: Capability.AVAILABILITY_READ,
-    ReminderKind.PAYMENT: Capability.RECEIVABLES_READ_SUMMARY,
-    ReminderKind.DOCUMENT: Capability.CONTRACTUAL_RECORD_READ,
+    ReminderKind.EVENT: Capability.OPERATION_MANAGE,
+    ReminderKind.PAYMENT: Capability.RECEIVABLES_MANAGE_SCHEDULE,
+    ReminderKind.DOCUMENT: Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE,
+}
+_AGGREGATE_TYPE = {
+    ReminderKind.EVENT: "scheduling_reservation",
+    ReminderKind.PAYMENT: "receivable_obligation",
+    ReminderKind.DOCUMENT: "issued_instrument_version",
 }
 
 
@@ -52,6 +58,11 @@ def request_reminder(
         actor, organization_id, Capability.COMMUNICATION_INTENT_REQUEST
     ) as authorization:
         authorization.require(_CAPABILITY[reminder_kind])
+        source_rule(
+            authorization,
+            purpose=_PURPOSE[reminder_kind],
+            aggregate_type=_AGGREGATE_TYPE[reminder_kind],
+        )
         if reminder_kind == ReminderKind.EVENT:
             decision = event_reminder_decision(authorization, source_id)
             event_request_id = decision.event_request_id
@@ -113,6 +124,11 @@ def cancel_reminder(
         actor, organization_id, Capability.COMMUNICATION_INTENT_REQUEST
     ) as authorization:
         authorization.require(_CAPABILITY[reminder_kind])
+        source_rule(
+            authorization,
+            purpose=_PURPOSE[reminder_kind],
+            aggregate_type=_AGGREGATE_TYPE[reminder_kind],
+        )
         return cancel_intent(
             authorization.organization_id,
             intent_id=intent_id,

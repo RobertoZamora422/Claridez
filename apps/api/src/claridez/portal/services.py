@@ -30,7 +30,7 @@ from claridez.external_secrets import short_single_use_code
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.public import (
-    authorize_external_entry,
+    organization_is_active_for_external_entry,
     public_location,
     public_organization,
     public_responsible,
@@ -38,6 +38,7 @@ from claridez.organizations.public import (
 from claridez.organizations.tenant_scope import (
     ExternalTenantAuthorization,
     TenantAuthorization,
+    _mint_external_tenant_authorization,
     authorized_tenant_scope,
     external_tenant_scope,
 )
@@ -189,7 +190,11 @@ def resolve_locator(
     ).first()
     if row is None or (row.expires_at is not None and row.expires_at <= now):
         raise unavailable()
-    authorization = authorize_external_entry(
+    if not organization_is_active_for_external_entry(row.organization_id):
+        raise unavailable()
+    # Este mint privado solo se alcanza tras verificar HMAC, kind, revocación y
+    # expiración del locator. Un guard arquitectónico fija este único call site.
+    authorization = _mint_external_tenant_authorization(
         row.organization_id, purpose=purpose, locator_reference=row.pk
     )
     return authorization, row.target_reference

@@ -652,9 +652,11 @@ alcance mínimo, entregas idempotentes/observables, unsubscribe donde aplique, a
 tenants. La implementación aditiva incorpora formularios/versiones/submissions, principal y grants
 Portal separados, challenges/sesiones, preferencias e historia, templates/mensajes/intentos/eventos
 de proveedor y outbox PostgreSQL tenant-scoped; conserva People, Commercial, Scheduling,
-Documents y Receivables como autoridades fuente. La puerta local aprobó 280 pruebas API no
-integración, 109 integraciones PostgreSQL y 37 pruebas frontend, además de locks, migraciones sin
-cambios, formato, lint, mypy, TypeScript, OpenAPI y builds. El navegador real comprobó el fallo
+Documents y Receivables como autoridades fuente. El cierre correctivo centraliza el ámbito
+conjuntivo de propósito y autoridad fuente en Communications y restringe la acuñación del scope
+externo al único ingreso que resuelve un locator Portal válido. La puerta local aprobó 284 pruebas
+API no integración, 109 integraciones PostgreSQL y 37 pruebas frontend, además de locks,
+migraciones sin cambios, formato, lint, mypy, TypeScript, OpenAPI y builds. El navegador real comprobó el fallo
 público no enumerativo y el acceso Portal a 320 y 1280 px, sin overflow horizontal y con orden de
 foco por teclado. Las auditorías Python/npm no encontraron vulnerabilidades conocidas después de
 actualizar DRF a 3.17.2 y pypdf a 6.16.1. La evidencia es local: no incluye CI remota, proveedor

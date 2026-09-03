@@ -110,6 +110,12 @@ proveedores productivos de almacenamiento/correo/WhatsApp/identidad, staging o p
   externo con procedencia verificable, disponibilidad pública booleana informativa, propuesta
   comercial de lectura, agenda/documentos/aceptación/saldo mediante puertos tipados y recordatorios
   decididos por su dominio propietario.
+- El cierre correctivo P14 aplica una única política conjuntiva de propósito, perfil y capability
+  fuente a templates, intents, entregas, retries y preferencias. El endpoint genérico solo deriva
+  procedencia desde un `EventRequest` real; los demás recordatorios conservan la decisión tipada de
+  Scheduling, Receivables o Documents. La acuñación de `ExternalTenantAuthorization` quedó privada
+  y guardada: solo `Portal.resolve_locator` puede alcanzarla después de validar HMAC, kind,
+  revocación, expiración y organización activa; un UUID tenant crudo no crea scope externo.
 - Communications usa claim ordenado con `SKIP LOCKED`, lease, commit antes del I/O, entrega
   at-least-once, idempotencia, backoff/jitter, `Retry-After`, reclaim, cancelación por obsolescencia,
   fallo terminal y reintento manual auditado. El dispatcher enumera organizaciones por el puerto
@@ -118,7 +124,7 @@ proveedores productivos de almacenamiento/correo/WhatsApp/identidad, staging o p
   fabrican formularios, principals, grants, sesiones, consentimientos, preferencias, mensajes,
   aceptaciones ni webhooks históricos. Las tablas privadas nuevas aplican RLS forzado y
   privilegios mínimos para `claridez_app`.
-- La puerta local de cierre aprobó 280 pruebas API no integración, 109 integraciones PostgreSQL y
+- La puerta local de cierre aprobó 284 pruebas API no integración, 109 integraciones PostgreSQL y
   37 pruebas frontend, además de locks, migraciones sin cambios, formato, lint, mypy, TypeScript,
   OpenAPI y builds. La integración cubrió dos tenants, SQL directo/RLS, concurrencia, locators,
   captación, sesiones/grants, merge/contactos, Documents, Receivables, outbox y webhooks. El

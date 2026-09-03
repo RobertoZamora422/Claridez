@@ -48,7 +48,7 @@ def event_reminder_decision(
     """Decide desde Scheduling si existe un evento confirmado que recordar."""
     from .models import Reservation
 
-    authorization.require(Capability.AVAILABILITY_READ)
+    authorization.require(Capability.OPERATION_MANAGE)
     chain = tuple(
         Reservation.objects.filter(
             organization_id=authorization.organization_id,
@@ -70,6 +70,33 @@ def event_reminder_decision(
         starts_at=current.event_interval.lower,
         timezone_name=current.event_timezone,
     )
+
+
+def event_reminder_decision_for_reservation(
+    authorization: TenantAuthorization, reservation_id: UUID
+) -> EventReminderDecision:
+    """Revalida una procedencia persistida sin revelar la cadena temporal."""
+    from .models import Reservation
+
+    authorization.require(Capability.OPERATION_MANAGE)
+    row = Reservation.objects.filter(
+        organization_id=authorization.organization_id,
+        pk=reservation_id,
+    ).first()
+    if row is None:
+        raise SchedulingError(
+            "reminder_not_applicable",
+            "No existe un evento confirmado apto para recordatorio.",
+            status=409,
+        )
+    decision = event_reminder_decision(authorization, row.event_request_id)
+    if decision.current_reservation_id != reservation_id:
+        raise SchedulingError(
+            "reminder_not_applicable",
+            "No existe un evento confirmado apto para recordatorio.",
+            status=409,
+        )
+    return decision
 
 
 def public_interval_availability(
@@ -648,6 +675,7 @@ __all__ = (
     "PublicAvailabilityProjection",
     "ClientScheduleProjection",
     "EventReminderDecision",
+    "event_reminder_decision_for_reservation",
     "ResourceScheduleProjection",
     "ResourceAvailabilityContextProjection",
     "OperationsScheduleAuthorityProjection",

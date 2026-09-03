@@ -18,7 +18,7 @@ from django.utils import timezone
 from claridez.external_secrets import short_single_use_code
 from claridez.identity.models import User
 from claridez.organizations.capabilities import Capability
-from claridez.organizations.tenant_scope import authorized_tenant_scope
+from claridez.organizations.tenant_scope import TenantAuthorization, authorized_tenant_scope
 from claridez.people.public import (
     canonical_cluster_ids,
     canonical_person_id,
@@ -26,6 +26,12 @@ from claridez.people.public import (
     effective_consent,
 )
 
+from .authorization import (
+    manageable_purposes,
+    manageable_source_rules,
+    require_manageable_purpose,
+    source_rule,
+)
 from .errors import conflict, invalid, unavailable
 from .models import (
     Channel,
@@ -106,7 +112,8 @@ def list_templates(actor: User, organization_id: UUID) -> tuple[dict[str, Any], 
         actor, organization_id, Capability.COMMUNICATION_TEMPLATE_READ
     ) as authorization:
         rows = CommunicationTemplate.objects.filter(
-            organization_id=authorization.organization_id
+            organization_id=authorization.organization_id,
+            purpose__in=manageable_purposes(authorization),
         ).prefetch_related("versions")
         return tuple(_template_data(row) for row in rows.order_by("name", "id"))
 
@@ -129,24 +136,7 @@ def create_template(
             raise invalid("El canal o propósito no es válido.")
         if purpose == Purpose.MARKETING:
             raise invalid("Marketing permanece deshabilitado en P14 base.")
-        allowed_by_role = {
-            "commercial": {
-                Purpose.CAPTURE_ACKNOWLEDGEMENT,
-                Purpose.SERVICE_UPDATE,
-                Purpose.CLIENT_ACTION,
-            },
-            "operations": {
-                Purpose.EVENT_REMINDER,
-                Purpose.SERVICE_UPDATE,
-                Purpose.CLIENT_ACTION,
-            },
-            "finance": {Purpose.PAYMENT_REMINDER, Purpose.SERVICE_UPDATE},
-        }
-        if (
-            authorization.role in allowed_by_role
-            and purpose not in allowed_by_role[authorization.role]
-        ):
-            raise invalid("El propósito no corresponde al ámbito del perfil.")
+        require_manageable_purpose(authorization, purpose)
         canonical_names, content_sha = _validated_template_content(
             subject_template, body_template, variable_names
         )
@@ -184,6 +174,11 @@ def publish_template(actor: User, organization_id: UUID, *, version_id: UUID) ->
             )
         except CommunicationTemplateVersion.DoesNotExist:
             raise unavailable("La versión de plantilla") from None
+        require_manageable_purpose(
+            authorization,
+            row.template.purpose,
+            opaque_resource="La versión de plantilla",
+        )
         if row.status != CommunicationTemplateVersion.Status.DRAFT:
             raise conflict("immutable_template_version", "La versión ya no puede modificarse.")
         names, content_sha = _validated_template_content(
@@ -222,6 +217,7 @@ def create_template_version(
             )
         except CommunicationTemplate.DoesNotExist:
             raise unavailable("La plantilla") from None
+        require_manageable_purpose(authorization, template.purpose, opaque_resource="La plantilla")
         if template.versions.filter(status=CommunicationTemplateVersion.Status.DRAFT).exists():
             raise conflict("draft_exists", "La plantilla ya tiene un borrador.")
         next_version = (template.versions.aggregate(value=Max("version"))["value"] or 0) + 1
@@ -526,29 +522,6 @@ def request_intent(
         raise conflict(
             "idempotency_conflict", "La clave ya fue usada con otra solicitud."
         ) from None
-
-
-def request_intent_internal(
-    actor: User, organization_id: UUID, **values: object
-) -> dict[str, object]:
-    with authorized_tenant_scope(
-        actor, organization_id, Capability.COMMUNICATION_INTENT_REQUEST
-    ) as authorization:
-        purpose = str(values.get("purpose", ""))
-        source_capabilities: dict[str, Capability] = {
-            Purpose.SERVICE_UPDATE: Capability.SALES_READ,
-            Purpose.CLIENT_ACTION: Capability.SALES_READ,
-        }
-        source_capability = source_capabilities.get(purpose)
-        if source_capability is None:
-            raise invalid("El propósito no admite solicitud interna.")
-        authorization.require(source_capability)
-        intent = request_intent(
-            authorization.organization_id,
-            requested_by_membership_id=authorization.membership_id,
-            **values,  # type: ignore[arg-type]
-        )
-        return {"id": intent.pk, "state": intent.state, "created_at": intent.created_at}
 
 
 @transaction.atomic
@@ -1023,6 +996,14 @@ def list_deliveries(actor: User, organization_id: UUID) -> tuple[dict[str, objec
         rows = CommunicationOutbox.objects.select_related("intent", "message").filter(
             organization_id=authorization.organization_id
         )
+        rules = manageable_source_rules(authorization)
+        source_filter = Q(pk__isnull=True)
+        for rule in rules:
+            source_filter |= Q(
+                intent__purpose=rule.purpose,
+                intent__aggregate_type=rule.aggregate_type,
+            )
+        rows = rows.filter(source_filter)
         return tuple(
             {
                 "id": row.message_id or row.pk,
@@ -1050,7 +1031,8 @@ def list_preferences(actor: User, organization_id: UUID) -> tuple[dict[str, obje
     ) as authorization:
         rows = tuple(
             CommunicationPreferenceEvent.objects.filter(
-                organization_id=authorization.organization_id
+                organization_id=authorization.organization_id,
+                purpose__in=manageable_purposes(authorization),
             ).order_by("occurred_at", "created_at", "id")
         )
         current: dict[tuple[UUID, str, str, str], dict[str, object]] = {}
@@ -1098,6 +1080,7 @@ def configure_policy(
             raise invalid("El propósito o canal no es válido.")
         if purpose == Purpose.MARKETING:
             raise invalid("Marketing permanece deshabilitado en P14 base.")
+        require_manageable_purpose(authorization, purpose)
         latest = (
             CommunicationPolicy.objects.filter(
                 organization_id=authorization.organization_id,
@@ -1200,6 +1183,7 @@ def internal_preference_action(
         else Capability.COMMUNICATION_PREFERENCE_RESTORE
     )
     with authorized_tenant_scope(actor, organization_id, capability) as authorization:
+        require_manageable_purpose(authorization, purpose)
         append_preference(
             authorization.organization_id,
             person_id=person_id,
@@ -1215,39 +1199,85 @@ def internal_preference_action(
         )
 
 
-def manual_retry(actor: User, organization_id: UUID, *, message_id: UUID, reason: str) -> None:
+def retryable_delivery(
+    authorization: TenantAuthorization, *, message_id: UUID
+) -> dict[str, object]:
+    try:
+        row = CommunicationOutbox.objects.select_related("intent", "message").get(
+            organization_id=authorization.organization_id, message_id=message_id
+        )
+    except CommunicationOutbox.DoesNotExist:
+        raise unavailable("La entrega") from None
+    source_rule(
+        authorization,
+        purpose=row.intent.purpose,
+        aggregate_type=row.intent.aggregate_type,
+        opaque_resource="La entrega",
+    )
+    return {
+        "message_id": message_id,
+        "purpose": row.intent.purpose,
+        "aggregate_type": row.intent.aggregate_type,
+        "aggregate_id": row.intent.aggregate_id,
+        "person_id": row.intent.recipient_person_id,
+        "source_version": row.intent.source_version,
+    }
+
+
+def retry_delivery_authorized(
+    authorization: TenantAuthorization,
+    *,
+    message_id: UUID,
+    purpose: str,
+    aggregate_type: str,
+    aggregate_id: UUID,
+    person_id: UUID,
+    source_version: int,
+    reason: str,
+) -> None:
     normalized_reason = reason.strip()
     if not normalized_reason:
         raise invalid("El motivo del reintento es obligatorio.")
-    with authorized_tenant_scope(
-        actor, organization_id, Capability.COMMUNICATION_DELIVERY_RETRY
-    ) as authorization:
-        try:
-            row = (
-                CommunicationOutbox.objects.select_for_update(of=("self",))
-                .select_related("intent", "message")
-                .get(organization_id=authorization.organization_id, message_id=message_id)
+    source_rule(
+        authorization,
+        purpose=purpose,
+        aggregate_type=aggregate_type,
+        opaque_resource="La entrega",
+    )
+    try:
+        row = (
+            CommunicationOutbox.objects.select_for_update(of=("self",))
+            .select_related("intent", "message")
+            .get(
+                organization_id=authorization.organization_id,
+                message_id=message_id,
+                intent__purpose=purpose,
+                intent__aggregate_type=aggregate_type,
+                intent__aggregate_id=aggregate_id,
+                intent__recipient_person_id=person_id,
+                intent__source_version=source_version,
             )
-        except CommunicationOutbox.DoesNotExist:
-            raise unavailable("La entrega") from None
-        if row.state not in {CommunicationOutbox.State.DEAD, CommunicationOutbox.State.RETRY}:
-            raise conflict("invalid_retry", "La entrega no admite reintento.")
-        if row.intent.state == CommunicationIntent.State.TERMINAL:
-            row.intent.state = CommunicationIntent.State.PENDING
-            row.intent.save(update_fields=["state"])
-        row.state = CommunicationOutbox.State.RETRY
-        row.next_attempt_at = timezone.now()
-        row.completed_at = None
-        row.save(update_fields=["state", "next_attempt_at", "completed_at", "updated_at"])
-        CommunicationAuditEvent.objects.create(
-            organization_id=authorization.organization_id,
-            kind="manual_retry",
-            aggregate_type="logical_message",
-            aggregate_id=message_id,
-            actor_membership_id=authorization.membership_id,
-            detail={"reason_sha256": _text_hash(normalized_reason)},
-            occurred_at=timezone.now(),
         )
+    except CommunicationOutbox.DoesNotExist:
+        raise unavailable("La entrega") from None
+    if row.state not in {CommunicationOutbox.State.DEAD, CommunicationOutbox.State.RETRY}:
+        raise conflict("invalid_retry", "La entrega no admite reintento.")
+    if row.intent.state == CommunicationIntent.State.TERMINAL:
+        row.intent.state = CommunicationIntent.State.PENDING
+        row.intent.save(update_fields=["state"])
+    row.state = CommunicationOutbox.State.RETRY
+    row.next_attempt_at = timezone.now()
+    row.completed_at = None
+    row.save(update_fields=["state", "next_attempt_at", "completed_at", "updated_at"])
+    CommunicationAuditEvent.objects.create(
+        organization_id=authorization.organization_id,
+        kind="manual_retry",
+        aggregate_type="logical_message",
+        aggregate_id=message_id,
+        actor_membership_id=authorization.membership_id,
+        detail={"reason_sha256": _text_hash(normalized_reason)},
+        occurred_at=timezone.now(),
+    )
 
 
 def reconcile_provider_event(

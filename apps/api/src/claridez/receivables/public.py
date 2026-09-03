@@ -153,7 +153,7 @@ def payment_reminder_decision(
     authorization: TenantAuthorization, event_request_id: UUID
 ) -> PaymentReminderDecision:
     """Decide desde Receivables si persiste una obligación que recordar."""
-    authorization.require(Capability.RECEIVABLES_READ_SUMMARY)
+    authorization.require(Capability.RECEIVABLES_MANAGE_SCHEDULE)
     row = ReceivableObligation.objects.filter(
         organization_id=authorization.organization_id,
         event_request_id=event_request_id,
@@ -175,6 +175,23 @@ def payment_reminder_decision(
         next_due_on=due["due_on"] if due else None,
         next_due_amount=cast(Decimal, due["open_amount"]) if due else None,
     )
+
+
+def payment_reminder_decision_for_obligation(
+    authorization: TenantAuthorization, obligation_id: UUID
+) -> PaymentReminderDecision:
+    """Revalida una procedencia persistida bajo autoridad de cobro."""
+    authorization.require(Capability.RECEIVABLES_MANAGE_SCHEDULE)
+    row = ReceivableObligation.objects.filter(
+        organization_id=authorization.organization_id,
+        pk=obligation_id,
+    ).first()
+    if row is None:
+        raise unavailable("La obligación")
+    decision = payment_reminder_decision(authorization, row.event_request_id)
+    if decision.obligation_id != obligation_id:
+        raise unavailable("La obligación")
+    return decision
 
 
 def client_receivables(
@@ -512,4 +529,5 @@ __all__ = (
     "validate_confirmation_deposit",
     "client_receivables",
     "payment_reminder_decision",
+    "payment_reminder_decision_for_obligation",
 )

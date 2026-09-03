@@ -16,6 +16,7 @@ import pytest
 from django.test import Client, override_settings
 from django.utils import timezone
 
+from claridez.application.communications import retry_delivery
 from claridez.application.reminders import cancel_reminder, request_reminder
 from claridez.catalog.services import create_event_type
 from claridez.commercial.errors import CommercialError
@@ -51,7 +52,6 @@ from claridez.communications.services import (
     create_template,
     create_template_version,
     internal_preference_action,
-    manual_retry,
     prepare_delivery,
     publish_template,
     reconcile_provider_event,
@@ -519,43 +519,56 @@ def test_outbox_is_idempotent_reclaimable_and_records_provider_results() -> None
         locator, idempotency_key="outbox-person", data=_submission(version)
     )
     with authorized_tenant_scope(owner, creation.organization.pk, Capability.PUBLIC_FORM_READ):
-        person = EventRequest.objects.get(pk=UUID(str(capture["event_request_id"]))).person
+        event_request = EventRequest.objects.select_related("person").get(
+            pk=UUID(str(capture["event_request_id"]))
+        )
+        person = event_request.person
     template = create_template(
         owner,
         creation.organization.pk,
-        name="Portal auth",
+        name="Actualización de servicio",
         channel=Channel.EMAIL,
-        purpose=Purpose.PORTAL_AUTHENTICATION,
-        subject_template="Acceso",
-        body_template="Código {code}",
-        variable_names=["code"],
+        purpose=Purpose.SERVICE_UPDATE,
+        subject_template="Actualización",
+        body_template="Solicitud {event_request_id}",
+        variable_names=["event_request_id"],
     )
     version_id = template["versions"][0]["id"]
     publish_template(owner, creation.organization.pk, version_id=version_id)
-    challenge_reference = uuid4()
+    configure_policy(
+        owner,
+        creation.organization.pk,
+        purpose=Purpose.SERVICE_UPDATE,
+        channel=Channel.EMAIL,
+        requires_consent=True,
+        allow_unsubscribe=True,
+        rationale="Política de prueba aprobada.",
+    )
     with authorized_tenant_scope(owner, creation.organization.pk, Capability.PUBLIC_FORM_READ):
         first = request_intent(
             creation.organization.pk,
-            purpose=Purpose.PORTAL_AUTHENTICATION,
+            purpose=Purpose.SERVICE_UPDATE,
             channel=Channel.EMAIL,
             person_id=person.pk,
             template_version_id=version_id,
-            aggregate_type="portal_challenge",
-            aggregate_id=challenge_reference,
-            variables={"challenge_reference": str(challenge_reference)},
-            idempotency_key="auth-once",
+            aggregate_type="event_request",
+            aggregate_id=event_request.pk,
+            variables={"event_request_id": str(event_request.pk)},
+            idempotency_key="service-once",
+            source_version=event_request.revision,
         )
         assert (
             request_intent(
                 creation.organization.pk,
-                purpose=Purpose.PORTAL_AUTHENTICATION,
+                purpose=Purpose.SERVICE_UPDATE,
                 channel=Channel.EMAIL,
                 person_id=person.pk,
                 template_version_id=version_id,
-                aggregate_type="portal_challenge",
-                aggregate_id=challenge_reference,
-                variables={"challenge_reference": str(challenge_reference)},
-                idempotency_key="auth-once",
+                aggregate_type="event_request",
+                aggregate_id=event_request.pk,
+                variables={"event_request_id": str(event_request.pk)},
+                idempotency_key="service-once",
+                source_version=event_request.revision,
             ).pk
             == first.pk
         )
@@ -564,7 +577,7 @@ def test_outbox_is_idempotent_reclaimable_and_records_provider_results() -> None
         outbox_id = claim_next(creation.organization.pk, worker_id="worker-a")
         assert outbox_id is not None
         first_request = prepare_delivery(creation.organization.pk, outbox_id)
-    assert first_request is not None and "Código" in first_request.body
+    assert first_request is not None and "Solicitud" in first_request.body
     with infrastructure_tenant_scope(creation.organization.pk, purpose="communications_worker"):
         assert claim_next(creation.organization.pk, worker_id="worker-b") is None
         CommunicationOutbox.objects.filter(pk=outbox_id).update(
@@ -572,7 +585,7 @@ def test_outbox_is_idempotent_reclaimable_and_records_provider_results() -> None
         )
         assert claim_next(creation.organization.pk, worker_id="worker-b") == outbox_id
         request = prepare_delivery(creation.organization.pk, outbox_id)
-    assert request is not None and "Código" in request.body
+    assert request is not None and "Solicitud" in request.body
     with infrastructure_tenant_scope(creation.organization.pk, purpose="communications_worker"):
         complete_delivery(
             creation.organization.pk,
@@ -601,7 +614,7 @@ def test_outbox_is_idempotent_reclaimable_and_records_provider_results() -> None
         outbox.refresh_from_db()
         assert outbox.state == CommunicationOutbox.State.DEAD
         assert outbox.message_id is not None
-    manual_retry(
+    retry_delivery(
         owner,
         creation.organization.pk,
         message_id=outbox.message_id,
@@ -1813,7 +1826,16 @@ def test_p14_import_boundaries_keep_ports_acyclic_and_p9_private() -> None:
     for file in (source / "communications").rglob("*.py"):
         if "migrations" in file.parts:
             continue
-        assert "claridez.portal" not in file.read_text(encoding="utf-8"), file
+        text = file.read_text(encoding="utf-8")
+        for forbidden_dependency in (
+            "claridez.commercial",
+            "claridez.documents",
+            "claridez.operations",
+            "claridez.portal",
+            "claridez.receivables",
+            "claridez.scheduling",
+        ):
+            assert forbidden_dependency not in text, (file, forbidden_dependency)
     assert "claridez.portal" not in (source / "operations" / "public.py").read_text(
         encoding="utf-8"
     )

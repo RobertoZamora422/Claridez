@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from rest_framework import serializers
 
 from .models import Channel, Purpose, SenderIdentity
@@ -21,16 +23,17 @@ class CommunicationTemplateVersionCreateSerializer(serializers.Serializer[dict[s
 class IntentCreateSerializer(serializers.Serializer[dict[str, object]]):
     purpose = serializers.ChoiceField(choices=Purpose.choices)
     channel = serializers.ChoiceField(choices=Channel.choices)
-    person_id = serializers.UUIDField()
+    event_request_id = serializers.UUIDField()
     template_version_id = serializers.UUIDField()
-    aggregate_type = serializers.CharField(max_length=48)
-    aggregate_id = serializers.UUIDField()
     variables = serializers.JSONField(default=dict)
     idempotency_key = serializers.CharField(max_length=160)
-    source_version = serializers.IntegerField(min_value=1, default=1)
-    causal_key = serializers.CharField(max_length=160, required=False, allow_blank=True)
-    causal_sequence = serializers.IntegerField(min_value=0, required=False, allow_null=True)
     not_before = serializers.DateTimeField(required=False)
+
+    def to_internal_value(self, data: Any) -> dict[str, object]:
+        allowed = set(self.fields)
+        if not isinstance(data, dict) or set(data) - allowed:
+            raise serializers.ValidationError("La procedencia debe resolverse en el servidor.")
+        return cast(dict[str, object], super().to_internal_value(data))
 
 
 class PolicySerializer(serializers.Serializer[dict[str, object]]):

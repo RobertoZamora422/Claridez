@@ -8,11 +8,7 @@ from uuid import UUID
 from .capabilities import Capability, capabilities_for_role
 from .exceptions import AuthorizationDenied, TenantAccessDenied
 from .models import Membership, Organization, OrganizationSettings, Space, Venue
-from .tenant_scope import (
-    ExternalTenantAuthorization,
-    TenantAuthorization,
-    _mint_external_tenant_authorization,
-)
+from .tenant_scope import TenantAuthorization
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,17 +182,11 @@ def active_organization_ids_for_document_worker() -> tuple[UUID, ...]:
     )
 
 
-def authorize_external_entry(
-    organization_id: UUID, *, purpose: str, locator_reference: UUID
-) -> ExternalTenantAuthorization:
-    """Confirma el tenant global antes de permitir una entrada externa restringida."""
-    if not Organization.objects.filter(
+def organization_is_active_for_external_entry(organization_id: UUID) -> bool:
+    """Proyección global mínima; confirma estado pero nunca acuña autorización."""
+    return Organization.objects.filter(
         pk=organization_id, status=Organization.Status.ACTIVE
-    ).exists():
-        raise TenantAccessDenied("La entrada externa no está disponible.")
-    return _mint_external_tenant_authorization(
-        organization_id, purpose=purpose, locator_reference=locator_reference
-    )
+    ).exists()
 
 
 def public_organization(organization_id: UUID) -> PublicOrganizationProjection:
@@ -287,7 +277,7 @@ __all__ = (
     "requires_operation_manage_for_finance_evidence",
     "active_organization_ids_for_document_worker",
     "active_organization_ids_for_communications_worker",
-    "authorize_external_entry",
+    "organization_is_active_for_external_entry",
     "public_location",
     "public_organization",
     "public_responsible",

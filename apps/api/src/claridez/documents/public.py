@@ -69,7 +69,7 @@ def document_reminder_decision(
     authorization: TenantAuthorization, issued_version_id: UUID
 ) -> DocumentReminderDecision:
     """Decide desde Documents si una versión emitida vigente sigue pendiente de aceptación."""
-    authorization.require(Capability.CONTRACTUAL_RECORD_READ)
+    authorization.require(Capability.DOCUMENT_EXTERNAL_ACCESS_MANAGE)
     try:
         row = IssuedInstrumentVersion.objects.select_related(
             "instrument", "instrument__record"
