@@ -145,52 +145,157 @@ almacenamiento y frontend permanecen pendientes hasta una aprobación posterior.
 
 ### 4. Catálogo métrico P15 v1
 
-Todos los identificadores de esta tabla son `metric_id@1` del catálogo P15. Las referencias fuente
-son también versionadas; las fórmulas completas source-owned se publicarán en el contrato del
-puerto propietario antes de abrir el endpoint.
+Los contratos de esta sección son normativos. Los puertos batch los implementarán, pero no podrán
+completar ni redefinir por primera vez el significado de un identificador ya publicado como `@1`.
+Una revisión que cambie cualquiera de estas reglas exige otro `metric_version`.
 
-| Familia | Métricas P15 v1 | Propietario y modo temporal |
+#### 4.1 Convenciones vinculantes del anexo
+
+- `F` significa `fact_in_period`: `period_start` y `period_end` son obligatorios y el instante
+  económico indicado debe caer en `[period_start, period_end)`. `as_of_at` no aplica y se rechaza;
+  `knowledge_cutoff_at` sigue siendo obligatorio.
+- `S` significa `state_at_cutoff`: `as_of_at` es obligatorio y el periodo no aplica, salvo `SI`.
+  `SI` proyecta en `[period_start, period_end)` únicamente el estado que era efectivo en
+  `as_of_at`; los tres parámetros son obligatorios.
+- `C` significa `cohort_as_of_cutoff`: el periodo forma la cohorte, `as_of_at >= period_end`
+  gobierna el resultado observado y ambos son obligatorios.
+- `FP` significa `financial_period_as_of`: exige `operational_period_id`, su moneda y
+  `as_of_at`. Un periodo cerrado usa exclusivamente el snapshot Finance visible al límite de
+  conocimiento; uno abierto es provisional. Un rango arbitrario no sustituye el periodo.
+- `knowledge_cutoff_at` es obligatorio en todos los modos. Solo se usan filas, eventos, revisiones
+  o snapshots cuya evidencia autoritativa de registro sea visible hasta ese instante. Si la fuente
+  solo conserva estado mutable o un timestamp económico pero no puede probar cuándo conocía el
+  estado, no lo trata como historia: degrada cobertura. `executed_at` nunca sustituye este límite.
+- El grano indicado es el elemento individual antes de agregar. El grano de salida es
+  `organización + dimensiones seleccionadas`; `time_bucket` admite día, semana ISO o mes en la zona
+  IANA de la ejecución. Toda dimensión no enumerada se rechaza y `!` marca una dimensión
+  obligatoria.
+- Para importes, `currency!` es ISO 4217 y no existe FX: una consulta exige una moneda o devuelve
+  particiones separadas; una mezcla nunca se suma. Money conserva escala 2 y `ROUND_HALF_UP` de su
+  dominio fuente. Para cantidades Resources, `resource_id!` y `unit_id!` identifican el recurso y
+  su unidad base; usan escala 6 y no convierten ni agregan recursos/unidades distintos. Counts son
+  enteros. Duraciones se calculan desde intervalos UTC exactos, sin redondeo intermedio, y el valor
+  final en segundos/minutos usa escala 3 y `ROUND_HALF_UP`; porcentajes usan puntos porcentuales,
+  escala 2 y el mismo redondeo tras dividir.
+- Salvo que una fila disponga otra cosa, correcciones append-only se resuelven por la última hoja
+  efectiva visible al límite de conocimiento; la corrección no borra el hecho original. Una
+  cancelación o reprogramación solo altera métricas de estado desde su instante efectivo y además
+  cuenta como hecho en su propia métrica. `cutover_state` y snapshots legacy no fabrican hechos.
+- En todas las filas, `complete` exige evidencia autoritativa para todo el alcance y ambos ejes
+  temporales; un cero solo es válido con esa evidencia. `partial` exige `coverage_from` cuando sea
+  determinable y un motivo; `unavailable` se usa cuando falta el hecho, la revisión, el timestamp,
+  la dimensión, la moneda/unidad o la reconstrucción mínima. Una composición toma la peor
+  cobertura de sus fuentes y nunca estima lo faltante.
+
+Las capabilities existentes usadas literalmente son `sales:read`, `operation:read`,
+`operation_incident:read`, `receivables:read`, `finance:read` y `resource:read`. P15 deberá añadir,
+como capabilities **source-owned** estrechas, `interaction:read_analytics` en CRM,
+`task:read_analytics` en CRM, `schedule:read_analytics` en Scheduling y
+`person:resolve_analytics` en People. No conceden acceso a PII ni a comandos y no son capabilities
+de Analytics. No se reutilizan `task:manage`, `person:read`, `schedule:export` ni
+`availability:read` como sustitutos por proximidad semántica.
+
+En cada fila source-owned, el namespace del primer `source_metric_id` identifica al propietario
+normativo; referencias adicionales son inputs públicos versionados y no transfieren la fórmula a
+Analytics. Solo las dos composiciones marcadas expresamente como Analytics-owned tienen fórmula
+P15 propia y conservan todas sus versiones fuente.
+
+#### 4.2 Commercial, CRM y composiciones
+
+| `metric_id@1` y fuente | Fórmula y grano | Dimensiones permitidas | Tiempo, estados y unidad | Capability y cobertura específica |
+| --- | --- | --- | --- | --- |
+| `request_created_count@1` → `commercial.request_created_count@1` | `count(distinct EventRequest)` por su único `EventRequestHistory(kind=created)`; grano solicitud | `time_bucket`, `origin`, `responsible_membership_id` | `F`; gobierna `occurred_at`; cuenta cualquier estado posterior y excluye `cutover_state`; unidad count | `sales:read`; sin `created` autoritativo es `partial/unavailable`, nunca se infiere desde la fila vigente |
+| `quote_issued_count@1` → `commercial.quote_issued_count@1` | `count(QuotationVersion)` con emisión autoritativa; grano versión emitida, **no** solicitud distinta | `time_bucket`, `currency`, `event_type_id`, `venue_id`, `space_id` | `F`; gobierna `issued_at`, que también prueba conocimiento de la emisión; una versión luego aceptada, sustituida o retirada sigue contando; draft nunca emitido se excluye; unidad count | `sales:read`; versiones legacy sin `issued_at` fiable degradan cobertura |
+| `quote_accepted_count@1` → `commercial.quote_accepted_count@1` | `count(distinct QuotationVersion)` por su primera aceptación autoritativa; grano versión aceptada, no solicitud | `time_bucket`, `currency`, `event_type_id`, `venue_id`, `space_id`, `acceptance_channel` | `F`; gobierna `accepted_at`, que prueba conocimiento de aceptación; estados posteriores de solicitud/reserva no lo revierten; unidad count | `sales:read`; ausencia de `accepted_at` fiable degrada cobertura |
+| `closed_lost_request_count@1` → `commercial.closed_lost_request_count@1` | `count(distinct EventRequest)` cuya transición autoritativa entra en `closed_lost`; grano solicitud | `time_bucket`, `origin`, `responsible_membership_id` | `F`; gobierna `EventRequestHistory.occurred_at`; solo `status_changed`, no estado terminal de cutover; unidad count | `sales:read`; transición sin hecho/tiempo fiable degrada cobertura |
+| `closed_lost_latest_issued_quote_amount@1` → `commercial.closed_lost_latest_issued_quote_amount@1` | Para cada solicitud del contrato anterior, suma el `total` de la versión de mayor `version` emitida no después del cierre perdido y visible al límite de conocimiento; solicitudes sin tal versión no aportan importe | `time_bucket`, `currency!`, `origin`, `event_type_id`, `venue_id`, `space_id` | `F`; gobierna el `occurred_at` del cierre perdido; emisión posterior no se retrotrae; unidad money | `sales:read`; si no puede probarse la versión vigente en el cierre, la partición es `partial/unavailable` |
+| `accepted_quote_amount@1` → `commercial.accepted_quote_amount@1` | Suma `QuotationVersion.total` de cada versión aceptada del contrato de aceptación; grano versión aceptada | `time_bucket`, `currency!`, `event_type_id`, `venue_id`, `space_id`, `acceptance_channel` | `F`; gobierna `accepted_at`; confirmación, cancelación o reprogramación posterior no cambia el hecho; unidad money | `sales:read`; misma cobertura que `quote_accepted_count@1` |
+| `open_issued_quote_amount@1` → `commercial.open_issued_quote_amount@1` | Suma la versión emitida de mayor `version` por solicitud cuyo estado Commercial as-of es `quoted` y cuyo `valid_until > as_of_at`; grano solicitud | `currency!`, `origin`, `event_type_id`, `venue_id`, `space_id` | `S`; borradores, expiradas, aceptadas, sustituidas, retiradas y solicitudes `accepted`, `confirmed`, `closed_lost` o `cancelled` quedan fuera; unidad money | `sales:read`; una retirada/mutación sin historia suficiente para el corte vuelve la partición `partial/unavailable` |
+| `first_outbound_response_elapsed_seconds@1` → `crm.first_outbound_response_elapsed_seconds@1` + `commercial.request_created_cohort@1` | Media aritmética de `primer Interaction outbound efectivo.occurred_at - solicitud.created.occurred_at`, en segundos, por solicitud de cohorte; interacciones anteriores a la creación y solicitudes sin respuesta se excluyen del numerador y del promedio; devuelve `eligible_count` y `sample_size` | `time_bucket` de cohorte, `origin`, `channel` de la interacción ganadora | `C`; correcciones de Interaction visibles sustituyen su raíz; `as_of_at` limita respuestas elegibles; unidad seconds | `interaction:read_analytics ∧ sales:read`; `complete` exige historia de creación e interacción para toda la cohorte, aunque `sample_size=0` |
+| `open_request_without_next_action_count@1` → `crm.open_request_without_next_action_count@1` + `commercial.request_state_as_of@1` | Cuenta solicitudes distintas en `new`, `quoted` o `accepted` as-of sin ninguna `FollowUpTask` efectiva `open` vinculada; grano solicitud | `origin`, `responsible_membership_id` | `S`; tareas `completed` o `cancelled` no cubren la solicitud; historia de tarea y solicitud se resuelve al corte; unidad count | `task:read_analytics ∧ sales:read`; estado mutable sin revisión histórica suficiente degrada cobertura |
+| `confirmed_sale_count@1` → `finance.confirmed_sale_count@1` | Cuenta raíces distintas que adquieren su única venta confirmada por la primera confirmación, conforme ADR 0020 §3; grano raíz | `time_bucket`, `currency`, `venue_id` | `F`; gobierna el instante de primera confirmación que originó la obligación; cancelación/reprogramación posterior no elimina el hecho; unidad count | `finance:read`; exige la procedencia Finance/Receivables de la raíz y snapshot económico; falta legacy explícita degrada cobertura |
+| `confirmed_sale_amount@1` → `finance.confirmed_sale_amount@1` | Importe de venta confirmada exactamente conforme ADR 0020 §3: total de la cotización aceptada que originó la obligación de la primera confirmación; grano raíz | `time_bucket`, `currency!`, `venue_id` | `F`; mismo hecho gobernante que el count; no es cotización aceptada genérica, cobro ni ingreso; unidad money | `finance:read`; misma cobertura que `confirmed_sale_count@1` |
+| `request_to_confirmed_sale_conversion_rate@1` (Analytics-owned) → `commercial.request_created_cohort@1` + `finance.confirmed_sale_cohort@1` | Analytics divide solicitudes distintas creadas en la cohorte que alcanzaron primera venta confirmada visible al corte entre solicitudes distintas elegibles de la cohorte y multiplica por 100; denominador cero = `not_calculable`; grano solicitud | `time_bucket` de cohorte, `origin` | `C`; estados posteriores no eliminan creación/confirmación; unidad percentage_points; conserva ambas versiones fuente | `sales:read ∧ finance:read`; peor cobertura fuente, y no calcula si numerador/cohorte no son reconciliables |
+| `distinct_canonical_request_person_count@1` (Analytics-owned) → `commercial.request_person_cohort@1` + `people.canonical_cluster_as_of@1` | Analytics cuenta clusters People distintos as-of con al menos una solicitud de la cohorte; grano cluster histórico, sin nombres/contactos | `time_bucket` de cohorte, `origin` | `C`; merges solo afectan desde su evidencia visible a `as_of_at` y `knowledge_cutoff_at`; unidad count; conserva ambas versiones fuente | `sales:read ∧ person:resolve_analytics`; historia de merge insuficiente produce `partial/unavailable`, nunca canonicalización vigente retroactiva |
+
+#### 4.3 Scheduling y Operations
+
+| `metric_id@1` y fuente | Fórmula y grano | Dimensiones permitidas | Tiempo, estados y unidad | Capability y cobertura específica |
+| --- | --- | --- | --- | --- |
+| `confirmed_event_minutes@1` → `scheduling.confirmed_event_minutes@1` | Suma minutos de intersección entre `[period_start, period_end)` y `event_interval` de la única reserva efectiva `confirmed` por raíz as-of; grano raíz | `time_bucket`, `venue_id`, `space_id` | `SI`; canceladas dejan de aportar y una reprogramación aporta solo la sucesora efectiva; unidad minutes | `schedule:read_analytics`; exige cadena, `ScheduleEvent` y snapshot de intervalo completos |
+| `confirmed_occupied_minutes@1` → `scheduling.confirmed_occupied_minutes@1` | Igual que la anterior, pero usa `occupied_interval` autoritativo con snapshots de setup, teardown y buffers; grano raíz | `time_bucket`, `venue_id`, `space_id` | `SI`; no sustituye evento por ocupación ni reconstruye buffers vigentes; unidad minutes | `schedule:read_analytics`; falta de snapshot histórico de ocupación degrada cobertura |
+| `confirmed_reservation_count@1` → `scheduling.confirmed_reservation_count@1` | Cuenta raíces distintas con una reserva efectiva `confirmed` as-of cuyo `event_interval` intersecta el periodo; grano raíz | `time_bucket`, `venue_id`, `space_id` | `SI`; no cuenta transiciones de confirmación ni miembros previos de una cadena; unidad count | `schedule:read_analytics`; misma evidencia histórica de cadena/estado que la métrica de minutos |
+| `blocked_minutes@1` → `scheduling.blocked_minutes@1` | Suma minutos de intersección del periodo con allocations de bloque efectivas as-of para el `space_id` seleccionado; grano bloque/espacio | `time_bucket`, `venue_id`, `space_id!` | `SI`; bloques liberados/cancelados antes del corte se excluyen; unidad minutes | `schedule:read_analytics`; solo `complete` donde eventos/snapshots prueban creación y liberación; de otro modo `partial/unavailable` |
+| `reservation_cancelled_count@1` → `scheduling.reservation_cancelled_count@1` | Cuenta `ScheduleEvent` autoritativos de cancelación de reserva; grano evento de cancelación | `time_bucket`, `venue_id`, `space_id` del snapshot previo | `F`; gobierna `occurred_at`, limitado por `recorded_at <= knowledge_cutoff_at`; no se borra por una acción posterior; unidad count | `schedule:read_analytics`; snapshots/cutover sin evento no cuentan y degradan cobertura histórica |
+| `reservation_rescheduled_count@1` → `scheduling.reservation_rescheduled_count@1` | Cuenta `ScheduleEvent` autoritativos de reprogramación; grano evento de reprogramación, no raíz | `time_bucket`, `from_venue_id`, `from_space_id`, `to_venue_id`, `to_space_id` | `F`; gobierna `occurred_at`, limitado por `recorded_at`; una raíz puede contribuir más de una vez si fue reprogramada varias veces; unidad count | `schedule:read_analytics`; requiere snapshots previo/nuevo y cadena coherente |
+| `preparation_open_count@1` → `operations.preparation_open_count@1` | Cuenta preparaciones distintas cuyo estado as-of es `preparing`, `ready` o `in_progress`; grano preparación | `status`, `responsible_membership_id` | `S`; excluye `completed`, `cancelled` y `rescheduled`; usa transiciones, no el estado vigente aislado; unidad count | `operation:read`; transiciones legacy sin evidencia de conocimiento suficiente degradan cobertura |
+| `pending_required_verification_count@1` → `operations.pending_required_verification_count@1` | Cuenta `OperationalVerification` requeridas cuyo estado efectivo as-of es `pending`; grano verificación | `phase`, `role_key` | `S`; excluye no requeridas, `completed` y `not_applicable`; correcciones visibles de eventos prevalecen; unidad count | `operation:read`; snapshot sin historial de estado suficiente degrada cobertura |
+| `execution_completed_count@1` → `operations.execution_completed_count@1` | Cuenta preparaciones distintas por `PreparationTransition(cause=execution_completed)`; grano preparación | `time_bucket` | `F`; gobierna `occurred_at`; cancelación, reprogramación o cierre posterior no elimina el hecho; unidad count | `operation:read`; cutover/estado `completed` sin transición no cuenta y degrada cobertura |
+| `phase_duration_seconds@1` → `operations.phase_duration_seconds@1` | Media aritmética de duraciones no negativas `completed.observed_at - started.observed_at` por preparación y fase usando hojas de corrección efectivas; el periodo selecciona el hecho `completed`; devuelve `sample_size`; grano preparación+fase | `time_bucket`, `phase!` (`setup` o `teardown`) | `F`; gobierna `completed.observed_at`; pares incompletos/negativos se excluyen y vuelven cobertura parcial, no cero; unidad seconds | `operation:read`; `complete` exige ambos hechos y sus correcciones para todos los completados elegibles |
+| `incident_opened_count@1` → `operations.incident_opened_count@1` | Cuenta incidentes distintos por su evento raíz `opened` efectivo; grano incidente | `time_bucket`, `incident_type`, `severity` registrada en el evento efectivo | `F`; gobierna `occurred_at`; contención/resolución posterior no elimina apertura; una corrección sustituye campos, no duplica; unidad count | `operation_incident:read`; incidente vigente sin evento de apertura fiable degrada cobertura |
+| `post_event_close_elapsed_seconds@1` → `operations.post_event_close_elapsed_seconds@1` | Media aritmética de `PostEventClose.closed_at - PreparationTransition(execution_completed).occurred_at` por preparación cerrada; el periodo selecciona `closed_at`; devuelve `sample_size`; grano preparación | `time_bucket` | `F`; solo diferencias no negativas y cierres consumados; correcciones de contenido del cierre no cambian esos dos instantes; unidad seconds | `operation:read`; falta de transición/cierre autoritativo degrada cobertura y el caso se excluye del promedio |
+
+#### 4.4 Receivables
+
+Todas las fórmulas de esta tabla permanecen en Receivables y remiten normativamente a ADR 0019
+§§7–8. Analytics no las reproduce.
+
+| `metric_id@1` y fuente | Fórmula y grano | Dimensiones permitidas | Tiempo, estados y unidad | Capability y cobertura específica |
+| --- | --- | --- | --- | --- |
+| `obligation_original_amount@1` → `receivables.obligation_original_amount@1` | Suma `original_total` de obligaciones creadas por primera confirmación; grano obligación/raíz | `time_bucket`, `currency!` | `F`; gobierna `confirmed_at`; ajustes, aplicaciones, reversos y refunds no alteran el original; money | `receivables:read`; obligación legacy sin hecho/snapshot económico fiable degrada cobertura |
+| `payment_received_amount@1` → `receivables.payment_received_amount@1` | Suma bruta de pagos externos declarados; grano pago | `time_bucket`, `currency!`, `method`, `provenance` | `F`; gobierna `reported_at`; reverso/refund posterior no borra el hecho y se informa por sus métricas; money | `receivables:read`; requiere pago y moneda autoritativos visibles |
+| `payment_unapplied_amount@1` → `receivables.payment_unapplied_amount@1` | Para pagos cuyo `reported_at` cae en la cohorte, suma su no aplicado as-of según la ecuación exacta ADR 0019 §7, incluidos efectos de aplicaciones, reversos y refunds; grano pago | `time_bucket` de cohorte, `currency!`, `method`, `provenance` | `C`; `as_of_at` limita todos los movimientos efectivos; money | `receivables:read`; falta de cualquier movimiento de la cadena vuelve la partición `partial/unavailable` |
+| `application_net_amount@1` → `receivables.application_net_amount@1` | Suma los efectos netos de aplicación ocurridos en el periodo conforme ADR 0019 §7: aplicaciones, reversos de aplicación, asignaciones de refund que reabren saldo y reversos de refund; grano efecto financiero tipado | `time_bucket`, `currency!`, `effect_kind` | `F`; gobierna `applied_at`, `reversed_at` o `refunded_at` según el efecto; no es caja; money | `receivables:read`; cadena o asignación incompleta degrada cobertura |
+| `adjustment_net_amount@1` → `receivables.adjustment_net_amount@1` | Suma el signo normativo de ajustes de obligación y sus reversos conforme ADR 0019 §7; grano efecto de ajuste | `time_bucket`, `currency!`, `direction` | `F`; gobierna `occurred_at` del ajuste o `reversed_at`; money | `receivables:read`; objetivo/reverso ausente o incoherente degrada cobertura |
+| `movement_reversal_amount_by_target@1` → `receivables.movement_reversal_amount_by_target@1` | Suma bruta positiva de reversos; grano `FinancialMovementReversal`; no aplica signo neto entre tipos | `time_bucket`, `currency!`, `target_kind!` (`payment`, `application`, `adjustment` o `refund`) | `F`; gobierna `reversed_at`; el objetivo es obligatorio; money | `receivables:read`; target o moneda no reconciliable = `partial/unavailable` |
+| `refund_recorded_amount@1` → `receivables.refund_recorded_amount@1` | Suma bruta de devoluciones registradas; grano refund | `time_bucket`, `currency!` | `F`; gobierna `refunded_at`; su reverso posterior no borra el hecho; no es aplicación ni ejecución bancaria; money | `receivables:read`; requiere refund visible y asignaciones coherentes cuando correspondan |
+| `open_balance_amount@1` → `receivables.open_balance_amount@1` | Saldo abierto exacto por obligación conforme ADR 0019 §7 y suma por partición; grano obligación | `currency!` | `S`; usa solo movimientos efectivos hasta `as_of_at` y visibles al límite de conocimiento; money | `receivables:read`; cadena incompleta, moneda mezclada o cutoff no reconstruible degrada cobertura |
+| `aging_open_balance_amount@1` → `receivables.aging_open_balance_amount@1` | Distribuye el saldo abierto conforme ADR 0019 §8 usando la `CollectionScheduleRevision` aplicable, aplicaciones dirigidas y asignación determinista; grano obligación+vencimiento/bucket | `currency!`, `aging_bucket!` (`current`, `1_30`, `31_60`, `61_90`, `over_90`, `unscheduled`) | `S`; edad por fecha local organizacional en `as_of_at`; nunca usa el calendario vigente para un corte previo; money | `receivables:read`; revisión/calendario/movimientos insuficientes degradan la partición, sin reclasificación estimada |
+| `expected_collection_amount@1` → `receivables.expected_collection_amount@1` | Suma el residual abierto de vencimientos de la revisión aplicable cuyo `due_on` local cae en `[period_start, period_end)`; es monto **calendarizado**, no probabilidad ni forecast; saldo sin vencimiento se excluye | `time_bucket` de `due_on`, `currency!` | `SI`; `as_of_at` fija saldo y revisión; aplicaciones/reversos/refunds hasta el corte modifican residual según ADR 0019; money | `receivables:read`; calendario no reconstruible = `partial/unavailable`; obligaciones `unscheduled` se declaran como exclusión, no como cero esperado |
+
+#### 4.5 Finance
+
+Las fórmulas Finance son exactamente las de ADR 0020 §§3, 5–7, 9 y 11. Todos los importes tienen
+`currency!`, usan `finance:read`, preservan correcciones y ajustes de periodos anteriores y aplican
+la regla `FP`, salvo `baseline_direct_cost_amount@1`, que usa `S`. Una exportación source-specific
+exige además `finance:export`; esa capability no cambia la lectura del KPI.
+
+| `metric_id@1` y fuente | Fórmula/grano y dimensiones adicionales | Estado, unidad y cobertura específica |
 | --- | --- | --- |
-| Embudo comercial | `request_created_count`, `quote_issued_count`, `quote_accepted_count`, `closed_lost_request_count`, `closed_lost_latest_issued_quote_amount`, `accepted_quote_amount`, `open_issued_quote_amount` | Commercial; hechos de creación/emisión/aceptación/cierre perdido en periodo o estado abierto al corte según el identificador |
-| Actividad comercial | `first_outbound_response_elapsed_seconds`, `open_request_without_next_action_count` | CRM; primera interacción saliente respecto del hecho de creación y estado/tarea al corte |
-| Venta confirmada | `confirmed_sale_count`, `confirmed_sale_amount` | Finance mediante `finance.public`; hecho económico de primera confirmación de raíz conforme ADR 0020 |
-| Conversión transversal | `request_to_confirmed_sale_conversion_rate`, `distinct_canonical_request_person_count` | Analytics; cohorte Commercial contrastada con confirmación fuente y clusters People históricos |
-| Agenda | `confirmed_event_minutes`, `confirmed_occupied_minutes`, `confirmed_reservation_count`, `blocked_minutes`, `reservation_cancelled_count`, `reservation_rescheduled_count` | Scheduling; intervalo/estado al corte o hecho de cancelación/reprogramación en periodo |
-| Ejecución operativa | `preparation_open_count`, `readiness_blocker_count`, `overdue_operational_item_count`, `execution_completed_count`, `phase_duration_seconds`, `incident_count`, `post_event_close_elapsed_seconds` | Operations; estado al corte o hechos append-only de fase, incidencia, ejecución y cierre |
-| Cartera | `obligation_original_amount`, `payment_received_amount`, `payment_unapplied_amount`, `application_net_amount`, `adjustment_net_amount`, `movement_reversal_amount_by_target`, `refund_recorded_amount`, `open_balance_amount`, `aging_open_balance_amount`, `expected_collection_amount` | Receivables; hechos en periodo o estado/aging al corte con revisión de calendario aplicable |
-| Finanzas | `recognized_revenue_amount`, `planned_direct_cost_amount`, `actual_direct_cost_amount`, `variable_expense_amount`, `recurring_expense_amount`, `cash_inflow_amount`, `cash_outflow_amount`, `net_cash_flow_amount`, `gross_margin_amount`, `contribution_margin_amount`, `operating_result_amount`, `profitability_rate` | Finance; `OperationalPeriod` y snapshot de cierre, o semántica provisional explícita para periodo abierto |
-| Recursos e inventario | `stock_on_hand_quantity`, `stock_movement_quantity`, `event_required_quantity`, `event_allocated_quantity`, `event_shortage_quantity`, `resource_unavailability_quantity` | Resources; saldo al corte, movimiento ocurrido en periodo o necesidad/indisponibilidad sobre intervalo |
+| `recognized_revenue_amount@1` → `finance.recognized_revenue_amount@1` | ADR 0020 §§4, 9 y 11; grano periodo+raíz; `venue_id`, `root_reservation_id` | `FP`; money; cerrado = snapshot, abierto = provisional; falta de snapshot/registro visible degrada cobertura |
+| `baseline_direct_cost_amount@1` → `finance.baseline_direct_cost_amount@1` | ADR 0020 §5; suma baseline inmutable; grano raíz+línea; `root_reservation_id!`, `category_id` | `S`; money; antes de existir baseline devuelve `not_applicable`, no cero; baseline/revisiones no visibles degradan cobertura |
+| `actual_direct_cost_amount@1` → `finance.actual_direct_cost_amount@1` | ADR 0020 §§5, 9 y 11; grano costo real/corrección; `venue_id`, `root_reservation_id`, `category_id` | `FP`; money neto de correcciones Finance; snapshot cerrado manda |
+| `variable_expense_amount@1` → `finance.variable_expense_amount@1` | ADR 0020 §§6, 9 y 11; grano porción de ocurrencia/corrección variable; `venue_id`, `root_reservation_id`, `category_id` | `FP`; money; solo hechos materializados, no reglas futuras |
+| `recurring_expense_amount@1` → `finance.recurring_expense_amount@1` | ADR 0020 §§6, 9 y 11; grano porción de ocurrencia/corrección recurrente; `venue_id`, `category_id` | `FP`; money; no proyecta recurrencias aún no materializadas |
+| `cash_inflow_amount@1` → `finance.cash_inflow_amount@1` | ADR 0020 §§7, 9 y 11; grano contribución P10/movimiento o corrección P11 con dirección de entrada; `venue_id`, `root_reservation_id`, `source_kind` | `FP`; money; aplicación no aporta caja y snapshot cerrado manda |
+| `cash_outflow_amount@1` → `finance.cash_outflow_amount@1` | ADR 0020 §§7, 9 y 11; grano contribución P10/movimiento o corrección P11 con dirección de salida; `venue_id`, `root_reservation_id`, `source_kind` | `FP`; money; refund y reverso conservan sus signos normativos |
+| `net_cash_flow_amount@1` → `finance.net_cash_flow_amount@1` | Fórmula exacta ADR 0020 §11; grano `OperationalPeriod`+scope seleccionado; no resta P10 nuevamente en Analytics; `venue_id`, `root_reservation_id` | `FP`; money; depende solo de la proyección/snapshot Finance autoritativa |
+| `gross_margin_amount@1` → `finance.gross_margin_amount@1` | Fórmula exacta ADR 0020 §11; grano `OperationalPeriod`+scope seleccionado; `venue_id`, `root_reservation_id` | `FP`; money; snapshot cerrado o provisional abierto |
+| `contribution_margin_amount@1` → `finance.contribution_margin_amount@1` | Fórmula exacta ADR 0020 §11; grano `OperationalPeriod`+scope seleccionado; `venue_id`, `root_reservation_id` | `FP`; money; no incluye gastos recurrentes fuera de su fórmula fuente |
+| `operating_result_amount@1` → `finance.operating_result_amount@1` | Fórmula exacta ADR 0020 §11; grano `OperationalPeriod`+scope seleccionado; `venue_id`, `root_reservation_id` | `FP`; money; conserva ajustes prior-period del snapshot |
+| `profitability_rate@1` → `finance.profitability_rate@1` | Fórmula exacta ADR 0020 §11; grano `OperationalPeriod`+scope seleccionado; `venue_id`, `root_reservation_id` | `FP`; percentage_points; ingreso reconocido cero = `not_calculable`, nunca cero; misma cobertura Finance |
 
-Reglas adicionales del catálogo:
+#### 4.6 Resources
 
-1. Por convención, una métrica source-owned referencia `<dominio>.<metric_id>@1`; el puerto fuente
-   devuelve esa pareja exacta. Las composiciones `request_to_confirmed_sale_conversion_rate@1` y
-   `distinct_canonical_request_person_count@1` fijan respectivamente
-   `commercial.request_created_cohort@1 + finance.confirmed_sale_cohort@1` y
-   `commercial.request_person_cohort@1 + people.canonical_cluster_as_of@1` como contratos fuente.
-2. `closed_lost_request_count` cuenta la transición autoritativa de `EventRequest` a
-   `closed_lost`; `closed_lost_latest_issued_quote_amount` usa la última versión emitida de esa
-   solicitud visible en esa transición. Un `cutover_state` terminal no fabrica el hecho.
-3. `open_issued_quote_amount` incluye solo la versión emitida vigente de solicitudes abiertas en el
-   corte definido por Commercial; excluye borradores, versiones sustituidas/retiradas y estados
-   terminales. Commercial fija y prueba la transición exacta, sin que Analytics lea su ORM.
-4. `request_to_confirmed_sale_conversion_rate` es
-   `solicitudes distintas de la cohorte que alcanzaron primera confirmación visible al as_of_at /
-   solicitudes distintas elegibles creadas en la cohorte * 100`; devuelve no calculable si el
-   denominador es cero y conserva las versiones Commercial y de la confirmación fuente.
-5. `distinct_canonical_request_person_count` cuenta clusters People distintos, resueltos as-of el
-   corte histórico y de conocimiento, con al menos una solicitud elegible en la cohorte. No expone
-   nombres ni contactos.
-6. `confirmed_event_minutes` usa el intervalo del evento. `confirmed_occupied_minutes` usa la
-   ocupación real de Scheduling y sus snapshots de setup, teardown y buffers; no son sinónimos.
-7. `blocked_minutes` solo devuelve un valor cuando Scheduling acredita historia autoritativa
-   suficiente. En otro caso conserva el identificador y responde `partial` o `unavailable` con
-   motivo, nunca cero inventado.
-8. `movement_reversal_amount_by_target` exige la dimensión cerrada de tipo de objetivo; las demás
-   métricas de movimiento conservan dirección. Ninguna se presenta como «neto de caja». Resources
-   conserva kind/dirección/unidad y no suma unidades incompatibles.
-9. `profitability_rate` conserva el caso no calculable de ADR 0020 cuando el ingreso reconocido es
-   cero; no lo transforma en cero por presentación.
+Todas usan `resource:read`, cantidades Decimal en unidad base y evidencia de ledger/eventos
+Resources conforme ADR 0021. `resource_id!` y `unit_id!` son obligatorios; `unit_id` debe ser la
+unidad base histórica del recurso. Analytics no ejecuta conversiones.
+
+| `metric_id@1` y fuente | Fórmula y grano; dimensiones adicionales | Tiempo, estados y cobertura específica |
+| --- | --- | --- |
+| `stock_on_hand_quantity@1` → `resources.stock_on_hand_quantity@1` | Suma `StockMovement.effect` hasta el corte; grano recurso+ubicación; `location_id` | `S`; correcciones son movimientos nuevos con su propio signo; no usa `StockBalance` vigente como historia; ledger incompleto = `partial/unavailable` |
+| `stock_movement_quantity@1` → `resources.stock_movement_quantity@1` | Suma `quantity` positiva; grano movimiento; `time_bucket`, `location_id`, `kind`, `direction!` | `F` por `occurred_at`; `created_at` limita conocimiento; no netea direcciones ni suma unidades/recursos distintos; transferencia conserva sus dos hechos tipados |
+| `event_required_quantity@1` → `resources.event_required_quantity@1` | Suma requisitos efectivos no cancelados/sustituidos que intersectan el periodo; grano requisito; `root_reservation_id`, `temporal_source` | `SI`; estados `open`, `shortage` y `satisfied` incluidos, `cancelled` excluido; cadena/eventos insuficientes degradan cobertura |
+| `event_allocated_quantity@1` → `resources.event_allocated_quantity@1` | Suma asignaciones efectivas que intersectan el periodo; grano asignación; `root_reservation_id`, `source_location_id`, `assignment_status` | `SI`; incluye `reserved`, `issued`, `custody` y `fulfilled`; excluye `returned`, `released`, `cancelled` y predecesoras sustituidas; historia insuficiente degrada cobertura |
+| `event_shortage_quantity@1` → `resources.event_shortage_quantity@1` | Por requisito efectivo `open` o `shortage`, `max(required - asignado efectivo al mismo requisito, 0)` según ADR 0021, luego suma; grano requisito; `root_reservation_id`, `temporal_source` | `SI`; `satisfied` y `cancelled` aportan cero; asignado usa los estados de la fila anterior; falta de cadena requerida/asignada = `partial/unavailable` |
+| `resource_unavailability_quantity@1` → `resources.resource_unavailability_quantity@1` | Suma cantidades de indisponibilidades efectivas cuyo intervalo contiene `as_of_at`; grano indisponibilidad; `location_id` | `S`; activas y correcciones hoja visibles incluidas, cerradas/sustituidas excluidas; no multiplica cantidad por duración; historia de cierre/corrección insuficiente degrada cobertura |
+
+El catálogo v1 retira los identificadores ambiguos `readiness_blocker_count`,
+`overdue_operational_item_count`, `incident_count` y `planned_direct_cost_amount`: el primero se
+reemplaza por `pending_required_verification_count@1`, el tercero por
+`incident_opened_count@1` y el cuarto por `baseline_direct_cost_amount@1`. El significado amplio de
+«bloqueador», el vencimiento histórico de ítems y un total mutable de plan previo al baseline
+quedan diferidos; no se reservan como `@1` incompletos.
 
 ### 5. Dashboards mínimos por perfil
 
@@ -306,10 +411,9 @@ mera capability Analytics.
 3. Analytics no importará ORM privado ni ejecutará SQL cross-domain. P15 v1 no crea views o
    materialized views cross-domain, tabla de hechos, read model persistido, snapshot analítico ni
    caché de métricas.
-4. Una capability próxima por nombre no concede autoridad. `schedule:export`, por ejemplo, no es
-   permiso genérico para analítica Scheduling. Cada puerto declara la capacidad fuente exacta; si
-   ninguna vigente representa esa lectura, se añadirá una capability estrecha propiedad del
-   dominio fuente antes de exponerla.
+4. Una capability próxima por nombre no concede autoridad. Las cuatro capabilities source-owned
+   nuevas y las capabilities existentes exactas son las fijadas en §4.1; en particular,
+   `schedule:export` no es permiso genérico para analítica Scheduling.
 5. Un índice requerido por benchmark pertenece al módulo fuente y se justifica con la consulta
    medida. Analytics no toma propiedad de tablas o índices ajenos.
 6. Si el fan-in síncrono incumple el presupuesto con volumen representativo, se detendrá esa
@@ -366,13 +470,25 @@ mera capability Analytics.
    almacenamiento y un adaptador determinista/local para desarrollo y tests. Puede compartir
    librerías o primitivas stateless neutrales, pero no usa `DocumentJob`, `GeneratedArtifact`,
    estados, grants ni retención P9. Documents no se convierte en repositorio P15.
-6. No se extrae todavía una plataforma general de archivos. Hacerlo requerirá necesidad demostrada
+6. Un object key P15 **publicado** es opaco, inmutable y nunca se sobrescribe. El puerto privado de
+   almacenamiento exige creación condicional/write-once (`put_if_absent`) o una primitiva
+   equivalente con exclusión atómica. Antes de publicar, el worker obtiene el SHA-256, tamaño y
+   formato esperados de los bytes de esa exportación exacta.
+7. Si un retry encuentra la key ya creada, lee o inspecciona el objeto existente y compara su
+   SHA-256 y tamaño con los esperados. Si coinciden, reutiliza la publicación idempotentemente. Si
+   difieren, registra un fallo terminal de integridad, no sobrescribe el objeto ni publica el
+   resultado rival. Una key temporal no publicada, si se usa, tendrá identidad separada y nunca
+   podrá reemplazar una key consumada.
+8. La metadata consumada referencia de forma única la `ReportExecution` y exportación exactas y
+   conserva key opaca, SHA-256, tamaño y formato. Una regeneración deliberadamente distinta crea
+   otra identidad de exportación/artefacto y otra key; jamás reemplaza los bytes históricos.
+9. No se extrae todavía una plataforma general de archivos. Hacerlo requerirá necesidad demostrada
    y ADR específico.
-7. P15 no inventa un plazo legal ni purga automáticamente. Puede conservar metadata nullable de
+10. P15 no inventa un plazo legal ni purga automáticamente. Puede conservar metadata nullable de
    expiración si aparece una necesidad técnica concreta; mientras no exista política aprobada no
    se afirma retención legal ni se borra físicamente. Perder autorización revoca la descarga aunque
    los bytes permanezcan.
-8. Las exportaciones source-owned existentes —incluidos CSV Finance e iCalendar Scheduling— no se
+11. Las exportaciones source-owned existentes —incluidos CSV Finance e iCalendar Scheduling— no se
    eliminan, redirigen ni deprecian implícitamente. P15 añade reporting transversal.
 
 ### 12. `ExportJob` y worker tenant-aware
@@ -395,8 +511,9 @@ mera capability Analytics.
 4. El job conserva requester user/membership. Antes de calcular o escribir bytes revalida usuario,
    organización y Membership activos, capabilities P15 y todas las capabilities fuente. Si el
    actor perdió autoridad, no genera el artefacto. La descarga vuelve a revalidar autoridad vigente.
-5. At-least-once no promete exactly-once: la combinación de ejecución inmutable, idempotencia, key
-   determinista y hash impide publicar dos resultados distintos para el mismo intento lógico.
+5. At-least-once no promete exactly-once. La seguridad de publicación proviene de la creación
+   condicional write-once del §11 y de la verificación del objeto ya publicado; una key determinista
+   y un hash guardado, por sí solos, no impiden una sobrescritura ni una carrera con bytes rivales.
 
 ### 13. Capabilities, tenancy, RLS y privacidad
 
@@ -482,6 +599,13 @@ mera capability Analytics.
 
 - Porcentaje de ocupación/utilización por sede o espacio hasta que Scheduling posea ventanas
   históricas normativas de capacidad disponible; no se acepta denominador sustituto.
+- `readiness_blocker_count`: «bloqueador» no corresponde a un único hecho tipado; P15 v1 usa el
+  contrato más estrecho `pending_required_verification_count@1`.
+- `overdue_operational_item_count`: `PreparationItem` no conserva historia append-only suficiente
+  de estado, vencimiento y tiempo de conocimiento para reconstruir cortes anteriores honestamente.
+- Un `planned_direct_cost_amount` mutable anterior al baseline: P15 v1 publica únicamente
+  `baseline_direct_cost_amount@1`; una futura métrica de plan vigente necesitará historia y
+  semántica source-owned inequívocas.
 - Métrica de merma de inventario hasta que Resources posea una clasificación normativa, tipada e
   histórica que no dependa de interpretar texto libre.
 - Exportaciones nominales o con PII, pendientes de capability fuente, política de privacidad,
@@ -515,8 +639,9 @@ Antes de cerrar la implementación P15 se deberá demostrar, como mínimo:
   descarga;
 - equivalencia dashboard/ejecución/export y reproducibilidad al ejecutar el worker después;
 - privacidad, minimización y ausencia de PII/contenido en logs;
-- doble claim, idempotencia, leases, reclaim, retry/backoff, crash, fallo terminal y key/hash de
-  artefacto deterministas;
+- doble claim, idempotencia, leases, reclaim, retry/backoff, crash y fallo terminal; creación
+  condicional sin overwrite, retry que reutiliza bytes con SHA-256 coincidente y rechazo terminal
+  ante una key existente con hash/tamaño rival;
 - CSV/XLSX formula injection type-aware, tipos numéricos negativos, MIME, nombres, límites de
   filas/bytes y errores de exportación;
 - presupuesto Qmax/payload por ruta, volumen/concurrencia representativos,
