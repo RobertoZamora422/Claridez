@@ -15,7 +15,9 @@ from claridez.organizations.capabilities import Capability
 from claridez.organizations.public import public_organization
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .analytics import fetch_analytics_metrics
 from .errors import ReceivablesError, conflict, unavailable
+from .finance_evidence import ObligationSaleEvidence, obligation_sales_for_analytics
 from .models import (
     MovementReversal,
     PaymentApplication,
@@ -267,15 +269,35 @@ def obligation_for_finance(
 
 def cash_contributions_for_finance(
     authorization: TenantAuthorization,
+    *,
+    knowledge_cutoff_at: datetime | None = None,
 ) -> tuple[FinanceCashContributionProjection, ...]:
+    authorization.require(Capability.FINANCE_READ)
     organization_id = authorization.organization_id
+    temporal_filter = (
+        {} if knowledge_cutoff_at is None else {"created_at__lte": knowledge_cutoff_at}
+    )
     payments = {
-        row.pk: row for row in ReceivedPayment.objects.filter(organization_id=organization_id)
+        row.pk: row
+        for row in ReceivedPayment.objects.filter(
+            organization_id=organization_id, **temporal_filter
+        ).only("id", "root_reservation_id", "amount", "currency", "reported_at", "created_at")
     }
     refunds = {
         row.pk: row
-        for row in RefundRecord.objects.select_related("payment").filter(
-            organization_id=organization_id
+        for row in RefundRecord.objects.select_related("payment")
+        .filter(
+            organization_id=organization_id,
+            **temporal_filter,
+        )
+        .only(
+            "id",
+            "payment_id",
+            "payment__root_reservation_id",
+            "amount",
+            "currency",
+            "refunded_at",
+            "created_at",
         )
     }
     result = [
@@ -306,11 +328,12 @@ def cash_contributions_for_finance(
     )
     for reversal in MovementReversal.objects.filter(
         organization_id=organization_id,
+        **temporal_filter,
         target_kind__in=[
             MovementReversal.TargetKind.PAYMENT,
             MovementReversal.TargetKind.REFUND,
         ],
-    ):
+    ).only("id", "target_kind", "target_id", "amount", "currency", "reversed_at", "created_at"):
         if reversal.target_kind == MovementReversal.TargetKind.PAYMENT:
             payment = payments.get(reversal.target_id)
             if payment is None:
@@ -506,6 +529,8 @@ def summary_for_commercial(
 
 
 __all__ = (
+    "ObligationSaleEvidence",
+    "obligation_sales_for_analytics",
     "ConfirmationApplicationProjection",
     "ConfirmationObligationProjection",
     "ConfirmationPaymentProjection",
@@ -530,4 +555,5 @@ __all__ = (
     "client_receivables",
     "payment_reminder_decision",
     "payment_reminder_decision_for_obligation",
+    "fetch_analytics_metrics",
 )

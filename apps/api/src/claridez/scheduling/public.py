@@ -10,7 +10,9 @@ from uuid import UUID
 from claridez.organizations.capabilities import Capability
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .analytics import analytics_scope_fingerprint, fetch_analytics_metrics
 from .errors import SchedulingError
+from .finance_evidence import ReservationFinanceIdentity, reservation_identities_for_analytics
 
 
 @dataclass(frozen=True, slots=True)
@@ -671,6 +673,8 @@ def reschedule_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 
 __all__ = (
+    "ReservationFinanceIdentity",
+    "reservation_identities_for_analytics",
     "ReservationProjection",
     "PublicAvailabilityProjection",
     "ClientScheduleProjection",
@@ -711,4 +715,6 @@ __all__ = (
     "public_interval_availability",
     "client_schedule",
     "event_reminder_decision",
+    "fetch_analytics_metrics",
+    "analytics_scope_fingerprint",
 )

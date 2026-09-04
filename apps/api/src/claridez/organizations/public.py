@@ -5,6 +5,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from .analytics_contracts import (
+    CohortMember,
+    Coverage,
+    DimensionValues,
+    MetricPoint,
+    MetricValueStatus,
+    SourceCollection,
+    SourceInputContract,
+    SourceMetricQuery,
+    SourceMetricResult,
+    TemporalMode,
+    dimension_values,
+    evidence_watermark,
+    worst_coverage,
+)
+from .analytics_values import MetricAccumulator
 from .capabilities import Capability, capabilities_for_role
 from .exceptions import AuthorizationDenied, TenantAccessDenied
 from .models import Membership, Organization, OrganizationSettings, Space, Venue
@@ -17,6 +33,20 @@ class OrganizationContractualProjection:
     name: str
     currency: str
     timezone_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnalyticsOrganizationSettings:
+    currency: str
+    timezone_name: str
+
+
+def settings_for_analytics(authorization: TenantAuthorization) -> AnalyticsOrganizationSettings:
+    authorization.require(Capability.ORGANIZATION_SETTINGS_READ)
+    row = OrganizationSettings.objects.only("currency", "timezone").get(
+        organization_id=authorization.organization_id
+    )
+    return AnalyticsOrganizationSettings(row.currency, row.timezone)
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +289,49 @@ def active_organization_ids_for_communications_worker() -> tuple[UUID, ...]:
     )
 
 
+def active_organization_ids_for_analytics_worker() -> tuple[UUID, ...]:
+    """Control global mínimo: el worker reclama después únicamente dentro de cada tenant."""
+    return tuple(
+        Organization.objects.filter(status=Organization.Status.ACTIVE)
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+
+
+def analytics_requester_actor_id(organization_id: UUID, membership_id: UUID) -> UUID | None:
+    """Revalidación source-owned de la membresía solicitante, sin exportar su ORM ni PII."""
+    return (
+        Membership.objects.filter(
+            organization_id=organization_id,
+            pk=membership_id,
+            status=Membership.Status.ACTIVE,
+            organization__status=Organization.Status.ACTIVE,
+            user__is_active=True,
+        )
+        .values_list("user_id", flat=True)
+        .first()
+    )
+
+
 __all__ = (
+    "CohortMember",
+    "Coverage",
+    "DimensionValues",
+    "MetricPoint",
+    "MetricValueStatus",
+    "MetricAccumulator",
+    "SourceCollection",
+    "SourceInputContract",
+    "SourceMetricQuery",
+    "SourceMetricResult",
+    "TemporalMode",
+    "dimension_values",
+    "evidence_watermark",
+    "worst_coverage",
+    "AnalyticsOrganizationSettings",
+    "settings_for_analytics",
+    "active_organization_ids_for_analytics_worker",
+    "analytics_requester_actor_id",
     "LocationContractualProjection",
     "OrganizationContractualProjection",
     "FinanceVenueProjection",

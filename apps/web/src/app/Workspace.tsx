@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { api, logout, type Organization, type User } from "../api";
 import { BrandLogo } from "../Brand";
@@ -15,8 +15,16 @@ import { ResourcesView } from "../features/resources/ResourcesView";
 import { RequestsView } from "../features/requests/RequestsView";
 import { Notice } from "../shared/components";
 import { message } from "../shared/utilities";
+import { useAnalyticsCatalog } from "../features/analytics/useAnalyticsCatalog";
+
+const AnalyticsView = lazy(() =>
+  import("../features/analytics/AnalyticsView").then((module) => ({
+    default: module.AnalyticsView,
+  })),
+);
 
 type Page =
+  | "analytics"
   | "agenda"
   | "crm"
   | "requests"
@@ -49,6 +57,8 @@ export function Workspace({
   const [capabilities, setCapabilities] = useState(new Set<string>());
   const [timeZone, setTimeZone] = useState("America/Guayaquil");
   const [error, setError] = useState("");
+  const analytics = useAnalyticsCatalog(organization.id);
+  const analyticsCatalog = analytics.state.status === "ready" ? analytics.state.catalog : null;
   useEffect(() => {
     void Promise.all([
       api<{ capabilities: string[] }>(
@@ -126,6 +136,17 @@ export function Workspace({
             </small>
           </button>
           <nav aria-label="Navegación principal">
+            {analyticsCatalog?.capabilities.includes("analytics:read_dashboard") && (
+              <button
+                aria-current={page === "analytics" ? "page" : undefined}
+                onClick={() => {
+                  setPage("analytics");
+                  setSelectedRequest(null);
+                }}
+              >
+                <span aria-hidden="true">▥</span>Analítica
+              </button>
+            )}
             <button
               aria-current={page === "agenda" ? "page" : undefined}
               onClick={() => {
@@ -269,6 +290,17 @@ export function Workspace({
         </button>
       </header>
       <nav className="mobile-nav" aria-label="Navegación móvil">
+        {analyticsCatalog?.capabilities.includes("analytics:read_dashboard") && (
+          <button
+            aria-current={page === "analytics" ? "page" : undefined}
+            onClick={() => {
+              setPage("analytics");
+              setSelectedRequest(null);
+            }}
+          >
+            Analítica
+          </button>
+        )}
         <button
           aria-current={page === "agenda" ? "page" : undefined}
           onClick={() => {
@@ -393,7 +425,29 @@ export function Workspace({
       </nav>
       <main className="workspace">
         {error && <Notice>{error}</Notice>}
-        {page === "agenda" ? (
+        {analytics.state.status === "error" && (
+          <Notice>
+            <p>No se pudo cargar Analítica. {analytics.state.message}</p>
+            <button type="button" onClick={analytics.retry}>
+              Reintentar analítica
+            </button>
+          </Notice>
+        )}
+        {page === "analytics" ? (
+          analyticsCatalog ? (
+            <Suspense fallback={<p role="status">Cargando analítica…</p>}>
+              <AnalyticsView
+                key={organization.id}
+                organizationId={organization.id}
+                catalog={analyticsCatalog}
+              />
+            </Suspense>
+          ) : analytics.state.status === "loading" ? (
+            <p role="status">Cargando catálogo de analítica…</p>
+          ) : analytics.state.status === "denied" ? (
+            <Notice>Analítica ya no está disponible para su acceso actual.</Notice>
+          ) : null
+        ) : page === "agenda" ? (
           <AgendaView
             organizationId={organization.id}
             timeZone={timeZone}

@@ -647,5 +647,18 @@ def test_openapi_contains_only_approved_organization_commercial_and_operations_m
         "/api/v1/organizations/{organization_id}/communications/preferences/": {"get", "post"},
         "/api/v1/organizations/{organization_id}/reminders/": {"post"},
         ("/api/v1/organizations/{organization_id}/reminders/{intent_id}/cancel/"): {"post"},
+        "/api/v1/organizations/{organization_id}/analytics/catalog/": {"get"},
+        "/api/v1/organizations/{organization_id}/analytics/dashboards/query/": {"post"},
+        "/api/v1/organizations/{organization_id}/analytics/reports/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/analytics/reports/{report_id}/revisions/": {
+            "get",
+            "post",
+        },
+        "/api/v1/organizations/{organization_id}/analytics/reports/{report_id}/archive/": {"post"},
+        "/api/v1/organizations/{organization_id}/analytics/executions/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/analytics/executions/{execution_id}/": {"get"},
+        "/api/v1/organizations/{organization_id}/analytics/exports/": {"get", "post"},
+        "/api/v1/organizations/{organization_id}/analytics/exports/{job_id}/": {"get"},
+        "/api/v1/organizations/{organization_id}/analytics/exports/{job_id}/download/": {"get"},
     }
     assert organization_paths == expected_paths

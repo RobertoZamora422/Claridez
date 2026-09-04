@@ -9,7 +9,10 @@ from uuid import UUID
 
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .analytics import fetch_analytics_metrics, request_cohort, request_states_as_of
+from .analytics_access import AnalyticsScheduleContext, schedule_context_for_analytics
 from .errors import CommercialError, unavailable
+from .finance_evidence import AcceptedSaleEvidence, economic_sales_for_analytics
 from .models import EventRequest, EventRequestHistory, QuotationLine, QuotationVersion
 
 
@@ -550,6 +553,10 @@ def interest_evidence_for_people(
 
 
 __all__ = (
+    "AnalyticsScheduleContext",
+    "schedule_context_for_analytics",
+    "AcceptedSaleEvidence",
+    "economic_sales_for_analytics",
     "CommercialError",
     "AcceptedScheduleEvidence",
     "AcceptedQuotationLineProjection",
@@ -576,4 +583,7 @@ __all__ = (
     "create_public_event_request",
     "client_event_request",
     "client_quotations",
+    "fetch_analytics_metrics",
+    "request_cohort",
+    "request_states_as_of",
 )

@@ -10,6 +10,8 @@ from uuid import UUID
 
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .analytics import confirmed_sale_cohort, fetch_analytics_metrics
+from .analytics_metadata import AnalyticsPeriod, periods_for_analytics
 from .errors import FinanceError
 from .services import _materialize_resources_receipt_authorized, _overview_authorized
 
@@ -93,6 +95,10 @@ def event_profitability(
 
 
 __all__ = (
+    "AnalyticsPeriod",
+    "periods_for_analytics",
+    "confirmed_sale_cohort",
+    "fetch_analytics_metrics",
     "EventProfitabilityProjection",
     "FinancialMaterializationProjection",
     "FinanceError",

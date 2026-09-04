@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from claridez.organizations.models import Membership
 from claridez.organizations.tenant_scope import TenantAuthorization
 
+from .analytics import fetch_analytics_metrics
 from .baseline import (
     BASELINE,
     BASELINE_VERSION,
@@ -20,6 +21,7 @@ from .baseline import (
     transition_id,
 )
 from .errors import OperationsError, conflict
+from .finance_evidence import FinanceExecutionFact, execution_facts_for_analytics
 from .models import EventPreparation, PreparationItem, PreparationTransition
 from .services.lifecycle import cancel_preparation
 from .services.shared import append_transition, eligible_membership
@@ -384,6 +386,8 @@ def materialize_rescheduled_plan(
 
 
 __all__ = (
+    "FinanceExecutionFact",
+    "execution_facts_for_analytics",
     "OperationsError",
     "PreparationProjection",
     "ExecutionEvidenceProjection",
@@ -396,6 +400,7 @@ __all__ = (
     "reschedule_preparation",
     "materialize_rescheduled_plan",
     "OperationalWindowProjection",
+    "fetch_analytics_metrics",
     "operational_window_for_resources",
 )
 

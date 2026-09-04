@@ -395,6 +395,22 @@ class ScheduleEvent(models.Model):
     aggregate_revision = models.PositiveIntegerField()
     previous_snapshot = models.JSONField(default=dict)
     new_snapshot = models.JSONField(default=dict)
+    analytics_previous_venue = models.ForeignKey(
+        Venue,
+        on_delete=models.PROTECT,
+        null=True,
+        editable=False,
+        db_index=False,
+        related_name="previous_schedule_analytics_evidence",
+    )
+    analytics_new_venue = models.ForeignKey(
+        Venue,
+        on_delete=models.PROTECT,
+        null=True,
+        editable=False,
+        db_index=False,
+        related_name="new_schedule_analytics_evidence",
+    )
     idempotency_key = models.UUIDField()
     payload_hash = models.CharField(max_length=64)
     occurred_at = models.DateTimeField()

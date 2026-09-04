@@ -868,6 +868,12 @@ class ResourceEvent(TenantModel):
     recorded_by_membership_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
+        indexes = [
+            models.Index(
+                fields=["organization", "aggregate_kind", "aggregate_id", "created_at"],
+                name="resources_metric_history_idx",
+            )
+        ]
         constraints = [
             models.UniqueConstraint(fields=["organization", "id"], name="resources_event_org_id_uq")
         ]

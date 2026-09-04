@@ -2922,6 +2922,17 @@ def close_period(
         snapshot = _overview_authorized(
             authorization, period_id=period.pk, receivables_cutoff=cutoff
         )
+        from .analytics import snapshot_metric_slices
+
+        organization = _organization(authorization)
+        snapshot["p15_metric_slices"] = snapshot_metric_slices(
+            authorization,
+            period_id=period.pk,
+            currency=period.currency,
+            timezone_name=organization.timezone_name,
+            cutoff=cutoff,
+            presented=cast(dict[str, object], snapshot["presented"]),
+        )
         references = cast(list[dict[str, object]], snapshot["p10_source_references"])
         source_sha = payload_hash(references)
         snapshot["close"] = {

@@ -168,6 +168,7 @@ def infrastructure_tenant_scope(
     if purpose not in {
         "communications_worker",
         "document_worker",
+        "analytics_worker",
         "external_document_session",
     }:
         raise TenantAccessDenied("El propósito de infraestructura no está autorizado.")

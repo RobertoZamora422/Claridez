@@ -106,6 +106,14 @@ class EventRequestHistory(models.Model):
     event_request = models.ForeignKey(
         EventRequest, on_delete=models.PROTECT, related_name="history", db_index=False
     )
+    analytics_person = models.ForeignKey(
+        Person,
+        on_delete=models.PROTECT,
+        null=True,
+        editable=False,
+        related_name="request_identity_evidence",
+        db_index=False,
+    )
     kind = models.CharField(max_length=20, choices=Kind.choices)
     status = models.CharField(max_length=20, choices=EventRequest.Status.choices)
     request_revision = models.PositiveIntegerField()

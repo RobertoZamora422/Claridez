@@ -4,6 +4,7 @@ import uuid
 
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from claridez.organizations.models import Membership, Organization
 
@@ -129,6 +130,38 @@ class EventPreparation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.reservation_id}@{self.status}"
+
+
+class PreparationAnalyticsState(models.Model):
+    """Evidencia fuente prospectiva de estado/responsable, nunca backfill analítico."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
+    preparation = models.ForeignKey(EventPreparation, on_delete=models.PROTECT)
+    preparation_revision = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, choices=EventPreparation.Status.choices)
+    responsible_membership = models.ForeignKey(Membership, on_delete=models.PROTECT, null=True)
+    recorded_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="operations_p15_state_org_uq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "preparation", "preparation_revision"],
+                name="operations_p15_state_rev_uq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "preparation", "recorded_at"],
+                name="operations_p15_state_idx",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.preparation_id}@{self.preparation_revision}"
 
 
 class PreparationItem(models.Model):
@@ -323,6 +356,7 @@ class PreparationTransition(models.Model):
     actor_membership = models.ForeignKey(Membership, on_delete=models.PROTECT)
     preparation_revision = models.PositiveIntegerField()
     occurred_at = models.DateTimeField()
+    recorded_at = models.DateTimeField(null=True, default=timezone.now, editable=False)
 
     class Meta:
         ordering = ["preparation_revision", "occurred_at", "id"]

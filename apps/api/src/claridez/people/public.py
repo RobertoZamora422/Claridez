@@ -7,6 +7,7 @@ from datetime import datetime
 from uuid import UUID
 
 from . import services as _services
+from .analytics import canonical_clusters_as_of
 from .errors import PeopleError
 from .models import ConsentEvent, ContactOrigin, Person, PersonContactAlias
 from .normalization import canonical_email, canonical_phone
@@ -259,4 +260,5 @@ __all__ = (
     "read_person",
     "update_person",
     "resolve_or_create_for_capture",
+    "canonical_clusters_as_of",
 )

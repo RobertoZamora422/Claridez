@@ -25,7 +25,9 @@ class Capability(StrEnum):
     SALES_MANAGE = "sales:manage"
     INTERACTION_READ = "interaction:read"
     INTERACTION_RECORD = "interaction:record"
+    INTERACTION_READ_ANALYTICS = "interaction:read_analytics"
     TASK_MANAGE = "task:manage"
+    TASK_READ_ANALYTICS = "task:read_analytics"
     CONSENT_READ = "consent:read"
     CONSENT_MANAGE = "consent:manage"
     AVAILABILITY_READ = "availability:read"
@@ -35,6 +37,7 @@ class Capability(StrEnum):
     RESERVATION_RESCHEDULE = "reservation:reschedule"
     SCHEDULE_BLOCK = "schedule:block"
     SCHEDULE_EXPORT = "schedule:export"
+    SCHEDULE_READ_ANALYTICS = "schedule:read_analytics"
     OPERATION_READ = "operation:read"
     OPERATION_MANAGE = "operation:manage"
     OPERATION_EXECUTE = "operation:execute"
@@ -114,6 +117,13 @@ class Capability(StrEnum):
     PORTAL_GRANT_READ = "portal_grant:read"
     PORTAL_GRANT_ISSUE = "portal_grant:issue"
     PORTAL_GRANT_REVOKE = "portal_grant:revoke"
+    PERSON_RESOLVE_ANALYTICS = "person:resolve_analytics"
+    ANALYTICS_READ_DASHBOARD = "analytics:read_dashboard"
+    ANALYTICS_EXECUTE_REPORT = "analytics:execute_report"
+    ANALYTICS_MANAGE_OWN_REPORT = "analytics:manage_own_report"
+    ANALYTICS_MANAGE_SHARED_REPORT = "analytics:manage_shared_report"
+    ANALYTICS_CREATE_EXPORT = "analytics:create_export"
+    ANALYTICS_DOWNLOAD_EXPORT = "analytics:download_export"
 
 
 ROLE_CAPABILITIES: Final = MappingProxyType(
@@ -134,7 +144,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.SALES_MANAGE,
                 Capability.INTERACTION_READ,
                 Capability.INTERACTION_RECORD,
+                Capability.INTERACTION_READ_ANALYTICS,
                 Capability.TASK_MANAGE,
+                Capability.TASK_READ_ANALYTICS,
                 Capability.CONSENT_READ,
                 Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
@@ -144,6 +156,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RESERVATION_RESCHEDULE,
                 Capability.SCHEDULE_BLOCK,
                 Capability.SCHEDULE_EXPORT,
+                Capability.SCHEDULE_READ_ANALYTICS,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
@@ -223,6 +236,13 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PORTAL_GRANT_READ,
                 Capability.PORTAL_GRANT_ISSUE,
                 Capability.PORTAL_GRANT_REVOKE,
+                Capability.PERSON_RESOLVE_ANALYTICS,
+                Capability.ANALYTICS_READ_DASHBOARD,
+                Capability.ANALYTICS_EXECUTE_REPORT,
+                Capability.ANALYTICS_MANAGE_OWN_REPORT,
+                Capability.ANALYTICS_MANAGE_SHARED_REPORT,
+                Capability.ANALYTICS_CREATE_EXPORT,
+                Capability.ANALYTICS_DOWNLOAD_EXPORT,
             }
         ),
         Membership.Role.ADMINISTRATOR: frozenset(
@@ -240,7 +260,9 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.SALES_MANAGE,
                 Capability.INTERACTION_READ,
                 Capability.INTERACTION_RECORD,
+                Capability.INTERACTION_READ_ANALYTICS,
                 Capability.TASK_MANAGE,
+                Capability.TASK_READ_ANALYTICS,
                 Capability.CONSENT_READ,
                 Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
@@ -250,6 +272,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.RESERVATION_RESCHEDULE,
                 Capability.SCHEDULE_BLOCK,
                 Capability.SCHEDULE_EXPORT,
+                Capability.SCHEDULE_READ_ANALYTICS,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
@@ -329,6 +352,13 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PORTAL_GRANT_READ,
                 Capability.PORTAL_GRANT_ISSUE,
                 Capability.PORTAL_GRANT_REVOKE,
+                Capability.PERSON_RESOLVE_ANALYTICS,
+                Capability.ANALYTICS_READ_DASHBOARD,
+                Capability.ANALYTICS_EXECUTE_REPORT,
+                Capability.ANALYTICS_MANAGE_OWN_REPORT,
+                Capability.ANALYTICS_MANAGE_SHARED_REPORT,
+                Capability.ANALYTICS_CREATE_EXPORT,
+                Capability.ANALYTICS_DOWNLOAD_EXPORT,
             }
         ),
         Membership.Role.COMMERCIAL: frozenset(
@@ -341,13 +371,16 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.SALES_MANAGE,
                 Capability.INTERACTION_READ,
                 Capability.INTERACTION_RECORD,
+                Capability.INTERACTION_READ_ANALYTICS,
                 Capability.TASK_MANAGE,
+                Capability.TASK_READ_ANALYTICS,
                 Capability.CONSENT_READ,
                 Capability.CONSENT_MANAGE,
                 Capability.AVAILABILITY_READ,
                 Capability.RESERVATION_CONFIRM,
                 Capability.RESERVATION_RESCHEDULE,
                 Capability.SCHEDULE_EXPORT,
+                Capability.SCHEDULE_READ_ANALYTICS,
                 Capability.OPERATION_READ,
                 Capability.BUSINESS_CONFIGURATION_READ,
                 Capability.VENUE_READ,
@@ -375,6 +408,12 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.PORTAL_GRANT_READ,
                 Capability.PORTAL_GRANT_ISSUE,
                 Capability.PORTAL_GRANT_REVOKE,
+                Capability.PERSON_RESOLVE_ANALYTICS,
+                Capability.ANALYTICS_READ_DASHBOARD,
+                Capability.ANALYTICS_EXECUTE_REPORT,
+                Capability.ANALYTICS_MANAGE_OWN_REPORT,
+                Capability.ANALYTICS_CREATE_EXPORT,
+                Capability.ANALYTICS_DOWNLOAD_EXPORT,
             }
         ),
         Membership.Role.OPERATIONS: frozenset(
@@ -385,6 +424,7 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.AVAILABILITY_READ,
                 Capability.SCHEDULE_BLOCK,
                 Capability.SCHEDULE_EXPORT,
+                Capability.SCHEDULE_READ_ANALYTICS,
                 Capability.OPERATION_READ,
                 Capability.OPERATION_MANAGE,
                 Capability.OPERATION_EXECUTE,
@@ -422,6 +462,11 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.COMMUNICATION_DELIVERY_RETRY,
                 Capability.COMMUNICATION_PREFERENCE_READ,
                 Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+                Capability.ANALYTICS_READ_DASHBOARD,
+                Capability.ANALYTICS_EXECUTE_REPORT,
+                Capability.ANALYTICS_MANAGE_OWN_REPORT,
+                Capability.ANALYTICS_CREATE_EXPORT,
+                Capability.ANALYTICS_DOWNLOAD_EXPORT,
             }
         ),
         Membership.Role.FINANCE: frozenset(
@@ -472,6 +517,11 @@ ROLE_CAPABILITIES: Final = MappingProxyType(
                 Capability.COMMUNICATION_DELIVERY_RETRY,
                 Capability.COMMUNICATION_PREFERENCE_READ,
                 Capability.COMMUNICATION_PREFERENCE_SUPPRESS,
+                Capability.ANALYTICS_READ_DASHBOARD,
+                Capability.ANALYTICS_EXECUTE_REPORT,
+                Capability.ANALYTICS_MANAGE_OWN_REPORT,
+                Capability.ANALYTICS_CREATE_EXPORT,
+                Capability.ANALYTICS_DOWNLOAD_EXPORT,
             }
         ),
     }

@@ -11,6 +11,7 @@ from claridez.identity.models import User
 from claridez.organizations.tenant_scope import TenantAuthorization
 
 from . import services as _services
+from .analytics import fetch_analytics_metrics
 from .errors import ResourcesError
 
 
@@ -189,6 +190,7 @@ def receipt_line_for_finance(
 transfer_assignments_authorized = _services.transfer_assignments_authorized
 
 __all__ = (
+    "fetch_analytics_metrics",
     "ReceiptLineProjection",
     "OperationalAssignmentProjection",
     "OperationalRequirementProjection",

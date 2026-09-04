@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from claridez.commercial.public import client_event_request
 from claridez.people.public import canonical_person_id
 
+from .analytics import fetch_analytics_metrics
 from .models import Interaction
 
 APPROVED_COMMUNICATION_PURPOSES = frozenset({"capture_acknowledgement"})
@@ -72,4 +73,4 @@ def record_communication_interaction(
         raise CrmPortError("La referencia semántica ya fue usada con otros datos.") from None
 
 
-__all__ = ("CrmPortError", "record_communication_interaction")
+__all__ = ("CrmPortError", "fetch_analytics_metrics", "record_communication_interaction")

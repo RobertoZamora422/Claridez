@@ -30,6 +30,12 @@ ROLE_SPECIFICATIONS: dict[str, dict[str, bool]] = {
     "claridez_test_runner": {"rolsuper": False, "rolcreatedb": True},
 }
 APPEND_ONLY_TABLE_PREFIXES = (
+    "analytics_reportrevision",
+    "analytics_reportexecution",
+    "analytics_executionmanifest",
+    "analytics_exportattempt",
+    "analytics_exportartifact",
+    "analytics_analyticsauditevent",
     "finance_",
     "resources_stockmovement",
     "resources_resourceevent",
@@ -51,8 +57,9 @@ APPEND_ONLY_TABLE_PREFIXES = (
     "operations_posteventclose",
     "operations_posteventclosecorrection",
     "operations_operationcommand",
+    "operations_preparationanalyticsstate",
 )
-NO_DELETE_TABLE_PREFIXES = ("resources_",)
+NO_DELETE_TABLE_PREFIXES = ("resources_", "analytics_")
 NO_DELETE_TABLES = {
     "organizations_organization",
     "organizations_membership",

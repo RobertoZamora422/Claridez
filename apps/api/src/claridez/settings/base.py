@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "claridez.finance.apps.FinanceConfig",
     "claridez.communications.apps.CommunicationsConfig",
     "claridez.portal.apps.PortalConfig",
+    "claridez.analytics.apps.AnalyticsConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -97,6 +98,9 @@ PORTAL_SESSION_IDLE_TTL_SECONDS = 30 * 60
 PORTAL_SESSION_ABSOLUTE_TTL_SECONDS = 8 * 60 * 60
 PORTAL_EPHEMERAL_LOCATOR_TTL_SECONDS = 15 * 60
 COMMUNICATIONS_WORKER_LEASE_SECONDS = 120
+ANALYTICS_STORAGE_ROOT = BASE_DIR.parents[1] / ".runtime" / "analytics"
+ANALYTICS_EXPORT_LEASE_SECONDS = 180
+ANALYTICS_EXPORT_TIMEOUT_SECONDS = 120
 COMMUNICATIONS_WEBHOOK_REPLAY_SECONDS = 5 * 60
 COMMUNICATIONS_PROVIDER = "deterministic"
 PORTAL_EXPOSE_TEST_CHALLENGE_CODE = False
@@ -133,6 +137,12 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
+        "AnalyticsCoverage": "claridez.analytics.serializers.COVERAGE_CHOICES",
+        "AnalyticsMetricValueStatus": "claridez.analytics.serializers.VALUE_STATUS_CHOICES",
+        "AnalyticsTemporalMode": "claridez.analytics.serializers.TEMPORAL_MODE_CHOICES",
+        "AnalyticsExportState": "claridez.analytics.models.ExportJob.State",
+        "AnalyticsExportFormat": "claridez.analytics.models.ExportJob.Format",
+        "AnalyticsReportVisibility": "claridez.analytics.models.ReportRevision.Visibility",
         "OperationPreparationStatus": ("claridez.operations.models.EventPreparation.Status"),
         "OperationItemStatus": "claridez.operations.models.PreparationItem.Status",
         "OperationalVerificationResolutionStatus": (

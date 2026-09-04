@@ -311,6 +311,37 @@ EXPECTED_MATRIX[Membership.Role.FINANCE].update(
 )
 
 
+P15_ANALYTICS_PERSONAL = {
+    Capability.ANALYTICS_READ_DASHBOARD,
+    Capability.ANALYTICS_EXECUTE_REPORT,
+    Capability.ANALYTICS_MANAGE_OWN_REPORT,
+    Capability.ANALYTICS_CREATE_EXPORT,
+    Capability.ANALYTICS_DOWNLOAD_EXPORT,
+}
+P15_CRM_PEOPLE = {
+    Capability.INTERACTION_READ_ANALYTICS,
+    Capability.TASK_READ_ANALYTICS,
+    Capability.PERSON_RESOLVE_ANALYTICS,
+}
+EXPECTED_MATRIX[Membership.Role.OWNER].update(
+    P15_ANALYTICS_PERSONAL
+    | P15_CRM_PEOPLE
+    | {Capability.ANALYTICS_MANAGE_SHARED_REPORT, Capability.SCHEDULE_READ_ANALYTICS}
+)
+EXPECTED_MATRIX[Membership.Role.ADMINISTRATOR].update(
+    P15_ANALYTICS_PERSONAL
+    | P15_CRM_PEOPLE
+    | {Capability.ANALYTICS_MANAGE_SHARED_REPORT, Capability.SCHEDULE_READ_ANALYTICS}
+)
+EXPECTED_MATRIX[Membership.Role.COMMERCIAL].update(
+    P15_ANALYTICS_PERSONAL | P15_CRM_PEOPLE | {Capability.SCHEDULE_READ_ANALYTICS}
+)
+EXPECTED_MATRIX[Membership.Role.OPERATIONS].update(
+    P15_ANALYTICS_PERSONAL | {Capability.SCHEDULE_READ_ANALYTICS}
+)
+EXPECTED_MATRIX[Membership.Role.FINANCE].update(P15_ANALYTICS_PERSONAL)
+
+
 def test_capability_catalog_is_exact_and_closed() -> None:
     assert {capability.value for capability in Capability} == {
         "organization:access",
@@ -416,6 +447,16 @@ def test_capability_catalog_is_exact_and_closed() -> None:
         "portal_grant:read",
         "portal_grant:issue",
         "portal_grant:revoke",
+        "analytics:read_dashboard",
+        "analytics:execute_report",
+        "analytics:manage_own_report",
+        "analytics:manage_shared_report",
+        "analytics:create_export",
+        "analytics:download_export",
+        "interaction:read_analytics",
+        "task:read_analytics",
+        "person:resolve_analytics",
+        "schedule:read_analytics",
     }
 
 

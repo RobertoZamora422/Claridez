@@ -76,6 +76,30 @@ services:
     command: ["--max-seconds", "86400"]
     stop_grace_period: 30s
 
+  analytics-worker:
+    build:
+      context: .
+      dockerfile: apps/api/docker/render-worker.Dockerfile
+    image: claridez/analytics-worker:p15-local
+    platform: linux/amd64
+    container_name: claridez-analytics-worker-local
+    profiles: ["analytics"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CLARIDEZ_DB_HOST: postgres
+      CLARIDEZ_DB_PORT: 5432
+      CLARIDEZ_ANALYTICS_RENDERER_ENVIRONMENT: claridez-analytics-weasyprint-69.0-debian12-v1
+    volumes:
+      - ./.runtime/analytics:/workspace/.runtime/analytics
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["python", "manage.py", "analytics_worker", "--settings=claridez.settings.analytics_worker"]
+    command: ["--max-seconds", "86400"]
+    stop_grace_period: 30s
+
 volumes:
   claridez_postgres17_data:
     name: claridez_postgres17_data
