@@ -65,6 +65,7 @@ Un ADR no debe presentar un asunto provisional, diferido o pendiente de spike co
 | [0021](0021-resources-supply-inventory-and-financial-provenance-integrity.md)  | Aceptado                            | Autoridad de resources, abastecimiento e integridad P12      |
 | [0022](0022-advanced-operations-plans-and-execution-integrity.md)              | Aceptado                            | Operación avanzada, planes e integridad de ejecución P13     |
 | [0023](0023-external-client-experience-communications-and-portal-integrity.md) | Aceptado                            | Experiencia externa, comunicaciones y portal P14             |
+| [0024](0024-analytics-reporting-and-exports.md)                                | Aceptado                            | Analítica, reportes y exportaciones P15                       |
 
 ## Modificación y reemplazo
 

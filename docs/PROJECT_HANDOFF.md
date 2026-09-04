@@ -1,9 +1,9 @@
 # Claridez — Handoff del proyecto
 
-- **Fecha de corte:** 2 de septiembre de 2026
+- **Fecha de corte:** 3 de septiembre de 2026
 - **Etapa funcional activa:** ninguna; P14 está cerrada localmente bajo ADR 0023
-- **Siguiente etapa:** planificación de P15 — Analítica, reportes y exportaciones; su
-  implementación requiere aprobación explícita
+- **Siguiente paso:** revisión de ADR 0024; P15 — Analítica, reportes y exportaciones permanece
+  pendiente y su implementación requiere aprobación explícita
 
 ## Qué es Claridez
 
@@ -106,6 +106,9 @@ proveedores productivos de almacenamiento/correo/WhatsApp/identidad, staging o p
 - ADR 0023 gobierna P14: dos módulos técnicos para un único dominio funcional, identidad Portal
   separada de grants, captación tenant-safe y outbox PostgreSQL transversal. La implementación
   local preserva las autoridades fuente y no reutiliza el ORM ni el estado externo de Documents.
+- ADR 0024 acepta la arquitectura P15 con una única frontera `claridez.analytics`, fórmulas
+  source-owned en sus dominios, composición transversal versionada, puertos batch y `ExportJob`
+  tenant-aware propio. P15 continúa sin implementación y no está autorizada.
 - P14 incorpora captación estructurada hacia la persona canónica y `EventRequest`, consentimiento
   externo con procedencia verificable, disponibilidad pública booleana informativa, propuesta
   comercial de lectura, agenda/documentos/aceptación/saldo mediante puertos tipados y recordatorios
@@ -407,6 +410,9 @@ proveedores productivos de almacenamiento/correo/WhatsApp/identidad, staging o p
 - Experiencia externa P14, límites de Communications/Portal, resolución pública tenant-safe,
   principal/grants externos, integración documental y outbox transversal: ADR 0023; implementado
   y validado localmente.
+- Arquitectura P15 de Analytics, contratos métricos versionados, fórmulas source-owned, reportes,
+  exports, autorización conjuntiva y worker tenant-aware: ADR 0024; implementación pendiente y no
+  autorizada.
 - Comportamiento exacto implementado: especificaciones 5.1, 5.2, P8 y contratos funcionales P11 y
   P13. P9 se rige por ADR 0017–0018, Roadmap y el plan consolidado aprobado.
 - Destino funcional completo y secuencia: Blueprint y Roadmap.
@@ -519,8 +525,9 @@ falta.
 ## Próximo trabajo
 
 P14 — Formularios, comunicaciones y portal está cerrada y validada localmente bajo ADR 0023. La
-siguiente etapa exacta es preparar el plan breve de **P15 — Analítica, reportes y exportaciones**.
-P15 permanece pendiente y su implementación no está autorizada.
+arquitectura de **P15 — Analítica, reportes y exportaciones** está aceptada bajo ADR 0024. El
+siguiente paso exacto es revisar ese ADR; P15 permanece pendiente y su implementación no está
+autorizada.
 
 ## Riesgos actuales
 

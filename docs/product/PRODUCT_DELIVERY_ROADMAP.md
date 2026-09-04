@@ -671,7 +671,7 @@ cliente y datos sensibles en mensajes/logs.
 
 **Identificador y nombre:** P15 — Centro de control e indicadores.
 
-**Estado:** Pendiente.
+**Estado:** Pendiente; arquitectura aceptada bajo ADR 0024, implementación todavía no autorizada.
 
 **Objetivo:** Convertir la verdad transaccional completa en decisiones comerciales, operativas y
 financieras verificables.
@@ -683,8 +683,10 @@ CSV/XLSX/PDF según necesidad; exportaciones asíncronas y auditadas.
 **Exclusiones:** Data warehouse anticipado, BI arbitrario, predicciones con IA y métricas sin dueño
 o definición.
 
-**Dependencias:** P14 y todos los dominios fuente; presupuestos de consulta y ADR si se adopta una
-plataforma analítica separada.
+**Dependencias:** P14 y todos los dominios fuente. ADR 0024 gobierna la frontera única
+`claridez.analytics`, fórmulas source-owned, tiempo de conocimiento, puertos batch, reportes y
+`ExportJob`; no autoriza implementación. Un read model, caché, materialización o plataforma
+analítica separada exigiría evidencia de rendimiento y otra decisión arquitectónica.
 
 **Resultado visible:** Cada perfil ve prioridades y resultados consistentes y puede exportar solo
 su ámbito autorizado.
